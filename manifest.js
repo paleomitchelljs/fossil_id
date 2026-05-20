@@ -28,6 +28,38 @@ const SITES = [
     formation: "Cedar Valley Group — Coralville / Little Cedar Fms",
     location: "Johnson Co., eastern Iowa",
     blurb: "Givetian Cedar Valley fauna — large atrypid brachiopods (Pseudoatrypa lineata, Spinatrypa bellula), the Allanella allani zone fauna, colonial rugose corals, and abundant crinoid columnals."
+  },
+  {
+    id: "graf",
+    title: "Graf section",
+    subtitle: "Late Ordovician (Cincinnatian)",
+    formation: "Maquoketa Group — Elgin / Clermont / Brainard Mbrs",
+    location: "Graf, Dubuque Co., eastern Iowa",
+    blurb: "Diverse Late Ordovician fauna: crinoids (Carabocrinus, Cupulocrinus, Dendrocrinus, Porocrinus), cystoids (Iowacystis), small brachiopods, nautiloid orthocones, ostracods, bryozoans."
+  },
+  {
+    id: "elgin-clement",
+    title: "Elgin-Clement trilobite sites",
+    subtitle: "Late Ordovician (Cincinnatian)",
+    formation: "Maquoketa Group — Elgin Member",
+    location: "Northeast Iowa (Fayette/Winneshiek Co.)",
+    blurb: "Famous trilobite-bearing Maquoketa exposures: Isotelus and other asaphids, plus brachiopods (Plaesiomys, Thaerodonta, Megamyonia), rugose horn corals (Grewingkia), orthocone nautiloids."
+  },
+  {
+    id: "maquoketa-caves",
+    title: "Maquoketa Caves limestones",
+    subtitle: "Silurian (Llandovery–Wenlock)",
+    formation: "Hopkinton Dolomite (Maquoketa Caves State Park, Iowa)",
+    location: "Maquoketa Caves State Park, Jackson Co., eastern Iowa",
+    blurb: "Silurian carbonate fauna in cave-bearing dolomite: brachiopods, tabulate corals (Halysites, Favosites), large Eucalyptocrinites crinoids. (Stratigraphy assignment provisional — confirm before relying on it.)"
+  },
+  {
+    id: "anamosa",
+    title: "Anamosa limestone",
+    subtitle: "Late Silurian (Wenlock)",
+    formation: "Scotch Grove Formation — Anamosa Member",
+    location: "Anamosa, Jones Co., eastern Iowa",
+    blurb: "Late Silurian carbonate sequence: Atrypa reticularis, pentamerid (Costistricklandia), chain corals (Halysites), honeycomb corals (Favosites), Calymene trilobites, large Eucalyptocrinites crinoids."
   }
 ];
 
@@ -417,6 +449,97 @@ const FAUNA = [
                       fold_sulcus: "absent", outline: "elongate-oval", size: "small", umbones: "smooth" },
             images: [] }
         ]
+      },
+
+      // -------- Ordovician (Maquoketa) + Silurian (Anamosa) stubs --------
+      // No traits yet — they stay in candidate lists until tagged. PBDB ranks per site
+      // in data/pbdb_new_sites/.
+      {
+        id: "ord-orthids",
+        title: "Ordovician orthid brachiopods",
+        blurb: "Maquoketa Group orthids — Cincinnatian Iowa.",
+        taxa: [
+          { genus: "Plaesiomys", species: "subquadrata", sites: ["graf", "elgin-clement"],
+            note: "Common Ordovician orthid in the Maquoketa Group. PBDB top taxon at Elgin (3 records).",
+            images: [] },
+          { genus: "Paucicrura", species: "corpulenta", sites: ["graf", "elgin-clement"],
+            note: "Small Ordovician orthid; reported from Elgin Mbr.",
+            images: [] }
+        ]
+      },
+      {
+        id: "ord-strophomenids",
+        title: "Ordovician strophomenid brachiopods",
+        blurb: "Maquoketa Group strophomenides.",
+        taxa: [
+          { genus: "Megamyonia", species: "unicostata", sites: ["graf", "elgin-clement"],
+            note: "Common Ordovician strophomenid (PBDB: 4 records at Graf, 2 at Elgin).",
+            images: [] },
+          { genus: "Thaerodonta", species: "saxea", sites: ["elgin-clement"],
+            note: "Strophomenid in the Elgin Mbr.",
+            images: [] }
+        ]
+      },
+      {
+        id: "sil-brachs",
+        title: "Silurian brachiopods (Anamosa fauna)",
+        blurb: "Late Silurian carbonate brachiopods of the Anamosa Mbr / Hopkinton Dolomite.",
+        taxa: [
+          { genus: "Atrypa", species: "reticularis", sites: ["anamosa", "maquoketa-caves"],
+            note: "Classic Silurian atrypid — globose, ribbed, with concentric growth lamellae. PBDB: 11 records at Anamosa.",
+            images: [] },
+          { genus: "Costistricklandia", species: "castellana", sites: ["anamosa"],
+            note: "Late Silurian pentamerid — globose, with strong median fold. PBDB: 11 records.",
+            images: [] },
+          { genus: "Ferganella", species: "sp.", sites: ["anamosa"],
+            note: "Silurian rhynchonellid. PBDB: 13 records.",
+            images: [] },
+          { genus: "Resserella", species: "sp.", sites: ["anamosa"],
+            note: "Silurian orthid. PBDB: 9 records.",
+            images: [] },
+          { genus: "Isorthis", species: "sp.", sites: ["anamosa"],
+            note: "Silurian orthid. PBDB: 9 records.",
+            images: [] }
+        ]
+      }
+    ]
+  },
+
+  // ========== Trilobites (Ordovician + Silurian sites) ==========
+  {
+    id: "trilobites",
+    title: "Trilobites",
+    blurb: "Three-lobed arthropods. Found in Ordovician Maquoketa exposures (Elgin) and Silurian Anamosa beds.",
+    subgroups: [
+      {
+        id: "asaphids",
+        title: "Asaphid trilobites",
+        blurb: "Large, oval-outlined trilobites with smooth or weakly furrowed glabellae.",
+        taxa: [
+          { genus: "Isotelus", species: "sp.", sites: ["elgin-clement"],
+            note: "Large Ordovician asaphid trilobite — the classic Iowa Maquoketa trilobite. PBDB: 2 records at Elgin.",
+            images: [] }
+        ]
+      },
+      {
+        id: "calymenids",
+        title: "Calymenid trilobites",
+        blurb: "Medium-sized trilobites with strongly furrowed glabella and many thoracic segments.",
+        taxa: [
+          { genus: "Calymene", species: "sp.", sites: ["anamosa"],
+            note: "Common Silurian calymenid. PBDB: 11 records at Anamosa.",
+            images: [] }
+        ]
+      },
+      {
+        id: "corynexochids",
+        title: "Corynexochid trilobites",
+        blurb: "Trilobites with elongate glabella reaching the anterior border.",
+        taxa: [
+          { genus: "Stenopareia", species: "sp.", sites: ["anamosa"],
+            note: "Silurian corynexochid (likely Bumastella-related). PBDB: 11 records.",
+            images: [] }
+        ]
       }
     ]
   },
@@ -449,6 +572,25 @@ const FAUNA = [
             images: [] },
           { genus: "Hexagonaria", species: "sp.", sites: ["crawford"],
             note: "Colonial rugose coral — typical 'honeycomb' polygonal corallites in cross-section. Common in Cedar Valley Group of Iowa.",
+            images: [] },
+          { genus: "Grewingkia", species: "sp.", sites: ["elgin-clement"],
+            note: "Common Ordovician horn coral in the Maquoketa Group.",
+            images: [] }
+        ]
+      },
+      {
+        id: "tabulate",
+        title: "Tabulate corals",
+        blurb: "Colonial corals with horizontal partitions (tabulae) and no/very simple septa. Dominant Silurian corals at Anamosa.",
+        taxa: [
+          { genus: "Halysites", species: "sp.", sites: ["anamosa", "maquoketa-caves"],
+            note: "'Chain coral' — corallites linked end-to-end in chain-like rows when viewed in cross-section. Silurian diagnostic. PBDB top coral at Anamosa (17 records).",
+            images: [] },
+          { genus: "Favosites", species: "sp.", sites: ["anamosa", "maquoketa-caves"],
+            note: "'Honeycomb coral' — polygonal corallites packed tightly together in a colony. PBDB: 13 records at Anamosa.",
+            images: [] },
+          { genus: "Heliolites", species: "sp.", sites: ["anamosa"],
+            note: "Tabulate coral with small corallites separated by coenenchyme (mesh-like tissue between).",
             images: [] }
         ]
       }
@@ -502,6 +644,16 @@ const FAUNA = [
               { file: "large_assorted_dave_01.jpg", src: "dave" }
             ] }
         ]
+      },
+      {
+        id: "cephalopods",
+        title: "Cephalopods",
+        blurb: "Chambered shells with internal septa. Ordovician/Silurian Iowa fauna has both orthocone (straight) and coiled forms.",
+        taxa: [
+          { genus: "Isorthoceras", species: "sociale", sites: ["elgin-clement"],
+            note: "Straight (orthocone) Ordovician nautiloid in the Maquoketa Group. PBDB: 2 records at Elgin.",
+            images: [] }
+        ]
       }
     ]
   },
@@ -520,7 +672,26 @@ const FAUNA = [
             note: "Stem discs and segments; star-shaped lumen common.",
             images: [
               { file: "columnals_dave_01.jpg", src: "dave" }
-            ] }
+            ] },
+          { genus: "Cupulocrinus", species: "angustatus", sites: ["graf"],
+            note: "Common Ordovician crinoid in the Maquoketa Group at Graf. Cupulate calyx.",
+            images: [] },
+          { genus: "Carabocrinus", species: "slocomi", sites: ["graf"],
+            note: "Porocrinid crinoid — Maquoketa Group, Graf area. Top PBDB taxon at Graf (7 records).",
+            images: [] },
+          { genus: "Eucalyptocrinites", species: "ornatus", sites: ["anamosa"],
+            note: "Large Silurian camerate crinoid with characteristic cup-like calyx. PBDB: 10 records at Anamosa.",
+            images: [] }
+        ]
+      },
+      {
+        id: "cystoids",
+        title: "Cystoids",
+        blurb: "Plated echinoderms with pore-rhomb breathing structures; mostly Ordovician.",
+        taxa: [
+          { genus: "Iowacystis", species: "sagittaria", sites: ["graf"],
+            note: "Distinctive Ordovician cystoid (Maquoketa Group, Graf area). PBDB: 4 records.",
+            images: [] }
         ]
       }
     ]

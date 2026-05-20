@@ -1,0 +1,7 @@
+{
+"elapsed_time":0.778,
+"records": [
+{"oid":"occ:258196","cid":"col:25020","idn":"Leperditiidae indet.","tna":"Leperditiidae","rnk":9,"tid":"txn:142248","oei":"Wenlock","oli":"Ludlow","eag":432.9,"lag":422.7,"rid":"ref:7006","idg":"Leperditiidae","ids":"indet.","cnm":"Leperditiid Community, Gower Formation, eastern Iowa","sfm":"Gower","smb":"Anamosa","lng":"-91.349998","lat":"42.116669","phl":"Arthropoda","cll":"Ostracoda","odl":"Leperditicopida","fml":"Leperditiidae"},
+{"oid":"occ:258197","cid":"col:25020","idn":"Plethomytilus sp.","iid":"txn:57907","tdf":"species not entered","tna":"Mytilarca","rnk":5,"tid":"txn:16833","oei":"Wenlock","oli":"Ludlow","eag":432.9,"lag":422.7,"rid":"ref:7006","idg":"Plethomytilus","ids":"sp.","cnm":"Leperditiid Community, Gower Formation, eastern Iowa","sfm":"Gower","smb":"Anamosa","lng":"-91.349998","lat":"42.116669","phl":"Mollusca","cll":"Bivalvia","odl":"Myalinida","fml":"Ambonychiidae","gnl":"Mytilarca"}
+]
+}
