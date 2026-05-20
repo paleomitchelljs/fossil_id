@@ -817,22 +817,23 @@ const QUESTIONS = [
       { value: "no",  label: "No — smooth (or only growth lines)", setsTraitTo: "no"  }
     ] },
 
-  // Profile: 2-question chain. concavo first (productid splitter), then plano vs biconvex.
-  { id: "profile_concavo", trait: "profile", core: true,
-    text: "Look at the shell from the side. Is one valve clearly dish-shaped (curved inward), while the other bulges outward?",
+  // Profile: visual multi-pick. Side-view silhouettes of the three main profiles
+  // students will encounter in Iowa Devonian brachiopods.
+  { id: "profile_pick", trait: "profile", core: true,
+    text: "Look at the shell from the side. Which profile is closest?",
     figure: "ukyProfiles",
+    hint: "Both valves bulge outward = biconvex (most brachiopods). One flat, one curved = plano-convex. One dish-shaped (curves inward), other bulges = concavo-convex (productids + strophomenids).",
+    optionsLayout: "visual",
     options: [
-      { value: "yes", label: "Yes — one valve dished, one bulges",   setsTraitTo: "concavo-convex" },
-      { value: "no",  label: "No — both valves curve outward (or close to it)" }
-    ] },
-
-  { id: "profile_plano", trait: "profile",
-    when: a => a.profile_concavo === "no",
-    text: "Is one valve flat (or nearly flat) and the other bulges out?",
-    figure: "ukyProfiles",
-    options: [
-      { value: "yes", label: "Yes — one flat, one bulges",  setsTraitTo: "plano-convex" },
-      { value: "no",  label: "No — both valves bulge",       setsTraitTo: "biconvex"     }
+      { value: "biconvex", setsTraitTo: "biconvex",
+        label: "Biconvex — both valves bulge outward",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><path d="M 8,30 Q 50,3 92,30 Q 50,57 8,30 Z" fill="white" stroke="black" stroke-width="2.5" stroke-linejoin="round"/></svg>' },
+      { value: "plano-convex", setsTraitTo: "plano-convex",
+        label: "Plano-convex — one flat, one bulges",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><path d="M 8,30 Q 50,3 92,30 L 8,30 Z" fill="white" stroke="black" stroke-width="2.5" stroke-linejoin="round"/></svg>' },
+      { value: "concavo-convex", setsTraitTo: "concavo-convex",
+        label: "Concavo-convex — one dish-shaped, one bulges",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><path d="M 8,30 Q 50,3 92,30 Q 50,22 8,30 Z" fill="white" stroke="black" stroke-width="2.5" stroke-linejoin="round"/></svg>' }
     ] },
 
   { id: "hinge", trait: "hinge", core: true,
@@ -847,7 +848,7 @@ const QUESTIONS = [
   // ============== BRANCHING FOLLOW-UPS ==============
 
   { id: "spines", trait: "spines",
-    when: a => a.profile_concavo === "yes",
+    when: a => a.profile_pick === "concavo-convex",
     text: "Are there spines, or visible bumps where spines used to be attached?",
     hint: "Productids carry stout, solid spines that usually broke off, leaving little bumps on the shell surface.",
     options: [
