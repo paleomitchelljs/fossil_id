@@ -459,15 +459,26 @@ function viewFilter(sid, answers) {
     return `${siteBase(sid)}/filter?${encodeAnswers(newAnswers)}`;
   };
 
-  const options = el("div", { class: "key-options" }, [
-    ...q.options.map(opt => el("a", { class: "key-option", href: optionLink(opt.value) }, [
-      el("span", { class: "ko-label" }, opt.label),
-      opt.hint ? el("span", { class: "ko-hint" }, opt.hint) : null
-    ])),
-    el("a", { class: "key-option key-option-skip", href: optionLink("_skip") }, [
-      el("span", { class: "ko-label" }, "Not sure — skip this question")
-    ])
-  ]);
+  const options = q.optionsLayout === "visual"
+    ? el("div", { class: "key-options-visual" }, [
+        ...q.options.map(opt => el("a", { class: "key-option-visual", href: optionLink(opt.value) }, [
+          el("div", { class: "kov-svg", html: opt.svg || "" }),
+          el("div", { class: "kov-label" }, opt.label)
+        ])),
+        el("a", { class: "key-option-visual key-option-skip-visual", href: optionLink("_skip") }, [
+          el("div", { class: "kov-svg kov-skip-icon" }, "?"),
+          el("div", { class: "kov-label" }, "Not sure — skip")
+        ])
+      ])
+    : el("div", { class: "key-options" }, [
+        ...q.options.map(opt => el("a", { class: "key-option", href: optionLink(opt.value) }, [
+          el("span", { class: "ko-label" }, opt.label),
+          opt.hint ? el("span", { class: "ko-hint" }, opt.hint) : null
+        ])),
+        el("a", { class: "key-option key-option-skip", href: optionLink("_skip") }, [
+          el("span", { class: "ko-label" }, "Not sure — skip this question")
+        ])
+      ]);
 
   const answeredCount = Object.keys(answers).length;
   const resultsHref = `${siteBase(sid)}/filter/results?${encodeAnswers(answers)}`;

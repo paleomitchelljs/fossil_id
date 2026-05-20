@@ -437,6 +437,59 @@ img { max-width: 100%; display: block; }
 }
 .key-option-skip .ko-label { font-weight: 500; color: var(--muted); }
 
+/* Visual multi-pick layout (for outline / profile / fold) */
+.key-options-visual {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+.key-option-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--card-bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 0.7rem 0.5rem 0.6rem;
+  color: inherit;
+  min-height: var(--tap);
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+.key-option-visual:active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.kov-svg {
+  width: 100%;
+  max-width: 140px;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kov-svg svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+}
+.kov-label {
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.key-option-skip-visual {
+  border-style: dashed;
+}
+.kov-skip-icon {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .answer-summary {
   margin: 0 0 1rem;
   font-size: 0.85rem;

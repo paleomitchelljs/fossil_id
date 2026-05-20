@@ -874,26 +874,23 @@ const QUESTIONS = [
       { value: "no",  label: "Subtle — only visible when you look closely", setsTraitTo: "weak"   }
     ] },
 
-  // Outline: 2-question chain. Wings first (spiriferids), then elongate (terebratulids).
-  // All "no" → default to subcircular (the catch-all for round/oval atrypids/orthids/etc.).
-  { id: "outline_wings", trait: "outline",
+  // Outline: visual multi-pick — student taps the silhouette closest to their shell.
+  // SVG silhouettes drawn inline; black outline on white, top-down view.
+  { id: "outline_pick", trait: "outline",
     when: a => a.ribs !== undefined,
-    text: "Are there pointed extensions sticking out to the sides at the back of the shell, making it look wing-like?",
-    figure: "ukyOutlines",
-    hint: "Compare to the figure: 'alate' (winged) is the rightmost outline in the bottom row. Spiriferids typically look like this.",
+    text: "Which outline looks closest to your shell (top-down view, with the hinge at the back)?",
+    hint: "Pick the closest match. Pointed 'wings' to the sides → spiriferid. Tall and narrow → terebratulid. Round/squat → most other brachiopods.",
+    optionsLayout: "visual",
     options: [
-      { value: "yes", label: "Yes — clear wing-like points to the sides", setsTraitTo: "wing-shaped" },
-      { value: "no",  label: "No — sides are rounded or flat" }
-    ] },
-
-  { id: "outline_elong", trait: "outline",
-    when: a => a.outline_wings === "no",
-    text: "Is the shell clearly longer (front-to-back) than it is wide (side-to-side)?",
-    figure: "ukyOutlines",
-    hint: "Compare to 'elongate' and 'elliptical (oval)' in the figure — both are L > W.",
-    options: [
-      { value: "yes", label: "Yes — egg-shaped or elongate",     setsTraitTo: "elongate-oval" },
-      { value: "no",  label: "No — about as long as wide, or wider", setsTraitTo: "subcircular"  }
+      { value: "wing-shaped", setsTraitTo: "wing-shaped",
+        label: "Winged (alate) — pointed extensions to the sides",
+        svg: '<svg viewBox="0 0 120 70" xmlns="http://www.w3.org/2000/svg"><path d="M 60,5 L 65,12 L 115,15 L 95,45 L 60,65 L 25,45 L 5,15 L 55,12 Z" fill="white" stroke="black" stroke-width="2.5" stroke-linejoin="round"/></svg>' },
+      { value: "subcircular", setsTraitTo: "subcircular",
+        label: "Round — about as wide as tall",
+        svg: '<svg viewBox="0 0 100 70" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="35" rx="35" ry="30" fill="white" stroke="black" stroke-width="2.5"/></svg>' },
+      { value: "elongate-oval", setsTraitTo: "elongate-oval",
+        label: "Egg-shaped / elongate — clearly taller than wide",
+        svg: '<svg viewBox="0 0 70 90" xmlns="http://www.w3.org/2000/svg"><ellipse cx="35" cy="45" rx="22" ry="38" fill="white" stroke="black" stroke-width="2.5"/></svg>' }
     ] },
 
   // Size: 2-question chain.
