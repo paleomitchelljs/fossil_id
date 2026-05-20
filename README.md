@@ -140,13 +140,55 @@ const FIGURES = {
 - To add a figure to the References gallery, just register it in `FIGURES` — it shows up automatically.
 - **Attribution:** the shipped diagrams are by Page Quinton & Michael Rygel (CC BY); see `images/reference/source.txt`. Brachiopod morphology text & diagrams in the key were informed by [Geological Digressions — Brachiopod morphology for sedimentologists](https://www.geological-digressions.com/brachiopod-morphology-for-sedimentologists/); cite if you incorporate further material from it.
 
-### Add or rewire a key question
+### Identification system — two stages
 
-The key lives in the `KEY` constant at the bottom of `manifest.js`. The current key is a single-trait binary tree.
-- A node has `question`, optional `figure` (a `FIGURES` key), optional `hint`, and `options`.
-- Each option has a `label` and either `next: "<nodeId>"` (advance) or `result: { subgroups: [...] }` (terminate).
-- Result subgroup IDs must match `id` fields under `FAUNA[*].subgroups`.
-- **Style rule:** one question = one observation. Compound questions ("globose with a single sharp keel down the middle") are slower for students; decompose into per-trait nodes.
+**Stage 1 — KEY** (`manifest.js → KEY`): short binary chain that handles phylum / gross shape. Routes corals, crinoids, gastropods, etc. to subgroups. Brachiopod paths terminate with `result: { filter: "brachiopod" }` which hands off to:
+
+**Stage 2 — Trait filter** (`TRAITS` + `QUESTIONS` + per-taxon `traits`): a wizard that asks 3 core questions first (ribs / profile / hinge) and then conditional follow-ups gated by `when(answers)` predicates. Each step shows the candidate count; the candidates page tallies subgroup matches (group-level guesses) and shows a "Best match" card when exactly one species matches. URL accumulates answers as a query string (`#/site/<sid>/filter?ribs=yes&profile=biconvex`) — bookmarkable and browser-back-friendly.
+
+#### Stage 1 — add or rewire a KEY question
+
+A node has `question`, optional `figure` (a `FIGURES` key), optional `hint`, and `options`. Each option has a `label` and either `next: "<nodeId>"` (advance), `result: { subgroups: [...] }` (terminate at a subgroup result), or `result: { filter: "brachiopod" }` (hand off to the trait filter).
+
+#### Stage 2 — add a trait question
+
+1. (Optional) add a new key to `TRAITS` with a display `label`.
+2. Append an entry to `QUESTIONS`:
+   ```js
+   { id: "umbones", trait: "umbones",
+     when: a => a.hinge === "astrophic" && a.outline === "triangular",
+     text: "Are the umbones ribbed or smooth?",
+     options: [
+       { value: "ribbed", label: "Ribbed" },
+       { value: "smooth", label: "Smooth" }
+     ] }
+   ```
+   Set `core: true` to always ask. Otherwise `when(answers)` is a predicate over prior answers — that's the "tree-like" branching.
+3. Tag the relevant taxa under their `traits: {…}` map.
+
+#### Tag a taxon
+
+```js
+{ genus: "Cyrtospirifer", species: "whitneyi", sites: ["rockford"],
+  note: "…",
+  traits: {
+    ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent",
+    fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed"
+  },
+  images: [ … ] }
+```
+
+- A value can be a string (`"strophic"`) or array (`["strophic", "astrophic"]`) when the taxon is observably ambiguous.
+- **Omitting a trait** = "no constraint": the taxon stays in candidate lists regardless of the student's answer for that trait. Use this when you genuinely don't know.
+- **No shoe-horning:** brand-new taxa stay out of candidate lists until traits are added.
+- **Clade-level inference is emergent:** the candidates page tallies matches per subgroup, so the system implicitly rules in or out clades based on which members have consistent traits.
+
+#### Style rules
+
+- One question = one observation. Decompose compound questions.
+- Lean on the Treatise + species monographs (Day & Copper, Stigall & Rode, etc.) when picking trait values; the more authoritative the source, the more reusable downstream.
+- Use a `figure` reference for any question that benefits from a diagram.
+- Include a `hint` for any non-obvious trait.
 
 ## PBDB gap analysis
 

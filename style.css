@@ -415,6 +415,94 @@ img { max-width: 100%; display: block; }
   color: var(--muted);
 }
 
+/* ----- Trait filter ----- */
+.filter-status {
+  position: sticky;
+  top: calc(env(safe-area-inset-top) + 48px);
+  z-index: 9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.9rem;
+}
+.filter-status-link { color: var(--accent); font-weight: 600; }
+
+.key-option-skip {
+  border-left-color: var(--muted);
+  background: #fafafa;
+}
+.key-option-skip .ko-label { font-weight: 500; color: var(--muted); }
+
+.answer-summary {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+}
+.answer-chip {
+  display: inline-block;
+  margin: 0.15rem 0.25rem 0.15rem 0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.best-match-note { color: var(--muted); margin: 0.25rem 0 0.5rem; }
+.best-match-card {
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.6rem;
+  background: var(--card-bg);
+  margin-bottom: 1rem;
+}
+.best-match-link {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.75rem;
+  color: inherit;
+}
+.best-match-img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.best-match-text h3 { margin: 0 0 0.2rem; color: var(--accent); font-size: 1.1rem; }
+.best-match-sub { margin: 0 0 0.3rem; color: var(--muted); font-style: italic; font-size: 0.85rem; }
+.best-match-hint { margin: 0; font-size: 0.85rem; }
+
+.no-match-note { color: var(--muted); font-style: italic; }
+.no-match-sub { font-size: 0.85rem; color: var(--muted); margin: 0.2rem 0 0.5rem; }
+.match-note { margin: 0.25rem 0 0.8rem; color: var(--ink); }
+
+.tally-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+.tally-item {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.45rem 0;
+  font-size: 0.95rem;
+}
+.tally-item a { color: var(--accent); }
+.tally-out { color: var(--muted); font-style: italic; margin-left: 0.3rem; }
+
+.candidates-h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+@media (min-width: 600px) {
+  .best-match-link { grid-template-columns: 180px 1fr; }
+  .best-match-img { width: 180px; height: 180px; }
+}
+
 /* References gallery */
 .ref-grid {
   display: grid;

@@ -85,6 +85,60 @@ function findTaxon(sid, slug) {
 // ---------- URL helpers ----------
 function siteBase(sid) { return `#/site/${sid}`; }
 
+function parseAnswers(rawQueryString) {
+  const out = {};
+  if (!rawQueryString) return out;
+  for (const part of rawQueryString.split("&")) {
+    if (!part) continue;
+    const [k, v = ""] = part.split("=").map(decodeURIComponent);
+    if (k) out[k] = v;
+  }
+  return out;
+}
+function encodeAnswers(answers) {
+  return Object.entries(answers)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+}
+
+// ---------- Trait filter logic ----------
+function brachFaunaForSite(sid) {
+  const f = faunaForSite(sid).find(g => g.id === "brachiopods");
+  return f || { subgroups: [] };
+}
+
+function taxonMatches(taxon, answers) {
+  if (!taxon.traits) return true;  // untagged taxa stay in the pool
+  for (const [trait, value] of Object.entries(answers)) {
+    if (!value) continue;  // "" = skipped / not sure
+    const tval = taxon.traits[trait];
+    if (tval === undefined) continue;  // taxon not tagged on this trait
+    if (Array.isArray(tval) ? !tval.includes(value) : tval !== value) return false;
+  }
+  return true;
+}
+
+function taxonScore(taxon, answers) {
+  if (!taxon.traits) return 0;
+  let matches = 0, considered = 0;
+  for (const [trait, value] of Object.entries(answers)) {
+    if (!value) continue;
+    const tval = taxon.traits[trait];
+    if (tval === undefined) continue;
+    considered++;
+    if (Array.isArray(tval) ? tval.includes(value) : tval === value) matches++;
+  }
+  return considered ? matches / considered : 0;
+}
+
+function nextQuestion(answers) {
+  for (const q of QUESTIONS) {
+    if (q.trait in answers) continue;  // already answered (or explicitly skipped)
+    if (q.core || (q.when && q.when(answers))) return q;
+  }
+  return null;
+}
+
 // ---------- Shared chrome ----------
 function topBar(opts = {}) {
   const { title, back = true, home = true, sid = null } = opts;
@@ -324,9 +378,10 @@ function viewKey(sid, nodeId) {
     : null;
   const options = el("div", { class: "key-options" },
     node.options.map(opt => {
-      const href = opt.result
-        ? `${siteBase(sid)}/key/result/${opt.result.subgroups.join(",")}`
-        : `${siteBase(sid)}/key/${opt.next}`;
+      let href;
+      if (opt.result?.filter) href = `${siteBase(sid)}/filter`;
+      else if (opt.result)    href = `${siteBase(sid)}/key/result/${opt.result.subgroups.join(",")}`;
+      else                    href = `${siteBase(sid)}/key/${opt.next}`;
       return el("a", { class: "key-option", href }, [
         el("span", { class: "ko-label" }, opt.label),
         opt.hint ? el("span", { class: "ko-hint" }, opt.hint) : null
@@ -347,6 +402,165 @@ function viewKey(sid, nodeId) {
       ])
     ])
   ]);
+}
+
+// ---------- Trait filter views ----------
+function viewFilter(sid, answers) {
+  const brachF = brachFaunaForSite(sid);
+  const allBrachTaxa = brachF.subgroups.flatMap(s => s.taxa.map(t => ({ taxon: t, sub: s })));
+  const matchingCount = allBrachTaxa.filter(({ taxon }) => taxonMatches(taxon, answers)).length;
+  const totalCount = allBrachTaxa.length;
+
+  const q = nextQuestion(answers);
+  if (!q) return viewFilterResults(sid, answers);  // no more questions
+
+  const fig = q.figure ? getFigure(q.figure) : null;
+  const figureBlock = fig
+    ? el("figure", { class: "key-figure" }, [
+        el("img", { src: refPath(fig.file), alt: fig.caption, loading: "lazy" }),
+        el("figcaption", {}, fig.caption)
+      ])
+    : null;
+
+  const optionLink = (value) => {
+    const newAnswers = { ...answers, [q.trait]: value };
+    return `${siteBase(sid)}/filter?${encodeAnswers(newAnswers)}`;
+  };
+
+  const options = el("div", { class: "key-options" }, [
+    ...q.options.map(opt => el("a", { class: "key-option", href: optionLink(opt.value) }, [
+      el("span", { class: "ko-label" }, opt.label),
+      opt.hint ? el("span", { class: "ko-hint" }, opt.hint) : null
+    ])),
+    el("a", { class: "key-option key-option-skip", href: optionLink("") }, [
+      el("span", { class: "ko-label" }, "Not sure — skip this question")
+    ])
+  ]);
+
+  const answeredCount = Object.keys(answers).length;
+  const resultsHref = `${siteBase(sid)}/filter/results?${encodeAnswers(answers)}`;
+
+  return el("div", { class: "view" }, [
+    topBar({ title: "Identify a brachiopod", sid }),
+    siteSubBar(sid),
+    el("div", { class: "filter-status" }, [
+      el("span", {}, [
+        el("strong", {}, `${matchingCount}`),
+        ` of ${totalCount} brachiopod taxa still match`
+      ]),
+      answeredCount > 0
+        ? el("a", { class: "filter-status-link", href: resultsHref }, "See candidates →")
+        : null
+    ]),
+    el("main", { class: "page key-page" }, [
+      figureBlock,
+      el("h2", { class: "page-title key-question" }, q.text),
+      q.hint ? el("p", { class: "key-hint" }, q.hint) : null,
+      options,
+      el("div", { class: "key-footer" }, [
+        el("a", { class: "skip-link", href: `${siteBase(sid)}/jump` }, "Skip ahead — I know the group →"),
+        el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Start over")
+      ])
+    ])
+  ]);
+}
+
+function viewFilterResults(sid, answers) {
+  const brachF = brachFaunaForSite(sid);
+  const allWithSub = brachF.subgroups.flatMap(s => s.taxa.map(t => ({ taxon: t, sub: s })));
+  const exactMatches = allWithSub.filter(({ taxon }) => taxonMatches(taxon, answers));
+  const haveAnswers = Object.values(answers).some(v => v);
+
+  // Subgroup tallies (exact + near-miss)
+  const tallies = brachF.subgroups.map(sub => {
+    const exact = sub.taxa.filter(t => taxonMatches(t, answers)).length;
+    const near  = sub.taxa.filter(t => taxonScore(t, answers) >= 0.66 && !taxonMatches(t, answers)).length;
+    return { sub, exact, near, total: sub.taxa.length };
+  }).filter(s => haveAnswers ? (s.exact + s.near > 0) : true);
+
+  const answerSummary = haveAnswers
+    ? el("div", { class: "answer-summary" }, [
+        el("strong", {}, "Your answers: "),
+        Object.entries(answers)
+          .filter(([_, v]) => v)
+          .map(([trait, value]) => {
+            const q = QUESTIONS.find(qq => qq.trait === trait);
+            const opt = q?.options.find(o => o.value === value);
+            return el("span", { class: "answer-chip" }, `${TRAITS[trait]?.label || trait}: ${opt?.label || value}`);
+          })
+      ])
+    : null;
+
+  let body;
+  if (exactMatches.length === 1) {
+    const { taxon, sub } = exactMatches[0];
+    body = el("div", {}, [
+      el("p", { class: "best-match-note" }, "Only one species matches all your answers:"),
+      el("div", { class: "best-match-card" }, [
+        el("a", { class: "best-match-link", href: `${siteBase(sid)}/taxon/${taxonSlug(taxon)}` }, [
+          taxon.images?.[0]
+            ? el("img", { src: imgPath(taxon, taxon.images[0], sid), alt: `${taxon.genus} ${taxon.species}`, loading: "lazy", class: "best-match-img" })
+            : el("div", { class: "best-match-img thumb-placeholder" }),
+          el("div", { class: "best-match-text" }, [
+            el("h3", {}, [el("em", {}, taxon.genus), " ", taxon.species]),
+            el("p", { class: "best-match-sub" }, sub.title),
+            taxon.note ? el("p", { class: "best-match-hint" }, taxon.note) : null
+          ])
+        ])
+      ])
+    ]);
+  } else if (exactMatches.length === 0) {
+    body = el("div", {}, [
+      el("p", { class: "no-match-note" },
+        haveAnswers ? "No species in this site match all your answers." : "Answer some questions to narrow the list."),
+      tallies.length
+        ? el("div", {}, [
+            el("h3", {}, "Group-level guesses"),
+            el("p", { class: "no-match-sub" }, "Subgroups where some species nearly match your answers (≥ 2 of 3 matching traits):"),
+            renderTallies(tallies, sid)
+          ])
+        : null
+    ]);
+  } else {
+    body = el("div", {}, [
+      el("p", { class: "match-note" }, `${exactMatches.length} candidates match all your answers.`),
+      renderTallies(tallies, sid),
+      el("h3", { class: "candidates-h3" }, "All matching species"),
+      el("div", { class: "taxa-grid" }, exactMatches.map(({ taxon, sub }) => {
+        // Re-use taxonThumb but it needs sub.group dir; here we use taxon directly via the existing helper
+        return taxonThumb(taxon, sid);
+      }))
+    ]);
+  }
+
+  return el("div", { class: "view" }, [
+    topBar({ title: "Candidates", sid }),
+    siteSubBar(sid),
+    el("main", { class: "page" }, [
+      el("h2", { class: "page-title" }, "Brachiopod candidates"),
+      answerSummary,
+      body,
+      el("div", { class: "key-footer" }, [
+        el("a", { class: "restart-link", href: "javascript:history.back()" }, "← Back to last question"),
+        el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Start over")
+      ])
+    ])
+  ]);
+}
+
+function renderTallies(tallies, sid) {
+  return el("ul", { class: "tally-list" },
+    tallies.sort((a, b) => (b.exact - a.exact) || (b.near - a.near))
+           .map(t => el("li", { class: "tally-item" }, [
+             el("a", { href: `${siteBase(sid)}/sub/brachiopods/${t.sub.id}` }, [
+               el("strong", {}, t.sub.title),
+               " — ",
+               el("span", {}, t.exact > 0
+                 ? `${t.exact} match${t.exact > 1 ? "es" : ""}`
+                 : (t.near > 0 ? `${t.near} near-miss${t.near > 1 ? "es" : ""}` : "")),
+               t.exact === 0 && t.near === 0 ? el("span", { class: "tally-out" }, "ruled out") : null
+             ])
+           ])));
 }
 
 function viewKeyResult(sid, subIdsStr) {
@@ -491,8 +705,13 @@ function viewNotFound() {
 
 // ---------- Router ----------
 function parseHash() {
-  const raw = location.hash.replace(/^#\/?/, "");
-  return raw.split("/").filter(Boolean).map(decodeURIComponent);
+  let raw = location.hash.replace(/^#\/?/, "");
+  let query = "";
+  const qIdx = raw.indexOf("?");
+  if (qIdx >= 0) { query = raw.slice(qIdx + 1); raw = raw.slice(0, qIdx); }
+  const parts = raw.split("/").filter(Boolean).map(decodeURIComponent);
+  parts.__query = query;
+  return parts;
 }
 
 function route() {
@@ -513,6 +732,8 @@ function route() {
     else if (p[2] === "key" && p[3] === "result") view = viewKeyResult(sid, p[4]);
     else if (p[2] === "key")                view = viewKey(sid, p[3]);
     else if (p[2] === "jump")               view = viewJump(sid);
+    else if (p[2] === "filter" && p[3] === "results") view = viewFilterResults(sid, parseAnswers(p.__query));
+    else if (p[2] === "filter")             view = viewFilter(sid, parseAnswers(p.__query));
     else if (p[2] === "all")                view = viewAll(sid);
     else                                     view = viewNotFound();
   }
