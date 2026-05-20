@@ -119,7 +119,11 @@ function effectiveTraits(answers) {
     const a = answers[q.id];
     if (!a || a === "_skip") continue;
     const opt = q.options.find(o => o.value === a);
-    if (opt && opt.setsTraitTo !== undefined) out[q.trait] = opt.setsTraitTo;
+    if (!opt) continue;
+    // Single-trait setter
+    if (opt.setsTraitTo !== undefined) out[q.trait] = opt.setsTraitTo;
+    // Multi-trait setter (e.g., surface picker sets both ribs + growth_frills)
+    if (opt.setsTraits) Object.assign(out, opt.setsTraits);
   }
   return out;
 }
