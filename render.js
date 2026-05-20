@@ -301,6 +301,10 @@ function viewSiteLanding(sid) {
         el("span", { class: "ba-title" }, "Help me ID it"),
         el("span", { class: "ba-sub" }, "Answer a few yes/no questions to narrow down what you found.")
       ]),
+      el("a", { class: "big-action", href: `${siteBase(sid)}/build` }, [
+        el("span", { class: "ba-title" }, "Build a brachiopod (visual)"),
+        el("span", { class: "ba-sub" }, "Move sliders to shape a silhouette live; the matching-species count updates as you go. Brachiopods only.")
+      ]),
       el("a", { class: "big-action", href: `${siteBase(sid)}/jump` }, [
         el("span", { class: "ba-title" }, "I already know the group"),
         el("span", { class: "ba-sub" }, "Skip the key and jump straight to spiriferids, atrypids, gastropods, etc.")
@@ -696,6 +700,197 @@ function viewKeyResult(sid, subIdsStr) {
   ]);
 }
 
+// ---------- Build view: dynamic SVG + sliders ----------
+//
+// One top-down brachiopod silhouette synthesized live from the student's
+// slider choices. Each slider has discrete preset stops (so it filters
+// cleanly) but visually feels like a slider.
+
+function buildBaseOutlinePath(outline, hinge) {
+  // Returns SVG <path d="..."> string for the base outline shape.
+  // viewBox is 200x170 across the board.
+  if (outline === "wing-shaped") {
+    // Always with wings extended; hinge along top straight
+    return "M 50,30 L 150,30 L 195,42 L 165,108 L 100,158 L 35,108 L 5,42 L 50,30 Z";
+  }
+  if (outline === "elongate-oval") {
+    if (hinge === "wide-strophic")
+      return "M 35,25 L 165,25 Q 185,90 100,160 Q 15,90 35,25 Z";
+    if (hinge === "narrow-strophic")
+      return "M 75,20 L 125,20 Q 175,90 100,162 Q 25,90 75,20 Z";
+    // astrophic (smooth) elongate
+    return "M 60,15 Q 100,3 140,15 Q 178,90 100,162 Q 22,90 60,15 Z";
+  }
+  // subcircular (default)
+  if (hinge === "wide-strophic")
+    return "M 28,28 L 172,28 Q 192,95 100,155 Q 8,95 28,28 Z";
+  if (hinge === "narrow-strophic")
+    return "M 72,22 L 128,22 Q 188,85 100,158 Q 12,85 72,22 Z";
+  // astrophic (smooth) round
+  return "M 30,48 Q 100,12 170,48 Q 195,108 100,158 Q 5,108 30,48 Z";
+}
+
+function buildSurfaceLayer(surface) {
+  if (!surface || surface === "smooth") return "";
+  if (surface === "growth-lines-only") {
+    return [
+      '<path d="M 25,78 Q 100,98 175,78" fill="none" stroke="black" stroke-width="1"/>',
+      '<path d="M 30,100 Q 100,120 170,100" fill="none" stroke="black" stroke-width="1"/>',
+      '<path d="M 38,120 Q 100,140 162,120" fill="none" stroke="black" stroke-width="1"/>'
+    ].join("");
+  }
+  if (surface === "ribs" || surface === "ribs-and-frills") {
+    // 11 ribs fanning from the umbo (top-center) to bottom margin
+    const ribs = [];
+    for (let i = 0; i < 11; i++) {
+      const x = 30 + i * 14;
+      ribs.push(`<line x1="100" y1="28" x2="${x}" y2="150" stroke="black" stroke-width="0.9"/>`);
+    }
+    let out = ribs.join("");
+    if (surface === "ribs-and-frills") {
+      // wavy frill along the bottom margin
+      out += '<path d="M 25,125 Q 38,140 55,132 Q 75,142 95,134 Q 115,142 135,132 Q 152,140 165,125" fill="none" stroke="black" stroke-width="1.5"/>';
+    }
+    return out;
+  }
+  if (surface === "spines-or-bumps") {
+    // Fixed scatter of spine bases (no randomness so the picture is stable across renders)
+    const pts = [
+      [40, 50], [55, 45], [72, 50], [90, 48], [110, 48], [128, 50], [145, 48], [160, 52],
+      [38, 75], [60, 70], [82, 72], [100, 68], [120, 72], [140, 70], [162, 75],
+      [50, 100], [72, 102], [95, 98], [118, 102], [140, 100],
+      [60, 125], [82, 128], [105, 124], [128, 128]
+    ];
+    let out = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2" fill="black"/>`).join("");
+    // Add a few short spines sticking out
+    out += '<line x1="40" y1="50" x2="28" y2="38" stroke="black" stroke-width="1.2"/>';
+    out += '<line x1="160" y1="52" x2="174" y2="40" stroke="black" stroke-width="1.2"/>';
+    out += '<line x1="100" y1="68" x2="100" y2="80" stroke="none"/>';  // placeholder
+    return out;
+  }
+  return "";
+}
+
+function buildFoldLayer(fold) {
+  if (!fold || fold === "none") return "";
+  if (fold === "weak") {
+    return [
+      // Light central ridge line
+      '<line x1="100" y1="30" x2="100" y2="152" stroke="black" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>',
+      // Subtle indent at bottom center
+      '<path d="M 80,152 Q 100,144 120,152" fill="none" stroke="black" stroke-width="1.5"/>'
+    ].join("");
+  }
+  if (fold === "strong") {
+    return [
+      // Bold central ridge line
+      '<line x1="100" y1="28" x2="100" y2="155" stroke="black" stroke-width="2.5"/>',
+      // Sharp V at bottom center showing the sulcus
+      '<path d="M 55,150 L 100,118 L 145,150" fill="none" stroke="black" stroke-width="2.5"/>'
+    ].join("");
+  }
+  return "";
+}
+
+function buildBrachSVG(answers) {
+  const outline = answers.outline_pick || "subcircular";
+  const hinge   = answers.hinge_pick   || "astrophic";
+  const surface = answers.surface_pick || "smooth";
+  const fold    = answers.fold_pick    || "none";
+  const path = buildBaseOutlinePath(outline, hinge);
+  return `<svg viewBox="0 0 200 170" xmlns="http://www.w3.org/2000/svg">
+    <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.5" stroke-linejoin="round"/>
+    ${buildSurfaceLayer(surface)}
+    ${buildFoldLayer(fold)}
+  </svg>`;
+}
+
+// Slider config: question id, label, list of {value, short label} stops.
+// Short labels keep slider stops compact on phones.
+function buildSliders() {
+  return [
+    { qid: "outline_pick", label: "Outline",
+      stops: [
+        { value: "wing-shaped",   short: "Winged" },
+        { value: "subcircular",   short: "Round" },
+        { value: "elongate-oval", short: "Elongate" }
+      ] },
+    { qid: "hinge_pick", label: "Hinge",
+      stops: [
+        { value: "wide-strophic",   short: "Wide" },
+        { value: "narrow-strophic", short: "Short" },
+        { value: "astrophic",       short: "Curved" }
+      ] },
+    { qid: "surface_pick", label: "Surface",
+      stops: [
+        { value: "smooth",             short: "Smooth" },
+        { value: "growth-lines-only",  short: "Lines" },
+        { value: "ribs",               short: "Ribs" },
+        { value: "ribs-and-frills",    short: "Frilled" },
+        { value: "spines-or-bumps",    short: "Spiny" }
+      ] },
+    { qid: "fold_pick", label: "Fold",
+      stops: [
+        { value: "none",   short: "None" },
+        { value: "weak",   short: "Weak" },
+        { value: "strong", short: "Strong" }
+      ] }
+  ];
+}
+
+function viewBuild(sid, answers) {
+  const sliders = buildSliders();
+
+  const setLink = (qid, value) => {
+    const next = Object.assign({}, answers, { [qid]: value });
+    return `${siteBase(sid)}/build?${encodeAnswers(next)}`;
+  };
+
+  // Live candidate count
+  const brachF = brachFaunaForSite(sid);
+  const allTaxa = brachF.subgroups.flatMap(s => s.taxa);
+  const matchingCount = allTaxa.filter(t => taxonMatches(t, answers)).length;
+  const totalCount = allTaxa.length;
+
+  const svgString = buildBrachSVG(answers);
+
+  const sliderBlocks = sliders.map(s => el("div", { class: "slider-row" }, [
+    el("label", { class: "slider-label" }, s.label),
+    el("div", { class: "slider-track" },
+      s.stops.map(stop => el("a", {
+        class: "slider-stop" + (answers[s.qid] === stop.value ? " active" : ""),
+        href: setLink(s.qid, stop.value)
+      }, stop.short))
+    )
+  ]));
+
+  const haveAny = sliders.some(s => answers[s.qid]);
+  const resetHref = `${siteBase(sid)}/build`;
+  const resultsHref = `${siteBase(sid)}/filter/results?${encodeAnswers(answers)}`;
+
+  return el("div", { class: "view" }, [
+    topBar({ title: "Build a brachiopod", sid }),
+    siteSubBar(sid),
+    el("main", { class: "page build-page" }, [
+      el("p", { class: "build-intro" },
+        "Move the sliders to shape the silhouette. The brachiopod above updates live, and the count of matching species shrinks as you add detail."),
+      el("div", { class: "build-svg-wrap" }, [
+        el("div", { class: "build-svg", html: svgString })
+      ]),
+      el("div", { class: "build-status" }, [
+        el("strong", {}, `${matchingCount}`),
+        ` of ${totalCount} brachiopod taxa match — `,
+        el("a", { href: resultsHref, class: "build-status-link" }, "see candidates →")
+      ]),
+      el("div", { class: "build-sliders" }, sliderBlocks),
+      el("div", { class: "key-footer" }, [
+        haveAny ? el("a", { class: "restart-link", href: resetHref }, "Reset all sliders") : null,
+        el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Use the question wizard instead")
+      ])
+    ])
+  ]);
+}
+
 function viewJump(sid) {
   const fauna = faunaForSite(sid);
   const sections = fauna.map(group =>
@@ -831,6 +1026,7 @@ function route() {
     else if (p[2] === "jump")               view = viewJump(sid);
     else if (p[2] === "filter" && p[3] === "results") view = viewFilterResults(sid, parseAnswers(p.__query));
     else if (p[2] === "filter")             view = viewFilter(sid, parseAnswers(p.__query));
+    else if (p[2] === "build")              view = viewBuild(sid, parseAnswers(p.__query));
     else if (p[2] === "all")                view = viewAll(sid);
     else                                     view = viewNotFound();
   }

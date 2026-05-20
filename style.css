@@ -556,6 +556,102 @@ img { max-width: 100%; display: block; }
   padding-top: 0.5rem;
   border-top: 1px dashed var(--rule);
 }
+
+/* ===== Build view ===== */
+.build-page { padding-bottom: 3rem; }
+
+.build-intro {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.build-svg-wrap {
+  display: flex;
+  justify-content: center;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.build-svg {
+  width: 100%;
+  max-width: 260px;
+}
+.build-svg svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.build-status {
+  text-align: center;
+  font-size: 0.95rem;
+  padding: 0.5rem;
+  background: #fff8e1;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+.build-status-link {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.build-sliders {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+.slider-label {
+  flex: 0 0 70px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: right;
+}
+.slider-track {
+  flex: 1;
+  display: flex;
+  gap: 0.25rem;
+  background: #f1ece0;
+  border-radius: 999px;
+  padding: 0.2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.slider-stop {
+  flex: 1;
+  text-align: center;
+  padding: 0.55rem 0.45rem;
+  font-size: 0.82rem;
+  border-radius: 999px;
+  color: var(--muted);
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.1s, color 0.1s, transform 0.05s;
+  min-width: 56px;
+}
+.slider-stop:active { transform: scale(0.96); }
+.slider-stop.active {
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(107, 52, 16, 0.3);
+}
+
+@media (min-width: 700px) {
+  .build-svg { max-width: 380px; }
+  .build-sliders { grid-template-columns: 1fr 1fr; gap: 0.75rem 1.5rem; }
+  .slider-label { flex: 0 0 90px; font-size: 1rem; }
+  .slider-stop { font-size: 0.9rem; padding: 0.6rem 0.5rem; }
+}
 .thumb-diff {
   padding: 0.3rem 0.5rem 0.4rem;
   font-size: 0.72rem;
