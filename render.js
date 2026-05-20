@@ -24,7 +24,9 @@ function el(tag, props = {}, children = []) {
     else if (k === "on") for (const [ev, fn] of Object.entries(v)) node.addEventListener(ev, fn);
     else node.setAttribute(k, v);
   }
-  for (const c of [].concat(children)) {
+  // Flatten nested arrays so callers can pass `[el, [...map result]]` safely.
+  const flat = [].concat(children).flat(Infinity);
+  for (const c of flat) {
     if (c == null || c === false) continue;
     node.appendChild(typeof c === "string" || typeof c === "number"
       ? document.createTextNode(String(c)) : c);
@@ -496,7 +498,7 @@ function viewFilterResults(sid, answers) {
   const answerSummary = haveAnswers
     ? el("div", { class: "answer-summary" }, [
         el("strong", {}, "Your answers: "),
-        Object.entries(answers)
+        ...Object.entries(answers)
           .filter(([_, v]) => v && v !== "_skip")
           .map(([qid, value]) => {
             const q = QUESTIONS.find(qq => qq.id === qid);
