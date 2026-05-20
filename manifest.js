@@ -132,7 +132,7 @@ const FAUNA = [
           { genus: "Conispirifer", species: "cyrtinaeformis", sites: ["rockford"],
             note: "Narrow, cone-shaped; coarse ribs. Often listed in PBDB as Tenticospirifer cyrtinaeformis.",
             traits: { ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent",
-                      fold_sulcus: "strong", outline: ["wing-shaped", "triangular"], size: "small", umbones: "ribbed" },
+                      fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [
               { file: "cyrtinaeformis_nathan_01.jpg", src: "nathan" },
               { file: "cyrtinaeformis_dave_01.jpg",   src: "dave"   }
@@ -140,7 +140,7 @@ const FAUNA = [
           { genus: "Cyrtina", species: "iowaensis", sites: ["rockford"],
             note: "Small, sharply pyramidal; punctate shell.",
             traits: { ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent",
-                      fold_sulcus: "strong", outline: ["wing-shaped", "triangular"], size: "small", umbones: "ribbed" },
+                      fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [
               { file: "iowaensis_nathan_01.jpg", src: "nathan" },
               { file: "iowaensis_dave_01.jpg",   src: "dave"   }
@@ -368,14 +368,14 @@ const FAUNA = [
           { genus: "Gypidula", species: "cornuta", sites: ["rockford"],
             note: "Globose; strong median fold; smooth or coarsely ribbed. Frasnian-aged form within the genus range (Treatise: *Gypidula* spans Silurian Telychian–Upper Devonian Frasnian).",
             traits: { ribs: ["yes", "no"], profile: "biconvex", hinge: "astrophic", spines: "absent",
-                      fold_sulcus: "strong", outline: "almond-keeled", size: "medium", umbones: ["ribbed", "smooth"] },
+                      fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
             images: [
               { file: "cornuta_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Gypidula", species: "typicalis", sites: ["crawford"],
             note: "Type species of *Gypidula* (HALL, 1867); illustrated from the Cedar Valley Group of Iowa (Amsden 1965). Ventribiconvex; well-developed dorsal sulcus and ventral fold; lyre-shaped hinge plates visible in serial section. Treatise Fig. 681,2a–d.",
             traits: { ribs: ["yes", "no"], profile: "biconvex", hinge: "astrophic", spines: "absent",
-                      fold_sulcus: "strong", outline: "almond-keeled", size: "medium", umbones: ["ribbed", "smooth"] },
+                      fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
             images: [
               { file: "typicalis_treatise_01.png", src: "treatise" }
             ] }
@@ -417,7 +417,7 @@ const FAUNA = [
           { genus: "Cupularostrum", species: "saxatillis", sites: ["rockford"],
             note: "Triangular; coarsely ribbed; deep sulcus. Older lit places this in *Camarotoechia* (per Treatise: low rounded costae present on flanks AND fold/sulcus, fold/sulcus low + commencing at umbones, anterior commissure uniplicate). Treatise Fig. 769,1a–b illustrates the Camarotoechia type species *C. congregata* for genus comparison.",
             traits: { ribs: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent",
-                      fold_sulcus: "strong", outline: "triangular", size: "small", umbones: "ribbed" },
+                      fold_sulcus: "strong", outline: "subcircular", size: "small", umbones: "ribbed" },
             images: [
               { file: "saxatillis_nathan_01.jpg", src: "nathan" },
               { file: "camarotoechia_congregata_treatise_01.png", src: "treatise" }
@@ -796,94 +796,135 @@ const TRAITS = {
 };
 
 // Asked in order. `core: true` = always asked. Others gated by `when(answers)`.
-// `not_sure` option is appended automatically by the renderer.
+// "Not sure" option is appended automatically by the renderer.
+//
+// Each option has a `value` (stored in the URL as the answer) and an optional
+// `setsTraitTo`. If `setsTraitTo` is set, the trait gets that value when the
+// option is picked. Otherwise the answer is a "no, continue" chain signal —
+// downstream questions in the same chain key off it via `when(a)`.
+//
+// All questions here are binary (Yes / No) plus the auto-appended "Not sure".
 const QUESTIONS = [
-  // --- CORE ---
+  // ============== CORE — always asked ==============
+
   { id: "ribs", trait: "ribs", core: true,
-    text: "Does the shell have ribs (radial ridges or fine lines)?",
+    text: "Does the shell have ribs — radial lines or ridges fanning out from the back?",
     figure: "brachII",
     options: [
-      { value: "yes", label: "Yes — clearly ribbed (fine or coarse)" },
-      { value: "no",  label: "No — smooth shell" }
+      { value: "yes", label: "Yes — clearly ribbed",          setsTraitTo: "yes" },
+      { value: "no",  label: "No — smooth (or only growth lines)", setsTraitTo: "no"  }
     ] },
 
-  { id: "profile", trait: "profile", core: true,
-    text: "What's the shell profile (side view)?",
+  // Profile: 2-question chain. concavo first (productid splitter), then plano vs biconvex.
+  { id: "profile_concavo", trait: "profile", core: true,
+    text: "Look at the shell from the side. Is one valve clearly dish-shaped (curved inward), while the other bulges outward?",
     figure: "convexity",
     options: [
-      { value: "biconvex",       label: "Biconvex — both valves bulge outward" },
-      { value: "plano-convex",   label: "Plano-convex — one valve flat, one convex" },
-      { value: "concavo-convex", label: "Concavo-convex — one valve dished, one convex" }
+      { value: "yes", label: "Yes — one valve dished, one bulges",   setsTraitTo: "concavo-convex" },
+      { value: "no",  label: "No — both valves curve outward (or close to it)" }
+    ] },
+
+  { id: "profile_plano", trait: "profile",
+    when: a => a.profile_concavo === "no",
+    text: "Is one valve flat (or nearly flat) and the other bulges out?",
+    figure: "convexity",
+    options: [
+      { value: "yes", label: "Yes — one flat, one bulges",  setsTraitTo: "plano-convex" },
+      { value: "no",  label: "No — both valves bulge",       setsTraitTo: "biconvex"     }
     ] },
 
   { id: "hinge", trait: "hinge", core: true,
-    text: "Is the hinge line (straight back edge) the longest part of the shell?",
+    text: "Is the back edge of the shell (where the two valves meet) the widest part of the whole shell?",
     figure: "strophic",
-    hint: "Strophic = long straight hinge that's the widest dimension. Astrophic = hinge short or curved.",
+    hint: "Look for a long, straight 'hinge line' running across the back. Pinpoint the widest dimension of the shell.",
     options: [
-      { value: "strophic",  label: "Yes — long, straight hinge" },
-      { value: "astrophic", label: "No — short or curved hinge" }
+      { value: "yes", label: "Yes — long, straight back edge that's the widest",      setsTraitTo: "strophic"  },
+      { value: "no",  label: "No — back edge is short or curved; widest in the middle", setsTraitTo: "astrophic" }
     ] },
 
-  // --- BRANCHING FOLLOW-UPS ---
+  // ============== BRANCHING FOLLOW-UPS ==============
+
   { id: "spines", trait: "spines",
-    when: a => a.profile === "concavo-convex",
-    text: "Does the shell have spines, or bumps where spines used to be?",
-    hint: "Productids carry distinctive solid spines (often broken off, leaving little bumps).",
+    when: a => a.profile_concavo === "yes",
+    text: "Are there spines, or visible bumps where spines used to be attached?",
+    hint: "Productids carry stout, solid spines that usually broke off, leaving little bumps on the shell surface.",
     options: [
-      { value: "present", label: "Yes — spines or spine bases" },
-      { value: "absent",  label: "No" }
+      { value: "yes", label: "Yes — spines or spine-base bumps", setsTraitTo: "present" },
+      { value: "no",  label: "No — surface smooth or only ribbed", setsTraitTo: "absent"  }
     ] },
 
-  { id: "fold_sulcus", trait: "fold_sulcus",
+  // Fold/sulcus: 2-question chain. First "any fold?", then "strong?".
+  { id: "fold_any", trait: "fold_sulcus",
     when: a => a.ribs === "yes",
-    text: "Is there a fold and sulcus down the middle of the shell?",
+    text: "Is there a ridge running down the middle of one valve, with a matching groove on the other?",
     figure: "brachI",
-    hint: "Fold = a raised ridge on one valve; sulcus = a matching groove on the other.",
+    hint: "Look down the shell from beak to front for a central ridge + groove pattern.",
     options: [
-      { value: "strong", label: "Yes — clearly visible fold + sulcus" },
-      { value: "weak",   label: "Subtle — barely visible" },
-      { value: "absent", label: "No fold or sulcus at all" }
+      { value: "yes", label: "Yes — there's a ridge and groove" },
+      { value: "no",  label: "No — neither valve has a midline ridge/groove", setsTraitTo: "absent" }
     ] },
 
-  { id: "outline", trait: "outline",
-    // Outline matters for most paths, but ask it only after we know there's a shell with ribs (or smooth)
-    when: a => a.ribs !== undefined,
-    text: "What's the overall outline shape?",
+  { id: "fold_strong", trait: "fold_sulcus",
+    when: a => a.fold_any === "yes",
+    text: "Is the ridge/groove strongly developed (deep and obvious), or subtle?",
     options: [
-      { value: "wing-shaped",   label: "Wing-shaped — lateral extensions, often pointed" },
-      { value: "subcircular",   label: "Round to subcircular" },
-      { value: "triangular",    label: "Small + triangular / pointed at one end" },
-      { value: "elongate-oval", label: "Elongate-oval — longer than wide" },
-      { value: "almond-keeled", label: "Globose almond with a central keel" }
+      { value: "yes", label: "Strong — obvious from a few feet away",      setsTraitTo: "strong" },
+      { value: "no",  label: "Subtle — only visible when you look closely", setsTraitTo: "weak"   }
+    ] },
+
+  // Outline: 2-question chain. Wings first (spiriferids), then elongate (terebratulids).
+  // All "no" → default to subcircular (the catch-all for round/oval atrypids/orthids/etc.).
+  { id: "outline_wings", trait: "outline",
+    when: a => a.ribs !== undefined,
+    text: "Are there pointed extensions sticking out to the sides at the back of the shell, making it look wing-like?",
+    figure: "brachI",
+    options: [
+      { value: "yes", label: "Yes — clear wing-like points to the sides", setsTraitTo: "wing-shaped" },
+      { value: "no",  label: "No — sides are rounded or flat" }
+    ] },
+
+  { id: "outline_elong", trait: "outline",
+    when: a => a.outline_wings === "no",
+    text: "Is the shell clearly longer (front-to-back) than it is wide (side-to-side)?",
+    options: [
+      { value: "yes", label: "Yes — egg-shaped or elongate",     setsTraitTo: "elongate-oval" },
+      { value: "no",  label: "No — about as long as wide, or wider", setsTraitTo: "subcircular"  }
+    ] },
+
+  // Size: 2-question chain.
+  { id: "size_small", trait: "size",
+    when: a => a.ribs !== undefined,
+    text: "Is the shell smaller than a quarter (about 2 cm across)?",
+    hint: "A US quarter is 24 mm wide; a dime is 18 mm.",
+    options: [
+      { value: "yes", label: "Yes — smaller than a quarter", setsTraitTo: "small" },
+      { value: "no",  label: "No — quarter-sized or bigger" }
+    ] },
+
+  { id: "size_large", trait: "size",
+    when: a => a.size_small === "no",
+    text: "Is the shell bigger than a golf ball (about 5 cm across)?",
+    options: [
+      { value: "yes", label: "Yes — bigger than a golf ball",  setsTraitTo: "large"  },
+      { value: "no",  label: "No — between a quarter and a golf ball", setsTraitTo: "medium" }
     ] },
 
   { id: "growth_frills", trait: "growth_frills",
-    when: a => a.hinge === "astrophic" && a.ribs === "yes",
-    text: "Are there raised concentric frills around the shell margin?",
-    hint: "Frills = imbricate growth lamellae that stick out — a typical atrypid feature.",
+    when: a => a.hinge === "no" && a.ribs === "yes",  // astrophic + ribbed
+    text: "Are there raised ridges sticking out around the edge of the shell, like ruffled piecrust?",
+    hint: "These are growth frills (imbricate lamellae) — a typical atrypid feature, especially around the margin.",
     options: [
-      { value: "frills",       label: "Yes — raised frills around the margin" },
-      { value: "growth-lines", label: "Only growth lines — no raised frills" }
-    ] },
-
-  { id: "size", trait: "size",
-    when: a => a.ribs !== undefined,
-    text: "How big is the shell?",
-    hint: "Use a finger or coin for scale.",
-    options: [
-      { value: "small",  label: "Small — under about 2 cm" },
-      { value: "medium", label: "Medium — 2 to 5 cm" },
-      { value: "large",  label: "Large — over 5 cm" }
+      { value: "yes", label: "Yes — clear raised ridges/frills",     setsTraitTo: "frills"       },
+      { value: "no",  label: "No — only fine growth lines (no raised ridges)", setsTraitTo: "growth-lines" }
     ] },
 
   { id: "umbones", trait: "umbones",
-    when: a => a.hinge === "astrophic" && a.outline === "triangular",
-    text: "Are the umbones (beak area) ribbed or smooth?",
-    hint: "Leiorhynchus has smooth umbones with ribs only on the fold; Cupularostrum is ribbed throughout.",
+    when: a => a.hinge === "no" && a.ribs === "yes",  // astrophic + ribbed
+    text: "Look at the beak — the back tip where the two valves come together. Do ribs run across it, or is it smooth?",
+    hint: "Leiorhynchus has a smooth beak with ribs only toward the front; most other rhynchonellids/atrypids have ribs all the way to the beak.",
     options: [
-      { value: "ribbed", label: "Ribs extend onto the umbones" },
-      { value: "smooth", label: "Umbones smooth — ribs only on the fold/sulcus" }
+      { value: "yes", label: "Ribs continue onto the beak",         setsTraitTo: "ribbed" },
+      { value: "no",  label: "Beak is smooth — ribs only toward front", setsTraitTo: "smooth" }
     ] }
 ];
 

@@ -107,10 +107,25 @@ function brachFaunaForSite(sid) {
   return f || { subgroups: [] };
 }
 
+// Translate URL answers (keyed by question id) into effective trait values
+// using each question's `setsTraitTo`. Chain "no" answers without
+// `setsTraitTo` are skipped; downstream questions in the chain provide
+// the trait value (or it stays unset = no constraint).
+function effectiveTraits(answers) {
+  const out = {};
+  for (const q of QUESTIONS) {
+    const a = answers[q.id];
+    if (!a || a === "_skip") continue;
+    const opt = q.options.find(o => o.value === a);
+    if (opt && opt.setsTraitTo !== undefined) out[q.trait] = opt.setsTraitTo;
+  }
+  return out;
+}
+
 function taxonMatches(taxon, answers) {
   if (!taxon.traits) return true;  // untagged taxa stay in the pool
-  for (const [trait, value] of Object.entries(answers)) {
-    if (!value) continue;  // "" = skipped / not sure
+  const traits = effectiveTraits(answers);
+  for (const [trait, value] of Object.entries(traits)) {
     const tval = taxon.traits[trait];
     if (tval === undefined) continue;  // taxon not tagged on this trait
     if (Array.isArray(tval) ? !tval.includes(value) : tval !== value) return false;
@@ -120,9 +135,9 @@ function taxonMatches(taxon, answers) {
 
 function taxonScore(taxon, answers) {
   if (!taxon.traits) return 0;
+  const traits = effectiveTraits(answers);
   let matches = 0, considered = 0;
-  for (const [trait, value] of Object.entries(answers)) {
-    if (!value) continue;
+  for (const [trait, value] of Object.entries(traits)) {
     const tval = taxon.traits[trait];
     if (tval === undefined) continue;
     considered++;
@@ -133,7 +148,7 @@ function taxonScore(taxon, answers) {
 
 function nextQuestion(answers) {
   for (const q of QUESTIONS) {
-    if (q.trait in answers) continue;  // already answered (or explicitly skipped)
+    if (q.id in answers) continue;  // already answered or explicitly skipped
     if (q.core || (q.when && q.when(answers))) return q;
   }
   return null;
@@ -423,7 +438,7 @@ function viewFilter(sid, answers) {
     : null;
 
   const optionLink = (value) => {
-    const newAnswers = { ...answers, [q.trait]: value };
+    const newAnswers = { ...answers, [q.id]: value };
     return `${siteBase(sid)}/filter?${encodeAnswers(newAnswers)}`;
   };
 
@@ -432,7 +447,7 @@ function viewFilter(sid, answers) {
       el("span", { class: "ko-label" }, opt.label),
       opt.hint ? el("span", { class: "ko-hint" }, opt.hint) : null
     ])),
-    el("a", { class: "key-option key-option-skip", href: optionLink("") }, [
+    el("a", { class: "key-option key-option-skip", href: optionLink("_skip") }, [
       el("span", { class: "ko-label" }, "Not sure — skip this question")
     ])
   ]);
@@ -469,7 +484,7 @@ function viewFilterResults(sid, answers) {
   const brachF = brachFaunaForSite(sid);
   const allWithSub = brachF.subgroups.flatMap(s => s.taxa.map(t => ({ taxon: t, sub: s })));
   const exactMatches = allWithSub.filter(({ taxon }) => taxonMatches(taxon, answers));
-  const haveAnswers = Object.values(answers).some(v => v);
+  const haveAnswers = Object.values(answers).some(v => v && v !== "_skip");
 
   // Subgroup tallies (exact + near-miss)
   const tallies = brachF.subgroups.map(sub => {
@@ -482,11 +497,13 @@ function viewFilterResults(sid, answers) {
     ? el("div", { class: "answer-summary" }, [
         el("strong", {}, "Your answers: "),
         Object.entries(answers)
-          .filter(([_, v]) => v)
-          .map(([trait, value]) => {
-            const q = QUESTIONS.find(qq => qq.trait === trait);
-            const opt = q?.options.find(o => o.value === value);
-            return el("span", { class: "answer-chip" }, `${TRAITS[trait]?.label || trait}: ${opt?.label || value}`);
+          .filter(([_, v]) => v && v !== "_skip")
+          .map(([qid, value]) => {
+            const q = QUESTIONS.find(qq => qq.id === qid);
+            if (!q) return null;
+            const opt = q.options.find(o => o.value === value);
+            const traitLabel = TRAITS[q.trait]?.label || q.trait;
+            return el("span", { class: "answer-chip" }, `${traitLabel}: ${opt?.label || value}`);
           })
       ])
     : null;
