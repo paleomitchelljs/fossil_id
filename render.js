@@ -148,6 +148,21 @@ function taxonScore(taxon, answers) {
   return considered ? matches / considered : 0;
 }
 
+// Returns the list of traits where this taxon disagrees with the user's answers.
+// (Untagged-on-trait counts as "no constraint", not a mismatch.)
+function taxonMismatches(taxon, answers) {
+  if (!taxon.traits) return [];
+  const traits = effectiveTraits(answers);
+  const out = [];
+  for (const [trait, value] of Object.entries(traits)) {
+    const tval = taxon.traits[trait];
+    if (tval === undefined) continue;
+    const match = Array.isArray(tval) ? tval.includes(value) : tval === value;
+    if (!match) out.push({ trait, userValue: value, taxonValue: tval });
+  }
+  return out;
+}
+
 function nextQuestion(answers) {
   for (const q of QUESTIONS) {
     if (q.id in answers) continue;  // already answered or explicitly skipped
@@ -485,13 +500,23 @@ function viewFilter(sid, answers) {
 function viewFilterResults(sid, answers) {
   const brachF = brachFaunaForSite(sid);
   const allWithSub = brachF.subgroups.flatMap(s => s.taxa.map(t => ({ taxon: t, sub: s })));
-  const exactMatches = allWithSub.filter(({ taxon }) => taxonMatches(taxon, answers));
   const haveAnswers = Object.values(answers).some(v => v && v !== "_skip");
 
-  // Subgroup tallies (exact + near-miss)
+  // Partition: exact / 1-off / 2-off / further
+  const buckets = { exact: [], oneOff: [], twoOff: [] };
+  for (const entry of allWithSub) {
+    const ms = taxonMismatches(entry.taxon, answers);
+    const enriched = Object.assign({}, entry, { mismatches: ms });
+    if (ms.length === 0)      buckets.exact.push(enriched);
+    else if (ms.length === 1) buckets.oneOff.push(enriched);
+    else if (ms.length === 2) buckets.twoOff.push(enriched);
+  }
+  const exactMatches = buckets.exact;
+
+  // Subgroup tallies (exact + 1-off counted favorably)
   const tallies = brachF.subgroups.map(sub => {
     const exact = sub.taxa.filter(t => taxonMatches(t, answers)).length;
-    const near  = sub.taxa.filter(t => taxonScore(t, answers) >= 0.66 && !taxonMatches(t, answers)).length;
+    const near  = sub.taxa.filter(t => taxonMismatches(t, answers).length === 1).length;
     return { sub, exact, near, total: sub.taxa.length };
   }).filter(s => haveAnswers ? (s.exact + s.near > 0) : true);
 
@@ -545,11 +570,32 @@ function viewFilterResults(sid, answers) {
       el("p", { class: "match-note" }, `${exactMatches.length} candidates match all your answers.`),
       renderTallies(tallies, sid),
       el("h3", { class: "candidates-h3" }, "All matching species"),
-      el("div", { class: "taxa-grid" }, exactMatches.map(({ taxon, sub }) => {
-        // Re-use taxonThumb but it needs sub.group dir; here we use taxon directly via the existing helper
-        return taxonThumb(taxon, sid);
-      }))
+      el("div", { class: "taxa-grid" }, exactMatches.map(({ taxon }) => taxonThumb(taxon, sid)))
     ]);
+  }
+
+  // Near-miss sections (always shown when any near-misses exist).
+  // Pedagogical value: students see "I almost matched this — let me check trait X again."
+  const nearMissSections = [];
+  if (buckets.oneOff.length) {
+    nearMissSections.push(
+      el("section", { class: "near-miss-section" }, [
+        el("h3", { class: "candidates-h3" }, `Almost match (1 trait differs) — ${buckets.oneOff.length}`),
+        el("p", { class: "no-match-sub" }, "These taxa would match if you reconsider one trait. Tap to see — the differing trait is labeled below each card."),
+        el("div", { class: "taxa-grid" },
+          buckets.oneOff.map(({ taxon, mismatches }) => taxonThumbWithDiff(taxon, mismatches, sid)))
+      ])
+    );
+  }
+  if (buckets.twoOff.length) {
+    nearMissSections.push(
+      el("section", { class: "near-miss-section" }, [
+        el("h3", { class: "candidates-h3" }, `Possible (2 traits differ) — ${buckets.twoOff.length}`),
+        el("p", { class: "no-match-sub" }, "More distant matches; check the noted traits."),
+        el("div", { class: "taxa-grid" },
+          buckets.twoOff.map(({ taxon, mismatches }) => taxonThumbWithDiff(taxon, mismatches, sid)))
+      ])
+    );
   }
 
   return el("div", { class: "view" }, [
@@ -559,12 +605,29 @@ function viewFilterResults(sid, answers) {
       el("h2", { class: "page-title" }, "Brachiopod candidates"),
       answerSummary,
       body,
+      ...nearMissSections,
       el("div", { class: "key-footer" }, [
         el("a", { class: "restart-link", href: "javascript:history.back()" }, "← Back to last question"),
         el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Start over")
       ])
     ])
   ]);
+}
+
+function taxonThumbWithDiff(taxon, mismatches, sid) {
+  const card = taxonThumb(taxon, sid);  // base thumbnail
+  // Append a small "differs on" annotation under the label
+  const diffLabel = mismatches.map(m => {
+    const traitLabel = TRAITS[m.trait]?.label || m.trait;
+    const tval = Array.isArray(m.taxonValue) ? m.taxonValue.join("/") : m.taxonValue;
+    return `${traitLabel}: ${tval} (you said ${m.userValue})`;
+  }).join(" · ");
+  const note = el("div", { class: "thumb-diff" }, [
+    el("strong", {}, "Differs: "),
+    diffLabel
+  ]);
+  card.appendChild(note);
+  return card;
 }
 
 function renderTallies(tallies, sid) {

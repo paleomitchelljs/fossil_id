@@ -756,7 +756,9 @@ const FIGURES = {
   cnidaria:           { file: "cnidaria_groups.jpg",       caption: "Major fossil cnidarian groups." },
   mollusca:           { file: "mollusca_groups.jpg",       caption: "Common fossil mollusks." },
   bryozoa:            { file: "bryozoa_groups.jpg",        caption: "Major fossil bryozoan groups." },
-  pelmatozoa:         { file: "echinoderm_pelmatozoa.jpg", caption: "Pelmatozoan echinoderms — crinoids and relatives." }
+  pelmatozoa:         { file: "echinoderm_pelmatozoa.jpg", caption: "Pelmatozoan echinoderms — crinoids and relatives." },
+  ukyOutlines:        { file: "brach_outlines_uky.jpg",    caption: "Brachiopod outline vocabulary — circular, elliptical, elongate, pentagonal, triangular, quadrate, rectangular, transverse, transversely elliptical, alate (winged). (Kentucky Geological Survey)" },
+  ukyProfiles:        { file: "brach_profiles_uky.jpg",    caption: "Brachiopod profile vocabulary (side view) — biconvex, dorsi-/ventri-biconvex, plano-convex, concavo-convex, convexo-plane, resupinate, geniculate. Each shown as separated valves above + joined cross-section below. (Kentucky Geological Survey)" }
 };
 
 // =================================================================
@@ -818,7 +820,7 @@ const QUESTIONS = [
   // Profile: 2-question chain. concavo first (productid splitter), then plano vs biconvex.
   { id: "profile_concavo", trait: "profile", core: true,
     text: "Look at the shell from the side. Is one valve clearly dish-shaped (curved inward), while the other bulges outward?",
-    figure: "convexity",
+    figure: "ukyProfiles",
     options: [
       { value: "yes", label: "Yes — one valve dished, one bulges",   setsTraitTo: "concavo-convex" },
       { value: "no",  label: "No — both valves curve outward (or close to it)" }
@@ -827,7 +829,7 @@ const QUESTIONS = [
   { id: "profile_plano", trait: "profile",
     when: a => a.profile_concavo === "no",
     text: "Is one valve flat (or nearly flat) and the other bulges out?",
-    figure: "convexity",
+    figure: "ukyProfiles",
     options: [
       { value: "yes", label: "Yes — one flat, one bulges",  setsTraitTo: "plano-convex" },
       { value: "no",  label: "No — both valves bulge",       setsTraitTo: "biconvex"     }
@@ -877,7 +879,8 @@ const QUESTIONS = [
   { id: "outline_wings", trait: "outline",
     when: a => a.ribs !== undefined,
     text: "Are there pointed extensions sticking out to the sides at the back of the shell, making it look wing-like?",
-    figure: "brachI",
+    figure: "ukyOutlines",
+    hint: "Compare to the figure: 'alate' (winged) is the rightmost outline in the bottom row. Spiriferids typically look like this.",
     options: [
       { value: "yes", label: "Yes — clear wing-like points to the sides", setsTraitTo: "wing-shaped" },
       { value: "no",  label: "No — sides are rounded or flat" }
@@ -886,6 +889,8 @@ const QUESTIONS = [
   { id: "outline_elong", trait: "outline",
     when: a => a.outline_wings === "no",
     text: "Is the shell clearly longer (front-to-back) than it is wide (side-to-side)?",
+    figure: "ukyOutlines",
+    hint: "Compare to 'elongate' and 'elliptical (oval)' in the figure — both are L > W.",
     options: [
       { value: "yes", label: "Yes — egg-shaped or elongate",     setsTraitTo: "elongate-oval" },
       { value: "no",  label: "No — about as long as wide, or wider", setsTraitTo: "subcircular"  }
