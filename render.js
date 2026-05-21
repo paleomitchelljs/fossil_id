@@ -125,7 +125,25 @@ function effectiveTraits(answers) {
     // Multi-trait setter (e.g., surface picker sets both ribs + growth_frills)
     if (opt.setsTraits) Object.assign(out, opt.setsTraits);
   }
+  // Direct boolean traits set by the build view's toggle sliders (no QUESTIONS entry).
+  // "yes" enables the constraint; absence / "" / "no" means no constraint.
+  const directBooleans = ["surface_lines", "surface_ribs", "surface_frills", "surface_spines"];
+  for (const k of directBooleans) {
+    if (answers[k] === "yes") out[k] = "yes";
+  }
   return out;
+}
+
+// Compute which surface features are active, from either wizard answer or build toggles.
+function featuresFromAnswers(a) {
+  const sp = a.surface_pick;
+  return {
+    lines:   a.surface_lines  === "yes" || sp === "growth-lines-only",
+    ribs:    a.surface_ribs   === "yes" || sp === "ribs" || sp === "ribs-and-frills",
+    frills:  a.surface_frills === "yes" || sp === "ribs-and-frills",
+    spines:  a.surface_spines === "yes" || sp === "spines-or-bumps",
+    density: a.rib_density || "medium"   // visual-only, doesn't filter
+  };
 }
 
 function taxonMatches(taxon, answers) {
@@ -738,56 +756,59 @@ function topOutlinePath(outline, hinge) {
   return "M 100,18 Q 112,22 118,32 Q 168,42 178,90 Q 175,135 100,170 Q 25,135 22,90 Q 32,42 82,32 Q 88,22 100,18 Z";
 }
 
-function topSurfaceLayer(surface) {
-  if (!surface || surface === "smooth") return "";
-  if (surface === "growth-lines-only") {
-    // Concentric arcs following the natural shell growth
-    return [
-      '<path d="M 35,68 Q 100,88 165,68" fill="none" stroke="#555" stroke-width="0.9"/>',
-      '<path d="M 30,95 Q 100,118 170,95" fill="none" stroke="#555" stroke-width="0.9"/>',
-      '<path d="M 32,122 Q 100,145 168,122" fill="none" stroke="#555" stroke-width="0.9"/>'
-    ].join("");
+// Density → number of ribs to draw (visual only — not a filter trait)
+const RIB_COUNTS = { sparse: 7, medium: 13, dense: 22 };
+
+// ---------- TOP view surface layers (each feature independent) ----------
+function topGrowthLines() {
+  return [
+    '<path d="M 35,68 Q 100,88 165,68" fill="none" stroke="#666" stroke-width="0.9"/>',
+    '<path d="M 30,95 Q 100,118 170,95" fill="none" stroke="#666" stroke-width="0.9"/>',
+    '<path d="M 32,122 Q 100,145 168,122" fill="none" stroke="#666" stroke-width="0.9"/>'
+  ].join("");
+}
+function topRibs(density) {
+  const N = RIB_COUNTS[density] || RIB_COUNTS.medium;
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const t = (i + 0.5) / N;
+    const angle = -1.05 + t * 2.1;
+    const xMid = 100 + Math.sin(angle) * 55;
+    const yMid = 90 + Math.cos(angle) * 35;
+    const xEnd = 100 + Math.sin(angle) * 82;
+    const yEnd = 95 + Math.cos(angle) * 72;
+    out.push(`<path d="M 100,32 Q ${xMid.toFixed(1)},${yMid.toFixed(1)} ${xEnd.toFixed(1)},${yEnd.toFixed(1)}" fill="none" stroke="#444" stroke-width="0.85"/>`);
   }
-  if (surface === "ribs" || surface === "ribs-and-frills") {
-    // Slightly curved ribs that fan out from the beak; bezier control points
-    // give them an organic flare rather than straight lines.
-    const ribs = [];
-    const N = 13;
-    for (let i = 0; i < N; i++) {
-      const t = (i + 0.5) / N;            // 0..1
-      const angle = -1.0 + t * 2.0;       // fan angle in radians
-      const xMid = 100 + Math.sin(angle) * 55;
-      const yMid = 90 + Math.cos(angle) * 35;
-      const xEnd = 100 + Math.sin(angle) * 78;
-      const yEnd = 95 + Math.cos(angle) * 65;
-      ribs.push(`<path d="M 100,32 Q ${xMid.toFixed(1)},${yMid.toFixed(1)} ${xEnd.toFixed(1)},${yEnd.toFixed(1)}" fill="none" stroke="#444" stroke-width="0.9"/>`);
-    }
-    let out = ribs.join("");
-    if (surface === "ribs-and-frills") {
-      // Two concentric frill arcs along the lower-margin growth front
-      out += '<path d="M 30,130 Q 45,148 65,140 Q 82,152 100,144 Q 118,152 135,140 Q 155,148 170,130" fill="none" stroke="black" stroke-width="1.5"/>';
-      out += '<path d="M 35,148 Q 50,160 70,155 Q 85,164 100,158 Q 115,164 130,155 Q 150,160 165,148" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>';
-    }
-    return out;
-  }
-  if (surface === "spines-or-bumps") {
-    // Fixed scatter of spine bases distributed across the shell
-    const pts = [
-      [55,55],[75,50],[95,52],[115,52],[135,50],[150,55],
-      [45,75],[68,72],[90,70],[110,70],[132,72],[160,75],
-      [42,98],[65,95],[88,94],[112,94],[135,95],[162,98],
-      [50,120],[72,118],[95,116],[120,118],[145,120],
-      [60,138],[85,136],[110,136],[138,138]
-    ];
-    let out = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#333"/>`).join("");
-    // A few short spines sticking out beyond the shell edge
-    out += '<line x1="45" y1="75" x2="30" y2="60" stroke="#222" stroke-width="1.3"/>';
-    out += '<line x1="160" y1="75" x2="175" y2="60" stroke="#222" stroke-width="1.3"/>';
-    out += '<line x1="50" y1="120" x2="38" y2="138" stroke="#222" stroke-width="1.3"/>';
-    out += '<line x1="145" y1="120" x2="158" y2="138" stroke="#222" stroke-width="1.3"/>';
-    return out;
-  }
-  return "";
+  return out.join("");
+}
+function topFrills() {
+  return [
+    '<path d="M 28,128 Q 42,148 62,140 Q 80,152 100,144 Q 120,152 138,140 Q 158,148 172,128" fill="none" stroke="black" stroke-width="1.5"/>',
+    '<path d="M 33,146 Q 48,160 68,154 Q 84,164 100,158 Q 116,164 132,154 Q 152,160 167,146" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>'
+  ].join("");
+}
+function topSpines() {
+  const pts = [
+    [55,55],[75,50],[95,52],[115,52],[135,50],[150,55],
+    [45,75],[68,72],[90,70],[110,70],[132,72],[160,75],
+    [42,98],[65,95],[88,94],[112,94],[135,95],[162,98],
+    [50,120],[72,118],[95,116],[120,118],[145,120],
+    [60,138],[85,136],[110,136],[138,138]
+  ];
+  let out = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#333"/>`).join("");
+  out += '<line x1="45" y1="75" x2="30" y2="60" stroke="#222" stroke-width="1.3"/>';
+  out += '<line x1="160" y1="75" x2="175" y2="60" stroke="#222" stroke-width="1.3"/>';
+  out += '<line x1="50" y1="120" x2="38" y2="138" stroke="#222" stroke-width="1.3"/>';
+  out += '<line x1="145" y1="120" x2="158" y2="138" stroke="#222" stroke-width="1.3"/>';
+  return out;
+}
+function topSurfaceLayer(features) {
+  let out = "";
+  if (features.lines)  out += topGrowthLines();
+  if (features.ribs)   out += topRibs(features.density);
+  if (features.frills) out += topFrills();
+  if (features.spines) out += topSpines();
+  return out;
 }
 
 function topFoldLayer(fold) {
@@ -810,17 +831,15 @@ function topFoldLayer(fold) {
 function svgTopView(answers) {
   const outline = answers.outline_pick || "subcircular";
   const hinge   = answers.hinge_pick   || "astrophic";
-  const surface = answers.surface_pick || "smooth";
   const fold    = answers.fold_pick    || "none";
+  const features = featuresFromAnswers(answers);
   const path = topOutlinePath(outline, hinge);
-  // Surface + fold decoration is clipped to the outline so it can't leak
-  // outside when outline changes. Each rendered SVG has its own clip id.
   const clipId = "brachTopClip";
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
     <defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs>
     <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">
-      ${topSurfaceLayer(surface)}
+      ${topSurfaceLayer(features)}
       ${topFoldLayer(fold)}
     </g>
   </svg>`;
@@ -871,7 +890,7 @@ function svgFrontView(answers) {
     <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
     <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">
-      ${frontSurfaceLayer(answers.surface_pick || "smooth", leftX, rightX, dorsalDepth, ventralDepth)}
+      ${frontSurfaceLayer(featuresFromAnswers(answers), leftX, rightX, dorsalDepth, ventralDepth)}
     </g>
     <path d="${commPath}" fill="none" stroke="black" stroke-width="${commWidth}" stroke-dasharray="${commDash}"/>
   </svg>`;
@@ -880,51 +899,53 @@ function svgFrontView(answers) {
 // Surface decoration for the front view. The shell front shows the
 // commissure plane; ribs/frills/spines appear on the dorsal valve
 // (upper half) and ventral valve (lower half).
-function frontSurfaceLayer(surface, leftX, rightX, dorsalDepth, ventralDepth) {
-  if (!surface || surface === "smooth") return "";
+// Front view surface — features rendered on the dorsal valve (upper half).
+function frontGrowthLines(leftX, rightX, dorsalDepth) {
   const w = rightX - leftX;
-  if (surface === "growth-lines-only") {
-    // Faint horizontal arcs following the dorsal curve (concentric growth)
-    return [
-      `<path d="M ${leftX + w*0.1},88 Q 100,${95 - dorsalDepth * 0.85} ${rightX - w*0.1},88" fill="none" stroke="#666" stroke-width="0.8"/>`,
-      `<path d="M ${leftX + w*0.2},82 Q 100,${95 - dorsalDepth * 0.65} ${rightX - w*0.2},82" fill="none" stroke="#666" stroke-width="0.8"/>`,
-      `<path d="M ${leftX + w*0.3},76 Q 100,${95 - dorsalDepth * 0.45} ${rightX - w*0.3},76" fill="none" stroke="#666" stroke-width="0.8"/>`
-    ].join("");
+  return [
+    `<path d="M ${leftX + w*0.1},88 Q 100,${95 - dorsalDepth * 0.85} ${rightX - w*0.1},88" fill="none" stroke="#666" stroke-width="0.8"/>`,
+    `<path d="M ${leftX + w*0.2},82 Q 100,${95 - dorsalDepth * 0.65} ${rightX - w*0.2},82" fill="none" stroke="#666" stroke-width="0.8"/>`,
+    `<path d="M ${leftX + w*0.3},76 Q 100,${95 - dorsalDepth * 0.45} ${rightX - w*0.3},76" fill="none" stroke="#666" stroke-width="0.8"/>`
+  ].join("");
+}
+function frontRibs(leftX, rightX, dorsalDepth, density) {
+  const w = rightX - leftX;
+  const N = RIB_COUNTS[density] || RIB_COUNTS.medium;
+  let out = "";
+  for (let i = 1; i < N; i++) {
+    const x = leftX + (w * i) / N;
+    const ratio = Math.abs(x - 100) / (w/2);
+    const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 4;
+    out += `<line x1="${x.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${x.toFixed(1)}" y2="93" stroke="#444" stroke-width="0.7"/>`;
   }
-  if (surface === "ribs" || surface === "ribs-and-frills") {
-    // Vertical tick marks across the dorsal valve (looking end-on at ribs)
-    let out = "";
-    const N = 11;
-    for (let i = 1; i < N; i++) {
-      const x = leftX + (w * i) / N;
-      const ratio = Math.abs(x - 100) / (w/2);  // 0 at center, 1 at edges
-      const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 4;
-      out += `<line x1="${x.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${x.toFixed(1)}" y2="93" stroke="#444" stroke-width="0.7"/>`;
-    }
-    if (surface === "ribs-and-frills") {
-      // Wavy frill line just above the commissure (visible on dorsal valve)
-      out += `<path d="M ${leftX + w*0.1},${90} Q ${leftX + w*0.25},${85} ${leftX + w*0.4},${88} Q 100,${83} ${rightX - w*0.4},${88} Q ${rightX - w*0.25},${85} ${rightX - w*0.1},${90}" fill="none" stroke="black" stroke-width="1.3"/>`;
-    }
-    return out;
+  return out;
+}
+function frontFrills(leftX, rightX) {
+  const w = rightX - leftX;
+  return `<path d="M ${leftX + w*0.1},90 Q ${leftX + w*0.25},85 ${leftX + w*0.4},88 Q 100,83 ${rightX - w*0.4},88 Q ${rightX - w*0.25},85 ${rightX - w*0.1},90" fill="none" stroke="black" stroke-width="1.3"/>`;
+}
+function frontSpines(leftX, rightX, dorsalDepth) {
+  const w = rightX - leftX;
+  const pts = [];
+  for (let i = 2; i < 9; i++) {
+    const x = leftX + (w * i) / 10;
+    const ratio = Math.abs(x - 100) / (w/2);
+    const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 6;
+    pts.push([x, yTop]);
+    pts.push([x, yTop + 8]);
   }
-  if (surface === "spines-or-bumps") {
-    // Dots scattered on the dorsal valve, a few protruding spines
-    const pts = [];
-    for (let i = 2; i < 9; i++) {
-      const x = leftX + (w * i) / 10;
-      const ratio = Math.abs(x - 100) / (w/2);
-      const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 6;
-      pts.push([x, yTop]);
-      // Second row
-      pts.push([x, yTop + 8]);
-    }
-    let out = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" fill="#333"/>`).join("");
-    // A protruding spine on each side
-    out += `<line x1="${leftX + w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${leftX + w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
-    out += `<line x1="${rightX - w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${rightX - w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
-    return out;
-  }
-  return "";
+  let out = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" fill="#333"/>`).join("");
+  out += `<line x1="${leftX + w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${leftX + w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
+  out += `<line x1="${rightX - w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${rightX - w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
+  return out;
+}
+function frontSurfaceLayer(features, leftX, rightX, dorsalDepth, ventralDepth) {
+  let out = "";
+  if (features.lines)  out += frontGrowthLines(leftX, rightX, dorsalDepth);
+  if (features.ribs)   out += frontRibs(leftX, rightX, dorsalDepth, features.density);
+  if (features.frills) out += frontFrills(leftX, rightX);
+  if (features.spines) out += frontSpines(leftX, rightX, dorsalDepth);
+  return out;
 }
 
 // ---------- SIDE VIEW (lateral) ----------
@@ -939,16 +960,19 @@ function svgSideView(answers) {
   const beakX = hinge === "astrophic" ? 22 : 26;
   const beakDip = hinge === "astrophic" ? 8 : 0;
 
-  let path, dorsalCurveY = 15, ventralCurveY = 175;
+  let path, dorsalCurveY = 15, ventralCurveY = 175, sideBaseY = 95;
   if (profile === "biconvex") {
+    sideBaseY     = 95;
     dorsalCurveY  = 15 - beakDip/2;
     ventralCurveY = 175 + beakDip/2;
     path = `M ${beakX},95 Q 100,${dorsalCurveY} 180,95 Q 100,${ventralCurveY} ${beakX},95 Z`;
   } else if (profile === "plano-convex") {
+    sideBaseY = 135;
     dorsalCurveY = 25;
     ventralCurveY = 135;
     path = `M ${beakX},135 Q 100,${dorsalCurveY} 180,135 L ${beakX},135 Z`;
   } else /* concavo-convex */ {
+    sideBaseY = 130;
     dorsalCurveY = 15;
     ventralCurveY = 75;
     path = `M ${beakX},130 Q 100,${dorsalCurveY} 180,130 Q 100,${ventralCurveY} ${beakX},130 Z`;
@@ -959,7 +983,7 @@ function svgSideView(answers) {
     <defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs>
     <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">
-      ${sideSurfaceLayer(surface, beakX, dorsalCurveY)}
+      ${sideSurfaceLayer(featuresFromAnswers(answers), beakX, dorsalCurveY, sideBaseY)}
     </g>
     ${hinge === "wide-strophic"
       ? '<line x1="22" y1="80" x2="22" y2="110" stroke="black" stroke-width="3.5"/>'
@@ -969,58 +993,61 @@ function svgSideView(answers) {
 
 // Surface decoration for the side view. Decorations appear along the
 // dorsal (top) curve, which is the surface visible from the side.
-function sideSurfaceLayer(surface, beakX, dorsalCurveY) {
-  if (!surface || surface === "smooth") return "";
-  // Helper: quadratic bezier y at parameter t along (beakX,95)→(100,dorsalCurveY)→(180,95)
-  const yAt = (t) => (1-t)*(1-t)*95 + 2*t*(1-t)*dorsalCurveY + t*t*95;
+// Side view surface — features drawn along the dorsal (top) curve.
+// baseY is the endpoint Y of the dorsal curve (95 for biconvex, 135 for plano-convex, 130 for concavo-convex).
+function sideGrowthLines(beakX, dorsalCurveY, baseY) {
+  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
   const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
-
-  if (surface === "growth-lines-only") {
-    // Vertical strokes following the dorsal curve (concentric growth seen sideways)
-    let out = "";
-    for (let i = 1; i < 8; i++) {
-      const t = i / 8;
-      const x = xAt(t), y = yAt(t);
-      out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 5).toFixed(1)}" stroke="#666" stroke-width="0.7"/>`;
-    }
-    return out;
+  let out = "";
+  for (let i = 1; i < 8; i++) {
+    const t = i / 8;
+    const x = xAt(t), y = yAt(t);
+    out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 5).toFixed(1)}" stroke="#666" stroke-width="0.7"/>`;
   }
-  if (surface === "ribs" || surface === "ribs-and-frills") {
-    // Closely spaced hatches across the dorsal valve, perpendicular to its surface
-    let out = "";
-    const N = 14;
-    for (let i = 1; i < N; i++) {
-      const t = i / N;
-      const x = xAt(t), y = yAt(t);
-      out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 9).toFixed(1)}" stroke="#444" stroke-width="0.7"/>`;
-    }
-    if (surface === "ribs-and-frills") {
-      // Wavy lamellae along the dorsal margin near the front
-      out += `<path d="M ${xAt(0.6).toFixed(1)},${(yAt(0.6) + 1).toFixed(1)} Q ${xAt(0.7).toFixed(1)},${(yAt(0.7) - 3).toFixed(1)} ${xAt(0.8).toFixed(1)},${(yAt(0.8) + 1).toFixed(1)} Q ${xAt(0.9).toFixed(1)},${(yAt(0.9) - 2).toFixed(1)} ${xAt(0.97).toFixed(1)},${(yAt(0.97) + 1).toFixed(1)}" fill="none" stroke="black" stroke-width="1.2"/>`;
-    }
-    return out;
+  return out;
+}
+function sideRibs(beakX, dorsalCurveY, baseY, density) {
+  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
+  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
+  const N = RIB_COUNTS[density] || RIB_COUNTS.medium;
+  let out = "";
+  for (let i = 1; i < N; i++) {
+    const t = i / N;
+    const x = xAt(t), y = yAt(t);
+    out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 9).toFixed(1)}" stroke="#444" stroke-width="0.7"/>`;
   }
-  if (surface === "spines-or-bumps") {
-    // Dots and a few protruding spines along the dorsal curve
-    let out = "";
-    for (let i = 1; i < 9; i++) {
-      const t = i / 9;
-      const x = xAt(t), y = yAt(t);
-      out += `<circle cx="${x.toFixed(1)}" cy="${(y + 6).toFixed(1)}" r="1.8" fill="#333"/>`;
-      // Every third dot gets a short protruding spine
-      if (i % 3 === 0) {
-        const sx = xAt(t), sy = yAt(t);
-        out += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${sx.toFixed(1)}" y2="${(sy - 8).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
-      }
+  return out;
+}
+function sideFrills(beakX, dorsalCurveY, baseY) {
+  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
+  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
+  return `<path d="M ${xAt(0.6).toFixed(1)},${(yAt(0.6) + 1).toFixed(1)} Q ${xAt(0.7).toFixed(1)},${(yAt(0.7) - 3).toFixed(1)} ${xAt(0.8).toFixed(1)},${(yAt(0.8) + 1).toFixed(1)} Q ${xAt(0.9).toFixed(1)},${(yAt(0.9) - 2).toFixed(1)} ${xAt(0.97).toFixed(1)},${(yAt(0.97) + 1).toFixed(1)}" fill="none" stroke="black" stroke-width="1.2"/>`;
+}
+function sideSpines(beakX, dorsalCurveY, baseY) {
+  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
+  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
+  let out = "";
+  for (let i = 1; i < 9; i++) {
+    const t = i / 9;
+    const x = xAt(t), y = yAt(t);
+    out += `<circle cx="${x.toFixed(1)}" cy="${(y + 6).toFixed(1)}" r="1.8" fill="#333"/>`;
+    if (i % 3 === 0) {
+      out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y - 8).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
     }
-    return out;
   }
-  return "";
+  return out;
+}
+function sideSurfaceLayer(features, beakX, dorsalCurveY, baseY) {
+  let out = "";
+  if (features.lines)  out += sideGrowthLines(beakX, dorsalCurveY, baseY);
+  if (features.ribs)   out += sideRibs(beakX, dorsalCurveY, baseY, features.density);
+  if (features.frills) out += sideFrills(beakX, dorsalCurveY, baseY);
+  if (features.spines) out += sideSpines(beakX, dorsalCurveY, baseY);
+  return out;
 }
 
-// Slider config: question id, label, list of {value, short label} stops.
-// Short labels keep slider stops compact on phones.
-function buildSliders() {
+// Shape sliders: discrete preset stops, one choice active at a time.
+function buildShapeSliders() {
   return [
     { qid: "outline_pick", label: "Outline",
       stops: [
@@ -1040,14 +1067,6 @@ function buildSliders() {
         { value: "narrow-strophic", short: "Short" },
         { value: "astrophic",       short: "Curved" }
       ] },
-    { qid: "surface_pick", label: "Surface",
-      stops: [
-        { value: "smooth",             short: "Smooth" },
-        { value: "growth-lines-only",  short: "Lines" },
-        { value: "ribs",               short: "Ribs" },
-        { value: "ribs-and-frills",    short: "Frilled" },
-        { value: "spines-or-bumps",    short: "Spiny" }
-      ] },
     { qid: "fold_pick", label: "Fold",
       stops: [
         { value: "none",   short: "None" },
@@ -1057,11 +1076,41 @@ function buildSliders() {
   ];
 }
 
+// Surface toggles: each feature is independently on/off (multiple can stack).
+function buildSurfaceToggles() {
+  return [
+    { qid: "surface_lines",  label: "Growth lines" },
+    { qid: "surface_ribs",   label: "Radial ribs" },
+    { qid: "surface_frills", label: "Frills" },
+    { qid: "surface_spines", label: "Spines / bumps" }
+  ];
+}
+
+function buildDensitySlider() {
+  return {
+    qid: "rib_density", label: "Rib density",
+    stops: [
+      { value: "sparse", short: "Sparse" },
+      { value: "medium", short: "Med" },
+      { value: "dense",  short: "Dense" }
+    ]
+  };
+}
+
 function viewBuild(sid, answers) {
-  const sliders = buildSliders();
+  const shapeSliders = buildShapeSliders();
+  const surfaceToggles = buildSurfaceToggles();
+  const densitySlider = buildDensitySlider();
 
   const setLink = (qid, value) => {
     const next = Object.assign({}, answers, { [qid]: value });
+    return `${siteBase(sid)}/build?${encodeAnswers(next)}`;
+  };
+  // Toggle link: tap an off chip → ?qid=yes; tap an on chip → drop qid
+  const toggleLink = (qid) => {
+    const next = Object.assign({}, answers);
+    if (answers[qid] === "yes") delete next[qid];
+    else next[qid] = "yes";
     return `${siteBase(sid)}/build?${encodeAnswers(next)}`;
   };
 
@@ -1076,7 +1125,7 @@ function viewBuild(sid, answers) {
   const frontSvg = svgFrontView(answers);
   const sideSvg  = svgSideView(answers);
 
-  const sliderBlocks = sliders.map(s => el("div", { class: "slider-row" }, [
+  const sliderRow = (s) => el("div", { class: "slider-row" }, [
     el("label", { class: "slider-label" }, s.label),
     el("div", { class: "slider-track" },
       s.stops.map(stop => el("a", {
@@ -1084,9 +1133,11 @@ function viewBuild(sid, answers) {
         href: setLink(s.qid, stop.value)
       }, stop.short))
     )
-  ]));
+  ]);
 
-  const haveAny = sliders.some(s => answers[s.qid]);
+  const ribsOn = featuresFromAnswers(answers).ribs;
+  const haveAny = shapeSliders.some(s => answers[s.qid]) ||
+                  surfaceToggles.some(t => answers[t.qid] === "yes");
   const resetHref = `${siteBase(sid)}/build`;
   const resultsHref = `${siteBase(sid)}/filter/results?${encodeAnswers(answers)}`;
 
@@ -1115,7 +1166,19 @@ function viewBuild(sid, answers) {
         ` of ${totalCount} brachiopod taxa match — `,
         el("a", { href: resultsHref, class: "build-status-link" }, "see candidates →")
       ]),
-      el("div", { class: "build-sliders" }, sliderBlocks),
+      // Shape sliders (one choice active at a time per slider)
+      el("h3", { class: "build-section-h" }, "Shape"),
+      el("div", { class: "build-sliders" }, shapeSliders.map(sliderRow)),
+      // Surface toggles (independently on/off; multiple stack)
+      el("h3", { class: "build-section-h" }, "Surface — tap any to add or remove"),
+      el("div", { class: "surface-toggle-row" },
+        surfaceToggles.map(t => el("a", {
+          class: "surface-toggle" + (answers[t.qid] === "yes" ? " active" : ""),
+          href: toggleLink(t.qid)
+        }, t.label))
+      ),
+      // Rib density (visual-only; affects rendering when ribs are on)
+      ribsOn ? sliderRow(densitySlider) : null,
       el("div", { class: "key-footer" }, [
         haveAny ? el("a", { class: "restart-link", href: resetHref }, "Reset all sliders") : null,
         el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Use the question wizard instead")

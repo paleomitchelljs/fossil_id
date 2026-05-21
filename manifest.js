@@ -90,7 +90,7 @@ const FAUNA = [
         taxa: [
           { genus: "Cyrtospirifer", species: "whitneyi", sites: ["rockford"],
             note: "Wide-winged; deep sulcus; many fine ribs.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
             images: [
               { file: "whitneyi_nathan_01.jpg", src: "nathan" },
               { file: "whitneyi_dave_01.jpg",   src: "dave"   },
@@ -99,7 +99,7 @@ const FAUNA = [
             ] },
           { genus: "Theodossia", species: "hungerfordi", sites: ["rockford"],
             note: "Globose, rounded outline; subdued ribs. Spiriferid by anatomy but the hinge is short — students often perceive it as astrophic.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "hungerfordi_nathan_01.jpg", src: "nathan" },
               { file: "hungerfordi_dave_01.jpg",   src: "dave"   },
@@ -107,48 +107,48 @@ const FAUNA = [
             ] },
           { genus: "Platyrachella", species: "macbridei", sites: ["rockford"],
             note: "Wide hinge; sharp ribs; flatter ventral valve. Sometimes placed in Spinocyrtia.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
             images: [
               { file: "macbridei_nathan_01.jpg", src: "nathan" },
               { file: "macbridei_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Tenticospirifer", species: "sp.", sites: ["rockford"],
             note: "Tall, pyramidal ventral valve.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [
               { file: "sp_dave_01.jpg", src: "dave" }
             ] },
           { genus: "Pyramidspirifer", species: "sp.", sites: ["rockford"],
             note: "Steep, pyramid-form spiriferid.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [
               { file: "sp_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Conispirifer", species: "cyrtinaeformis", sites: ["rockford"],
             note: "Narrow, cone-shaped; coarse ribs. Often listed in PBDB as Tenticospirifer cyrtinaeformis.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [
               { file: "cyrtinaeformis_nathan_01.jpg", src: "nathan" },
               { file: "cyrtinaeformis_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Cyrtina", species: "iowaensis", sites: ["rockford"],
             note: "Small, sharply pyramidal; punctate shell.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [
               { file: "iowaensis_nathan_01.jpg", src: "nathan" },
               { file: "iowaensis_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Ambocoelia", species: "sp.", sites: ["rockford"],
             note: "Small, smooth-ish spiriferid with reduced ribbing. PBDB: 6 records at Rockford.",
-            traits: { surface: ["smooth", "ribs"], profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "small", umbones: "smooth" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "small", umbones: "smooth" },
             images: [] },
           { genus: "Tylothyris", species: "sulcocostata", sites: ["rockford"],
             note: "Small spiriferid; sulcate fold with strong costae. PBDB: 3 records.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [] },
           { genus: "Tecnocyrtina", species: "johnsoni", sites: ["crawford"],
             note: "Late Givetian Cedar Valley spiriferid (Johnson, 1990). Small-to-medium; clear fold/sulcus; fine ribs. Associated with the Allanella allani Zone (D&C fig. 2).",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
             images: [] }
         ]
       },
@@ -159,7 +159,7 @@ const FAUNA = [
         taxa: [
           { genus: "Pseudoatrypa", species: "devoniana", sites: ["rockford"],
             note: "Subcircular, dorsibiconvex; fine tubular ribs; concentric growth frills. By far the most abundant atrypid at Rockford (Day & Copper 1998 plate from Cerro Gordo Mbr at Hackberry Grove and Rockford Quarry).",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "devoniana_nathan_01.jpg",    src: "nathan"    },
               { file: "devoniana_dave_01.jpg",      src: "dave"      },
@@ -169,19 +169,19 @@ const FAUNA = [
             ] },
           { genus: "Pseudoatrypa", species: "lineata", sites: ["rockford"],
             note: "Larger than P. devoniana; globose dorsibiconvex shell with an inflated dome-like dorsal valve; broad angular fold. Idlewild Mbr of the Lithograph City Fm, Floyd Co. (Day & Copper 1998). Per D&C also occurs in the Cedar Valley Group (Coralville Fm / State Quarry) — tag for Crawford once specimens are confirmed.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "large", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "large", umbones: "ribbed" },
             images: [
               { file: "lineata_daycopper_01.png", src: "daycopper" }
             ] },
           { genus: "Spinatrypa", species: "planosulcata", sites: ["rockford"],
             note: "Globose, spinose; flat sulcus.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", surface_spines: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "planosulcata_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Spinatrypa", species: "rockfordensis", sites: ["rockford"],
             note: "Medium-to-large; biconvex to dorsibiconvex; wider than long with rounded outline; coarse undulating ribs (4–7/10 mm); spinose lamellae. Holotype from Rockford Quarry (Day & Copper 1998).",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", surface_spines: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "rockfordensis_nathan_01.jpg",    src: "nathan"    },
               { file: "rockfordensis_unk_01.webp",      src: "unk"       },
@@ -189,42 +189,42 @@ const FAUNA = [
             ] },
           { genus: "Spinatrypa", species: "sp.", sites: ["rockford"],
             note: "Generic spinatrypid view.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", surface_spines: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "sp_dave_01.jpg", src: "dave" }
             ] },
           { genus: "Desquamatia", species: "(Independatrypa) scutiformis", sites: ["rockford"],
             note: "Strophic, shield-shaped; dorsibiconvex with coarse imbricate growth lamellae. Type Lime Creek / Lithograph City Fm taxon (Stainbrook 1938; plate from Day & Copper 1998 Fig. 5).",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "independatrypa_eqmn_01.png",                src: "eqmn"      },
               { file: "independatrypa_scutiformis_daycopper_01.png", src: "daycopper" }
             ] },
           { genus: "Hystricina", species: "trulla", sites: ["rockford"],
             note: "Small; densely spinose surface.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", surface_spines: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "small", umbones: "ribbed" },
             images: [
               { file: "trulla_eqmn_01.png", src: "eqmn" }
             ] },
           { genus: "Costatrypa", species: "varicostata", sites: ["rockford"],
             note: "Late Frasnian Lime Creek Fm atrypid (Stainbrook 1945); listed by Day & Copper 1998 as part of the standard Lime Creek atrypid fauna. PBDB: 1 record.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [] },
           { genus: "Iowatrypa", species: "owenensis", sites: ["rockford"],
             note: "Late Frasnian Lime Creek Fm atrypid (Webster, 1921); zone fossil for the uppermost Lime Creek (M.N. Zone 13 — 'Iowatrypa owenensis Zone'). Day & Copper 1998.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [] },
           { genus: "Iowatrypa", species: "minor", sites: ["rockford"],
             note: "Smaller congener of I. owenensis in the Lime Creek Fm fauna (Fenton & Fenton, 1924). Day & Copper 1998.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "small", umbones: "ribbed" },
             images: [] },
           { genus: "Spinatrypa", species: "bellula", sites: ["crawford"],
             note: "Cedar Valley Group atrypid (Hall, 1858). Globose, spinose; smaller and less coarsely ribbed than the Frasnian S. rockfordensis.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", surface_spines: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "small", umbones: "ribbed" },
             images: [] },
           { genus: "Allanella", species: "allani", sites: ["crawford"],
             note: "Zone fossil for the Allanella allani Zone (latest Givetian–earliest Frasnian), spanning upper Cedar Valley into lowermost Lithograph City. Small-to-medium dorsibiconvex atrypid with fine ribs. Day & Copper 1998 fig. 2.",
-            traits: { surface: "ribs-and-frills", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: ["small", "medium"], umbones: "ribbed" },
+            traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: ["small", "medium"], umbones: "ribbed" },
             images: [] }
         ]
       },
@@ -235,13 +235,13 @@ const FAUNA = [
         taxa: [
           { genus: "Riqauxia", species: "orestes", sites: ["rockford"],
             note: "Smooth, oval; subtle growth lines. PBDB sometimes lists as 'Spirifer orestes'.",
-            traits: { surface: "smooth", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "elongate-oval", size: "medium", umbones: "smooth" },
+            traits: { profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "elongate-oval", size: "medium", umbones: "smooth" },
             images: [
               { file: "orestes_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Athyris", species: "vittata", sites: ["crawford"],
             note: "Smooth-shelled athyrid common in Iowa Cedar Valley Group. Subcircular, biconvex, with faint concentric growth lines.",
-            traits: { surface: "smooth", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "smooth" },
+            traits: { profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "smooth" },
             images: [] }
         ]
       },
@@ -252,32 +252,32 @@ const FAUNA = [
         taxa: [
           { genus: "Douvillina", species: "arcuata", sites: ["rockford"],
             note: "Concavo-convex; geniculate margin; fine ribs.",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "arcuata_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Strophodonta", species: "sp.", sites: ["rockford"],
             note: "Very wide hinge; fine ribs; no pedicle foramen. Most Rockford specimens are S. thomasi. (Cedar Valley Strophodonta — usually S. callawayensis — exists but isn't yet tagged for Crawford pending specimen confirmation.)",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "sp_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Nervostrophia", species: "rockfordensis", sites: ["rockford"],
             note: "Strong primary costae alternating with finer ones.",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "rockfordensis_nathan_01.jpg", src: "nathan" },
               { file: "rockfordensis_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Moravostrophia", species: "sp.", sites: ["rockford"],
             note: "Wide-hinged; very fine costae.",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "sp_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Strophonelloides", species: "reversa", sites: ["rockford"],
             note: "Strongly resupinate — convexity reverses across growth. (Older lit: Strophonella reversa.)",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "reversa_nathan_01.jpg", src: "nathan" },
               { file: "reversa_dave_01.jpg",   src: "dave"   },
@@ -285,13 +285,13 @@ const FAUNA = [
             ] },
           { genus: "Sulcatostrophia", species: "camerata", sites: ["rockford"],
             note: "Sulcate; fine costae. (Older spelling: Sulcastrophia.)",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "camerata_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Schuchertella", species: "sp.", sites: ["rockford"],
             note: "Concavo-convex; coarser costae than most strophomenes. Most Rockford specimens are S. parva.",
-            traits: { surface: "ribs", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: ["absent", "weak"], outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: ["absent", "weak"], outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "sp_dave_01.jpg", src: "dave" }
             ] }
@@ -304,14 +304,14 @@ const FAUNA = [
         taxa: [
           { genus: "Devonoproductus", species: "sp.", sites: ["rockford"],
             note: "Highly convex ventral valve; spine bases on shell. Most Rockford specimens are D. walcotti.",
-            traits: { surface: ["smooth", "ribs"], profile: "concavo-convex", hinge: ["strophic", "astrophic"], spines: "present", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
+            traits: { surface_ribs: "yes", surface_spines: "yes", profile: "concavo-convex", hinge: ["strophic", "astrophic"], spines: "present", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
             images: [
               { file: "sp_nathan_01.jpg", src: "nathan" },
               { file: "sp_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Productella", species: "sp.", sites: ["rockford"],
             note: "Second productid genus at Rockford — smaller, less inflated than Devonoproductus. PBDB: 9 records.",
-            traits: { surface: ["smooth", "ribs"], profile: "concavo-convex", hinge: ["strophic", "astrophic"], spines: "present", fold_sulcus: "absent", outline: "subcircular", size: ["small", "medium"], umbones: ["ribbed", "smooth"] },
+            traits: { surface_ribs: "yes", surface_spines: "yes", profile: "concavo-convex", hinge: ["strophic", "astrophic"], spines: "present", fold_sulcus: "absent", outline: "subcircular", size: ["small", "medium"], umbones: ["ribbed", "smooth"] },
             images: [] }
         ]
       },
@@ -322,13 +322,13 @@ const FAUNA = [
         taxa: [
           { genus: "Gypidula", species: "cornuta", sites: ["rockford"],
             note: "Globose; strong median fold; smooth or coarsely ribbed. Frasnian-aged form within the genus range (Treatise: *Gypidula* spans Silurian Telychian–Upper Devonian Frasnian).",
-            traits: { surface: ["smooth", "ribs"], profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
             images: [
               { file: "cornuta_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Gypidula", species: "typicalis", sites: ["crawford"],
             note: "Type species of *Gypidula* (HALL, 1867); illustrated from the Cedar Valley Group of Iowa (Amsden 1965). Ventribiconvex; well-developed dorsal sulcus and ventral fold; lyre-shaped hinge plates visible in serial section. Treatise Fig. 681,2a–d.",
-            traits: { surface: ["smooth", "ribs"], profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
             images: [
               { file: "typicalis_treatise_01.png", src: "treatise" }
             ] }
@@ -341,7 +341,7 @@ const FAUNA = [
         taxa: [
           { genus: "Schizophoria", species: "iowensis", sites: ["rockford", "crawford"],
             note: "Medium-sized, dorsibiconvex; transversely ovate outline; short hinge with truncated cardinal extremities; moderately to highly developed fold + sulcus; fine costae. Givetian Cedar Valley Group → Frasnian Lime Creek Fm. Two morphotypes recognized — 'A' (subcircular) and 'B' (transverse, formerly *macfarlanii*). Stigall Rode 2005 synonymises *S. macfarlanii* and *S. iowaensis* (older spelling) into *S. iowensis*. The Stigall Rode plate shows panel 3 = *iowensis* lectotype, panels 5–7 = *macfarlanii* (now *iowensis* 'B').",
-            traits: { surface: "ribs", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
               { file: "iowensis_nathan_01.jpg",      src: "nathan"                  },
               { file: "iowensis_dave_01.jpg",        src: "dave"                    },
@@ -352,7 +352,7 @@ const FAUNA = [
             ] },
           { genus: "Schizophoria", species: "magna", sites: ["rockford", "crawford"],
             note: "Larger, more inflated congener of *S. iowensis*; longer hinge line, wider dorsal umbonal angle, narrower delthyrium. Givetian Cedar Valley Lst → Frasnian Lime Creek Fm of Iowa (Stigall Rode 2005). Field-distinguishing *S. magna* from *S. iowensis* is morphometric — note coexistence at both Iowa sites. Plate panels 1 and 2a/2b in the shared Stigall Rode figure are *magna*.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "large", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "large", umbones: "ribbed" },
             images: [
               { file: "iowensis_stigallrode_01.png", src: "stigallrode", note: "Comparative plate; panels 1, 2a, 2b = magna" }
             ] }
@@ -365,14 +365,14 @@ const FAUNA = [
         taxa: [
           { genus: "Cupularostrum", species: "saxatillis", sites: ["rockford"],
             note: "Triangular; coarsely ribbed; deep sulcus. Older lit places this in *Camarotoechia* (per Treatise: low rounded costae present on flanks AND fold/sulcus, fold/sulcus low + commencing at umbones, anterior commissure uniplicate). Treatise Fig. 769,1a–b illustrates the Camarotoechia type species *C. congregata* for genus comparison.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "small", umbones: "ribbed" },
             images: [
               { file: "saxatillis_nathan_01.jpg", src: "nathan" },
               { file: "camarotoechia_congregata_treatise_01.png", src: "treatise" }
             ] },
           { genus: "Leiorhynchus", species: "argenteum", sites: ["rockford"],
             note: "Subcircular to transversely ovate; biconvex. **Diagnostic:** umbones smooth; costae low and simple, most pronounced on fold/sulcus and weak on flanks (per Treatise diagnosis). Fold + sulcus arise at midlength, not at umbo — distinguishes from *Cupularostrum*/*Camarotoechia*. Treatise Fig. 771,1a–o shows type species *L. quadracostata*.",
-            traits: { surface: "ribs", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: ["small", "medium"], umbones: "smooth" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: ["small", "medium"], umbones: "smooth" },
             images: [
               { file: "quadracostata_treatise_01.png", src: "treatise" }
             ] }
@@ -385,13 +385,13 @@ const FAUNA = [
         taxa: [
           { genus: "Cranaena", species: "navicella", sites: ["rockford"],
             note: "Smooth oval shell; no costae.",
-            traits: { surface: "smooth", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "absent", outline: "elongate-oval", size: "medium", umbones: "smooth" },
+            traits: { profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "absent", outline: "elongate-oval", size: "medium", umbones: "smooth" },
             images: [
               { file: "navicella_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Cranaenella", species: "sp.", sites: ["rockford"],
             note: "Smaller, more elongate terebratulid; rarer than Cranaena. PBDB: 5 records.",
-            traits: { surface: "smooth", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "absent", outline: "elongate-oval", size: "small", umbones: "smooth" },
+            traits: { profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "absent", outline: "elongate-oval", size: "small", umbones: "smooth" },
             images: [] }
         ]
       },
@@ -731,14 +731,19 @@ const FIGURES = {
 // route from KEY using a different filter id (e.g., result: { filter: "gastropod" }).
 
 const TRAITS = {
-  surface:       { label: "Surface" },         // combines ribbing + growth lamellae
-  profile:       { label: "Shell profile" },
-  hinge:         { label: "Hinge" },
-  spines:        { label: "Spines" },
-  fold_sulcus:   { label: "Fold + sulcus" },
-  outline:       { label: "Outline shape" },
-  size:          { label: "Size" },
-  umbones:       { label: "Umbones" }
+  // Surface decorations — independent booleans so multiple can stack (e.g. ribs + spines for productids)
+  surface_lines:  { label: "Growth lines" },
+  surface_ribs:   { label: "Radial ribs" },
+  surface_frills: { label: "Raised frills" },
+  surface_spines: { label: "Spines / bumps" },
+  // Other traits
+  profile:        { label: "Shell profile" },
+  hinge:          { label: "Hinge" },
+  spines:         { label: "Spines (productid)" },
+  fold_sulcus:    { label: "Fold + sulcus" },
+  outline:        { label: "Outline shape" },
+  size:           { label: "Size" },
+  umbones:        { label: "Umbones" }
 };
 
 // Asked in order. `core: true` = always asked. Others gated by `when(answers)`.
@@ -756,25 +761,25 @@ const QUESTIONS = [
   // Surface: visual multi-pick — 4 surface-decoration patterns.
   // The "smooth" and "growth-lines-only" options are pedagogically distinct
   // (students learn the vocabulary) but filter the same way (both = surface "smooth").
-  { id: "surface_pick", trait: "surface", core: true,
+  { id: "surface_pick", trait: "surface_ribs", core: true,
     text: "How is the shell decorated? Pick the closest pattern.",
     hint: "Radial ribs = lines fanning out from the back beak. Growth lines = concentric arcs parallel to the front edge. Frills = raised ruffles around the edge.",
     optionsLayout: "visual",
     options: [
       { value: "smooth",
-        setsTraits: { surface: "smooth" },
+        setsTraits: {},
         label: "Smooth — no markings",
         svg: '<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="40" rx="38" ry="30" fill="white" stroke="black" stroke-width="2.5"/></svg>' },
       { value: "growth-lines-only",
-        setsTraits: { surface: "smooth" },
+        setsTraits: {},
         label: "Growth lines only (concentric arcs, no radial ribs)",
         svg: '<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="40" rx="38" ry="30" fill="white" stroke="black" stroke-width="2.5"/><path d="M 16,28 A 36,18 0 0 0 84,28" fill="none" stroke="black" stroke-width="1"/><path d="M 14,40 A 38,22 0 0 0 86,40" fill="none" stroke="black" stroke-width="1"/><path d="M 14,52 A 38,22 0 0 0 86,52" fill="none" stroke="black" stroke-width="1"/></svg>' },
       { value: "ribs",
-        setsTraits: { surface: "ribs" },
+        setsTraits: { surface_ribs: "yes" },
         label: "Radial ribs (lines fanning out from the back)",
         svg: '<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="40" rx="38" ry="30" fill="white" stroke="black" stroke-width="2.5"/><line x1="50" y1="12" x2="18" y2="60" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="28" y2="65" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="38" y2="68" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="50" y2="68" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="62" y2="68" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="72" y2="65" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="82" y2="60" stroke="black" stroke-width="1"/></svg>' },
       { value: "ribs-and-frills",
-        setsTraits: { surface: "ribs-and-frills" },
+        setsTraits: { surface_ribs: "yes", surface_frills: "yes" },
         label: "Ribs + raised growth frills around the edge",
         svg: '<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="40" rx="38" ry="30" fill="white" stroke="black" stroke-width="2.5"/><line x1="50" y1="12" x2="18" y2="60" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="28" y2="65" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="38" y2="68" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="50" y2="68" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="62" y2="68" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="72" y2="65" stroke="black" stroke-width="1"/><line x1="50" y1="12" x2="82" y2="60" stroke="black" stroke-width="1"/><path d="M 14,50 Q 22,60 32,56 Q 42,62 50,57 Q 58,62 68,56 Q 78,60 86,50" fill="none" stroke="black" stroke-width="1.5"/></svg>' }
     ] },
@@ -831,7 +836,7 @@ const QUESTIONS = [
   // Fold/sulcus: visual multi-pick (front view of the commissure line).
   // Only asked when surface has ribs (smooth shells don't typically show fold).
   { id: "fold_pick", trait: "fold_sulcus",
-    when: a => ["ribs", "ribs-and-frills"].includes(a.surface_pick),
+    when: a => ["ribs", "ribs-and-frills"].includes(a.surface_pick) || a.surface_ribs === "yes",
     text: "Look at the front edge of the shell (where the two valves meet). Which best describes the line?",
     figure: "brachI",
     hint: "The commissure (where the valves meet) is straight in shells without a fold. A fold + sulcus makes the line bend into a peak or V in the middle.",
@@ -888,7 +893,7 @@ const QUESTIONS = [
 
   // Umbones — only meaningful for ribbed astrophic shells (rhynchonellid splitter).
   { id: "umbones", trait: "umbones",
-    when: a => a.hinge_pick === "astrophic" && ["ribs", "ribs-and-frills"].includes(a.surface_pick),
+    when: a => a.hinge_pick === "astrophic" && (["ribs", "ribs-and-frills"].includes(a.surface_pick) || a.surface_ribs === "yes"),
     text: "Look at the beak — the back tip where the two valves come together. Do ribs run across it, or is it smooth?",
     hint: "Leiorhynchus has a smooth beak with ribs only toward the front; most other rhynchonellids/atrypids have ribs all the way to the beak.",
     options: [
