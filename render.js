@@ -756,11 +756,15 @@ function viewKeyResult(sid, subIdsStr) {
 // three views read from `s`. Adding new traits means extending `s` and
 // teaching at least one view to render them.
 
-// Rib presets. "few big" = sparse high-amp; "many small" = dense low-amp.
+// Rib presets — count = number of ribs around the dorsal perimeter; amp
+// = how far each rib bumps out (px). The commissure zigzag is a real
+// diagnostic feature: few coarse ribs produce a strongly crenulated
+// commissure; many fine ribs produce a finely serrated commissure;
+// smooth shells produce a straight commissure.
 const RIB_SETTINGS = {
-  sparse: { count: 10, amp: 2.5 },
-  medium: { count: 20, amp: 1.6 },
-  dense:  { count: 34, amp: 0.9 }
+  sparse: { count: 10, amp: 4.0 },
+  medium: { count: 20, amp: 2.4 },
+  dense:  { count: 34, amp: 1.5 }
 };
 
 // Fold strength presets. "strong" produces a near-half-rectangle
@@ -946,16 +950,26 @@ function applySulcusIndent(nx, ny, theta, s) {
 }
 
 function applyRibScallop(nx, ny, theta, s) {
+  // Each rib bumps the perimeter outward where it crosses. The bump is full
+  // amplitude at the anterior commissure (the diagnostic zone — students
+  // look at the front edge to count and gauge ribs), fading toward the beak.
+  // Bump is in screen-px equivalents, applied along the radial direction
+  // with anisotropic scaling so it lands at the same px amplitude regardless
+  // of whether the perimeter sits on the wide or short axis.
   if (s.ribCount === 0) return [nx, ny];
   const ct = Math.cos(theta);
-  const sideStrength     = Math.pow(1 - Math.abs(ct), 0.5);
-  const anteriorStrength = Math.pow(Math.max(0, -ct), 0.7) * 0.9;
-  const ribness = Math.max(sideStrength, anteriorStrength) * 0.6;
+  const anteriorStrength = Math.pow(Math.max(0, -ct), 0.5);   // peaks at anterior
+  const sideStrength     = Math.pow(Math.max(0, 1 - Math.abs(ct)), 0.6) * 0.6;
+  const ribness = Math.max(sideStrength, anteriorStrength);
   if (ribness < 1e-3) return [nx, ny];
-  const bump = (s.ribAmp / s.halfWidth) * ribness * Math.cos(theta * s.ribCount);
+  // Full px amplitude at peak; cos gives the rib spacing
+  const amp_px = s.ribAmp * ribness * Math.cos(theta * s.ribCount);
   const len = Math.hypot(nx, ny);
   if (len < 1e-3) return [nx, ny];
-  return [nx + bump * (nx / len), ny + bump * (ny / len)];
+  const ux = nx / len, uy = ny / len;
+  // Anisotropic scaling: bump applies in screen px, so the normalized step
+  // depends on whether we're moving in the wide or short direction.
+  return [nx + (amp_px / s.halfWidth) * ux, ny + (amp_px / s.halfLength) * uy];
 }
 
 function topPerimeterAt(theta, s) {
@@ -1206,15 +1220,23 @@ function frontCommissureLine(s) {
   // Commissure runs horizontally at cy unless the fold lifts it into a peak
   // at center. With "strong" fold this is a tall half-rectangle (vertical
   // shoulders + flat top), matching the deep commissure of fold-bearing
-  // spiriferids and atrypids.
+  // spiriferids and atrypids. With ribs, the commissure also picks up a
+  // small zigzag — each rib creates a notch as it crosses the commissure.
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
-  const N = 120;
+  const N = 240;
   let d = "";
   for (let i = 0; i <= N; i++) {
     const u = (i / N - 0.5) * 2;
     const x = cx + u * halfW;
-    const y = cy - foldRiseAt(u, s) * 0.62;
+    let y = cy - foldRiseAt(u, s) * 0.62;
+    // Rib zigzag — small vertical wiggle stamped onto the commissure line.
+    // Amplitude fades at the lateral edges (cos(u·π/2)² so the wiggle is
+    // strongest at center, smooth at the wingtips).
+    if (s.ribCount > 0) {
+      const ribness = Math.cos(u * Math.PI / 2) ** 2;
+      y += s.ribAmp * 0.7 * ribness * Math.cos((u + 1) * Math.PI * s.ribCount / 2);
+    }
     d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
   }
   const dash = s.foldStr > 0 ? "" : "3,2";
@@ -1336,9 +1358,16 @@ function svgFrontView(answers) {
 // SIDE VIEW — right lateral, looking from outside
 // ============================================================
 // Beak at left (posterior), anterior commissure at right.
-// Strophic shells show a vertical interarea wall at the back; astrophic
-// shells curve smoothly to a beak tip. Default biconvex = dorsibiconvex so
-// the silhouette is taller above the midline than below.
+// Strophic shells show an interarea wall at the back; astrophic shells curve
+// smoothly to a beak tip. Default biconvex = dorsibiconvex so the silhouette
+// is taller above the midline than below.
+//
+// Rib pattern: the side view does NOT draw ribs as parallel longitudinal
+// stripes (that read as growth lines, not ribs). Instead, ribs are encoded
+// in the anterior commissure edge: each rib produces a small zigzag notch
+// where it crosses the commissure. Smooth shells have a straight commissure;
+// dense ribs make fine teeth; sparse ribs make coarse crenulations. This is
+// a diagnostic field-ID cue.
 
 function svgSideView(answers) {
   const s = answersToShape(answers);
@@ -1357,86 +1386,70 @@ function svgSideView(answers) {
   };
 
   // Interarea-induced offset at the back: for strophic shells the dorsal and
-  // ventral curves start at separated heights (interareaH apart) rather than
-  // meeting at the beak.
+  // ventral curves start at separated heights (interareaH apart).
   const interareaTop = cy - s.interareaH * 0.5;
   const interareaBot = cy + s.interareaH * 0.5;
 
-  // Anterior commissure half-height: rather than letting the dorsal and
-  // ventral curves meet at a single point at frontX, hold them apart so the
-  // anterior edge is broader (matching the real flat-to-slightly-curved
-  // anterior commissure). With a strong fold, this commissure half-height
-  // grows because the fold pushes the two curves apart at the front.
-  const anteriorHalf = 4 + s.foldStr * 9;
+  // Anterior commissure half-height. Strong fold pushes the two curves apart
+  // at the front. We hold a minimum half-height so the commissure edge is
+  // always visible.
+  const anteriorHalf = 5 + s.foldStr * 9;
 
+  // Build dorsal (top) and ventral (bot) curves from beak to just before
+  // the anterior commissure. We'll then weld a rib zigzag onto the front edge.
   const N = 96;
+  const cutoffT = 0.96;   // dorsal/ventral curves end here; zigzag fills 0.96..1.0
   const top = [], bot = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N;
+    const t = (i / N) * cutoffT;
     const x = beakX + t * 2 * halfL;
     let dy = dorsalY(x), vy = ventralY(x);
     if (s.interareaH > 0 && t < 0.10) {
-      // Smoothly blend from interarea wall to the dorsal/ventral curve.
       const k = t / 0.10;
       dy = interareaTop * (1 - k) + dy * k;
       vy = interareaBot * (1 - k) + vy * k;
     }
-    // Anterior broadening: over the last 12% of the length, pull the curves
-    // toward fixed offsets above/below cy so the silhouette flares out into
-    // a commissure edge rather than tapering to a sharp point.
-    if (t > 0.88) {
-      const k = (t - 0.88) / 0.12;
-      const targetTop = cy - anteriorHalf;
-      const targetBot = cy + anteriorHalf;
-      dy = dy * (1 - k) + targetTop * k;
-      vy = vy * (1 - k) + targetBot * k;
+    // Glide toward the anterior commissure edge over the last few percent.
+    if (t > 0.84) {
+      const k = (t - 0.84) / (cutoffT - 0.84);
+      dy = dy * (1 - k) + (cy - anteriorHalf) * k;
+      vy = vy * (1 - k) + (cy + anteriorHalf) * k;
     }
     top.push([x, dy]);
     bot.push([x, vy]);
   }
-  // Draw the anterior commissure edge explicitly as a small vertical segment
-  // (added below as overlay).
 
-  const outline = top.concat(bot.reverse());
+  // Anterior commissure: rib zigzag from (frontX_inner, cy-anteriorHalf) down
+  // to (frontX_inner, cy+anteriorHalf), with teeth pointing right toward
+  // frontX. Number of teeth = visible rib count (capped so dense ribs stay
+  // legible). Smooth shells fall through to a straight vertical edge.
+  const commXInner = cx + halfL * cutoffT;
+  const commXOuter = frontX;
+  const zigzag = [];
+  if (s.ribCount > 0 && s.ribAmp > 0) {
+    const visibleTeeth = Math.max(4, Math.min(16, Math.round(s.ribCount * 0.6)));
+    // Each tooth = two points: tip (out) and root (in). Build top→bottom.
+    const yStart = cy - anteriorHalf;
+    const yEnd   = cy + anteriorHalf;
+    const totalSteps = visibleTeeth * 2 + 1;
+    const amp = Math.min(s.ribAmp, halfL * 0.10);
+    for (let i = 1; i < totalSteps; i++) {
+      const u = i / totalSteps;
+      const y = yStart + (yEnd - yStart) * u;
+      // Teeth alternate: odd i = tip (out), even i = root (in)
+      const x = (i % 2 === 1) ? commXOuter + amp * 0.4 : commXInner;
+      zigzag.push([x, y]);
+    }
+  } else {
+    // Smooth commissure: a straight vertical line from top to bot endpoints.
+    // (Built by the path closure between top[N] and bot[N], no extra points.)
+  }
+
+  const outline = top.concat(zigzag, bot.reverse());
   const outlinePath = pointsToPath(outline);
   const clipId = "brachSideClip_" + Math.floor(Math.random() * 1e6);
 
   let inner = "";
-
-  // ---- Ribs ----
-  // Longitudinal traces on the visible (near) valve surfaces.
-  if (s.ribCount > 0) {
-    const visibleRibs = Math.min(14, Math.max(4, Math.round(s.ribCount * 0.55)));
-    const steps = 32;
-    for (let r = 0; r < visibleRibs; r++) {
-      const depthFrac = (r + 0.5) / visibleRibs;
-      let d = "";
-      for (let j = 0; j <= steps; j++) {
-        const u = j / steps;
-        const x = beakX + u * 2 * halfL;
-        const dY = dorsalY(x);
-        const valveDepth = Math.max(0, cy - dY);
-        const y = dY + depthFrac * valveDepth * 1.0;
-        d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-      }
-      inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.9}"/>`;
-    }
-    if (s.ventralConv > 8) {
-      for (let r = 0; r < visibleRibs; r++) {
-        const depthFrac = (r + 0.5) / visibleRibs;
-        let d = "";
-        for (let j = 0; j <= steps; j++) {
-          const u = j / steps;
-          const x = beakX + u * 2 * halfL;
-          const vY = ventralY(x);
-          const valveDepth = Math.max(0, vY - cy);
-          const y = vY - depthFrac * valveDepth * 1.0;
-          d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-        }
-        inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.9}"/>`;
-      }
-    }
-  }
 
   // ---- Growth lines (transverse C-arcs paralleling the commissure) ----
   if (s.hasGrowthLines && !s.hasFrills) {
@@ -1513,11 +1526,11 @@ function svgSideView(answers) {
     const beakTipX = beakX - 5;
     overlay += `<path d="M ${beakX.toFixed(1)},${(cy - 5).toFixed(1)} Q ${beakTipX.toFixed(1)},${cy.toFixed(1)} ${beakX.toFixed(1)},${(cy + 5).toFixed(1)} Z" fill="#1a1a1a" opacity="0.55"/>`;
   }
-  // Anterior commissure edge — render explicitly so the flat front face
-  // reads as the join between the two valves, not as a sharp edge.
-  if (s.foldStr > 0 || s.interareaH > 0) {
-    const xR = frontX;
-    overlay += `<line x1="${xR.toFixed(1)}" y1="${(cy - (4 + s.foldStr * 9)).toFixed(1)}" x2="${xR.toFixed(1)}" y2="${(cy + (4 + s.foldStr * 9)).toFixed(1)}" stroke="#444" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+  // Anterior commissure edge — when the shell is smooth (no rib zigzag),
+  // draw a faint vertical edge so the front face still reads as a flat
+  // commissure join rather than a pointed tip.
+  if ((s.foldStr > 0 || s.interareaH > 0) && s.ribCount === 0) {
+    overlay += `<line x1="${frontX.toFixed(1)}" y1="${(cy - anteriorHalf).toFixed(1)}" x2="${frontX.toFixed(1)}" y2="${(cy + anteriorHalf).toFixed(1)}" stroke="#444" stroke-width="0.9" stroke-dasharray="3,2"/>`;
   }
 
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">

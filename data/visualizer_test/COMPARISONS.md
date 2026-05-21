@@ -136,6 +136,46 @@ been *too* flat — closer to a real shell's commissure shape now) and
 relaxed the wing-shape superellipse from n=4 to n=3 so the wingtip
 shoulders curve rather than corner.
 
+## Cycle 4 — rib-driven commissure zigzag + side-view rework
+
+Feedback after the first commit was that the side view felt like a striped
+lemon — the parallel longitudinal rib arcs read as growth lines, not ribs —
+and that the rib pattern should be visible *at the commissure*, since a
+zigzag commissure is a real field-ID cue (smooth shells = straight commissure,
+few coarse ribs = strongly crenulated, many fine ribs = finely serrated).
+
+**Code changes**
+- Rib amplitude presets bumped (sparse 4.0, medium 2.4, dense 1.5) so the
+  scallop is visible at student-diagram scale.
+- `applyRibScallop` rewritten so the bump is concentrated at the anterior
+  commissure (peaks at θ=π, fades smoothly toward the beak) and scaled in
+  screen px (anisotropic normalization so it lands at consistent amplitude
+  regardless of the perimeter's axis).
+- Front view `frontCommissureLine`: the commissure line now picks up a
+  rib-modulated wiggle, riding on top of the half-rectangle fold profile.
+- Side view rebuilt:
+  - Parallel longitudinal rib arcs removed (they read as growth lines).
+  - The anterior commissure edge is now welded into the silhouette as a
+    sawtooth zigzag — one tooth per visible rib (capped at 16). Teeth point
+    rightward from the silhouette. Smooth shells fall through to a straight
+    vertical commissure edge (dashed if a fold lifts it).
+  - Growth lines and frills (transverse arcs) remain — these still parse
+    visually as "growth" since they go dorsal-to-ventral, perpendicular to
+    the rib direction.
+
+**Verified output** (see `zigzag.png` for a 5×3 grid sweeping rib density):
+
+| Density | Top commissure | Side commissure |
+| --- | --- | --- |
+| Smooth | Continuous circle | Straight vertical edge |
+| Sparse (~10) | Coarse scallops, ~10 lobes | Coarse sawtooth, ~6 teeth |
+| Medium (~20) | Finer scallops, ~20 lobes | Fine sawtooth, ~12 teeth |
+| Dense (~34) | Very fine crenulations | Fine sawtooth, capped at 16 teeth |
+
+For the three calibration species, the new side views read as proper
+brachiopod lateral profiles rather than striped almonds, and the
+top-view anterior perimeter is the diagnostic feature it was supposed to be.
+
 ## What the model still simplifies
 
 - Real atrypids have ribs that *bifurcate* (split as they extend

@@ -201,7 +201,7 @@ def main():
 
     n_species = len(species)
     n_cols = 6
-    fig, axes = plt.subplots(n_species, n_cols, figsize=(2.4 * n_cols, 2.6 * n_species),
+    fig, axes = plt.subplots(n_species, n_cols, figsize=(3.6 * n_cols, 3.8 * n_species),
                              gridspec_kw=dict(wspace=0.10, hspace=0.30))
     if n_species == 1:
         axes = [axes]
