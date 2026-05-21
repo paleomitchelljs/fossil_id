@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Visualizer comparison harness</title>
+<style>
+  body { margin: 0; padding: 16px; background: #f5f1e8; font-family: -apple-system, sans-serif; }
+  h1 { margin: 0 0 8px; font-size: 18px; }
+  h2 { margin: 18px 0 6px; font-size: 15px; color: #6b3410; }
+  .row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: end; margin: 6px 0 14px; }
+  .cell { background: white; border: 1px solid #d8d2c4; border-radius: 6px; padding: 4px; }
+  .cell svg, .cell img { width: 100%; height: auto; display: block; background: white; }
+  .cell .label { font-size: 11px; color: #555; text-align: center; padding: 2px 0 0; }
+  .heading { font-size: 12px; font-weight: 600; color: #6b3410; padding-top: 4px; }
+</style>
+</head>
+<body>
+<h1>Parametric vs real — three species, three views each</h1>
+<div id="root"></div>
+
+<script src="../../manifest.js"></script>
+<script src="../../render.js"></script>
+<script>
+// We only need the visualizer functions; we don't want the router to fire.
+// render.js already attaches DOMContentLoaded; we cancel by routing nowhere.
+window.removeEventListener("DOMContentLoaded", route);
+window.removeEventListener("hashchange", route);
+
+const SPECIES = [
+  { name: "Pseudoatrypa devoniana",
+    answers: {
+      outline_pick: "subcircular", profile_pick: "biconvex",
+      hinge_pick: "astrophic",
+      surface_ribs: "yes", surface_frills: "yes",
+      rib_density: "dense", fold_pick: "strong"
+    },
+    photos: [
+      "../../images/pseudoatrypa/rockford/devoniana_nathan_01.jpg",
+      "../../images/pseudoatrypa/rockford/devoniana_dave_01.jpg",
+      "../../images/pseudoatrypa/rockford/devoniana_daycopper_01.png"
+    ] },
+  { name: "Cyrtospirifer whitneyi",
+    answers: {
+      outline_pick: "wing-shaped", profile_pick: "biconvex",
+      hinge_pick: "wide-strophic",
+      surface_ribs: "yes",
+      rib_density: "dense", fold_pick: "strong"
+    },
+    photos: [
+      "../../images/cyrtospirifer/rockford/whitneyi_nathan_01.jpg",
+      "../../images/cyrtospirifer/rockford/whitneyi_dave_01.jpg",
+      "../../images/cyrtospirifer/rockford/whitneyi_jsm_01.png"
+    ] },
+  { name: "Schizophoria iowensis",
+    answers: {
+      outline_pick: "subcircular", profile_pick: "biconvex",
+      hinge_pick: "narrow-strophic",
+      surface_ribs: "yes",
+      rib_density: "dense", fold_pick: "weak"
+    },
+    photos: [
+      "../../images/schizophoria/rockford/iowensis_nathan_01.jpg",
+      "../../images/schizophoria/rockford/iowensis_dave_01.jpg",
+      "../../images/schizophoria/rockford/iowensis_stigallrode_01.png"
+    ] }
+];
+
+const root = document.getElementById("root");
+for (const sp of SPECIES) {
+  const h = document.createElement("h2");
+  h.textContent = sp.name;
+  root.appendChild(h);
+
+  const row = document.createElement("div");
+  row.className = "row";
+
+  // Parametric three views
+  const labelP = (v) => `Parametric — ${v.toUpperCase()}`;
+  const addCell = (innerHTML, label) => {
+    const c = document.createElement("div");
+    c.className = "cell";
+    c.innerHTML = innerHTML + `<div class="label">${label}</div>`;
+    row.appendChild(c);
+  };
+
+  addCell(svgTopView(sp.answers),   labelP("top"));
+  addCell(svgFrontView(sp.answers), labelP("front"));
+  addCell(svgSideView(sp.answers),  labelP("side"));
+
+  // Three reference photos
+  for (const p of sp.photos.slice(0, 3)) {
+    addCell(`<img src="${p}">`, "Real");
+  }
+
+  root.appendChild(row);
+}
+</script>
+</body>
+</html>

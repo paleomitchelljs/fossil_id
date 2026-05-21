@@ -853,9 +853,9 @@ const QUESTIONS = [
         svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="30" rx="40" ry="22" fill="white" stroke="black" stroke-width="2"/><path d="M 10,30 L 40,32 L 50,8 L 60,32 L 90,30" fill="none" stroke="black" stroke-width="2.5"/></svg>' }
     ] },
 
-  // Outline: visual multi-pick (top-down silhouettes, exaggerated bulges).
-  { id: "outline_pick", trait: "outline",
-    when: a => a.surface_pick !== undefined,
+  // Outline — core question. Top-down silhouettes with exaggerated bulges so
+  // the distinction is obvious at a glance.
+  { id: "outline_pick", trait: "outline", core: true,
     text: "Which outline looks closest to your shell (top-down view, with the hinge at the back)?",
     figure: "ukyOutlines",
     hint: "Pointed 'wings' to the sides → spiriferid. Tall and narrow → terebratulid. Round/squat → most other brachiopods.",
@@ -872,23 +872,22 @@ const QUESTIONS = [
         svg: '<svg viewBox="0 0 70 100" xmlns="http://www.w3.org/2000/svg"><ellipse cx="35" cy="50" rx="20" ry="42" fill="white" stroke="black" stroke-width="2.5"/></svg>' }
     ] },
 
-  // Size: 2-question chain (kept as binary text — size is a single trait
-  // that bisects naturally; visualising it doesn't add much).
-  { id: "size_small", trait: "size",
+  // Size — single visual pick. (Previously a two-step yes/no chain.)
+  { id: "size_pick", trait: "size",
     when: a => a.surface_pick !== undefined,
-    text: "Is the shell smaller than a quarter (about 2 cm across)?",
-    hint: "A US quarter is 24 mm wide; a dime is 18 mm.",
+    text: "How big is the shell?",
+    hint: "A US dime is 18 mm; a quarter is 24 mm; a golf ball is ~42 mm. Pick the closest size.",
+    optionsLayout: "visual",
     options: [
-      { value: "yes", label: "Yes — smaller than a quarter", setsTraitTo: "small" },
-      { value: "no",  label: "No — quarter-sized or bigger" }
-    ] },
-
-  { id: "size_large", trait: "size",
-    when: a => a.size_small === "no",
-    text: "Is the shell bigger than a golf ball (about 5 cm across)?",
-    options: [
-      { value: "yes", label: "Yes — bigger than a golf ball",  setsTraitTo: "large"  },
-      { value: "no",  label: "No — between a quarter and a golf ball", setsTraitTo: "medium" }
+      { value: "small",  setsTraitTo: "small",
+        label: "Smaller than a quarter (under 2 cm)",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="30" r="12" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "medium", setsTraitTo: "medium",
+        label: "Between a quarter and a golf ball (2–5 cm)",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="30" r="22" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "large",  setsTraitTo: "large",
+        label: "Bigger than a golf ball (over 5 cm)",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="30" r="28" fill="white" stroke="black" stroke-width="2"/></svg>' }
     ] },
 
   // Umbones — only meaningful for ribbed astrophic shells (rhynchonellid splitter).

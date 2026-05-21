@@ -308,7 +308,8 @@ function viewSiteLanding(sid) {
   return el("div", { class: "view view-landing" }, [
     el("header", { class: "hero" }, [
       el("h1", {}, `Guide to ${site.title.split(" (")[0]} Fossils`),
-      el("p", { class: "hero-sub" }, site.subtitle + " — " + (site.formation || site.location || "")),
+      el("p", { class: "hero-sub" },
+        [site.subtitle, site.formation || site.location].filter(Boolean).join(" — ")),
       site.blurb ? el("p", { class: "hero-blurb" }, site.blurb) : null,
       SITES.length > 1
         ? el("p", { class: "hero-change" }, el("a", { href: "#/" }, "Change site →"))
@@ -317,23 +318,15 @@ function viewSiteLanding(sid) {
     el("nav", { class: "landing-actions" }, [
       el("a", { class: "big-action primary", href: `${siteBase(sid)}/key` }, [
         el("span", { class: "ba-title" }, "Help me ID it"),
-        el("span", { class: "ba-sub" }, "Answer a few yes/no questions to narrow down what you found.")
+        el("span", { class: "ba-sub" }, "Step through short yes/no questions to narrow down what you found.")
       ]),
       el("a", { class: "big-action", href: `${siteBase(sid)}/build` }, [
-        el("span", { class: "ba-title" }, "Build a brachiopod (visual)"),
-        el("span", { class: "ba-sub" }, "Move sliders to shape a silhouette live; the matching-species count updates as you go. Brachiopods only.")
-      ]),
-      el("a", { class: "big-action", href: `${siteBase(sid)}/calibrate` }, [
-        el("span", { class: "ba-title" }, "Calibration: parametric vs real"),
-        el("span", { class: "ba-sub" }, "Side-by-side comparison of the build-view silhouettes against real specimen photos for Pseudoatrypa devoniana and Cyrtospirifer whitneyi. Diagnostic for spotting mismatches.")
-      ]),
-      el("a", { class: "big-action", href: `${siteBase(sid)}/jump` }, [
-        el("span", { class: "ba-title" }, "I already know the group"),
-        el("span", { class: "ba-sub" }, "Skip the key and jump straight to spiriferids, atrypids, gastropods, etc.")
+        el("span", { class: "ba-title" }, "Build a brachiopod"),
+        el("span", { class: "ba-sub" }, "Tweak outline, profile, hinge, fold, and surface features and watch the matching-species count update. Brachiopods only.")
       ]),
       el("a", { class: "big-action", href: `${siteBase(sid)}/browse` }, [
         el("span", { class: "ba-title" }, "Browse by group"),
-        el("span", { class: "ba-sub" }, "Tap through brachiopods, corals, mollusks, and more.")
+        el("span", { class: "ba-sub" }, "Walk through brachiopods, corals, mollusks, and the other groups at this site.")
       ]),
       el("a", { class: "big-action", href: "#/references" }, [
         el("span", { class: "ba-title" }, "Reference figures"),
@@ -722,63 +715,151 @@ function viewKeyResult(sid, subIdsStr) {
   ]);
 }
 
-// ---------- Build view: dynamic SVG + sliders ----------
+// ============================================================
+// Tri-view brachiopod visualizer  (rebuilt 2026-05)
+// ============================================================
+// One 3-D shape model. Three projections — top / front / side.
+// Changing a parameter updates all three views consistently.
 //
-// One top-down brachiopod silhouette synthesized live from the student's
-// slider choices. Each slider has discrete preset stops (so it filters
-// cleanly) but visually feels like a slider.
-
-// =================================================================
-// Tri-view silhouette synthesizer
-// Top / Front / Side composed live from slider answers.
-// Coords share viewBox 200x180 so the three SVGs line up visually.
-// =================================================================
-
-// ---------- TOP VIEW (dorsal) ----------
-// Smooth bezier outline with a small umbo bump at top center.
-// Parameters affecting top view: outline, hinge, surface, fold.
-// =================================================================
-// Parametric morphospace model
-// =================================================================
-// answersToShape(answers) returns a unified shape parameter object.
-// Top / Front / Side views are all computed from this object so the
-// outline, surface, and fold stay coherent across views.
+// Coords (all SVGs share viewBox 0 0 200 200):
+//   TOP   (looking down at dorsal valve):  +x right, +y anterior.
+//                                          Beak at small y (top of view).
+//   FRONT (looking at anterior end):       +x right, +y ventral.
+//                                          Dorsal valve at small y.
+//   SIDE  (right lateral, looking outside):+x anterior, +y ventral.
+//                                          Beak at small x (back).
 //
-// Ribs perturb the *actual perimeter* (not just interior overlay lines),
-// the fold pulls the front commissure inward in all three views, and
-// the side view shows real anatomy (beak, hinge line, dorsal+ventral
-// curvature, commissure undulations from the fold).
+// Anatomical conventions baked into the renderer (calibrated against the
+// Day & Copper 1998 plates and Stigall & Rode 2005 plate referenced in the
+// manifest):
+//   * Umbo is a small bulge at the posterior midline — not a triangular spike.
+//   * "Biconvex" defaults to DORSI-biconvex (dorsal more inflated than ventral);
+//     equibiconvex is rare in fossil brachiopods.
+//   * Sulcus on the dorsal valve (atrypid/orthid convention): a midline
+//     depression rendered as a faint dashed line + a small anterior perimeter
+//     indent in TOP view, an upward notch in the lower outline in FRONT view.
+//   * Fold on the ventral valve (or, more generally, the matching uplift on
+//     the opposite valve): raises the commissure into a uniplicate peak in
+//     FRONT view; appears as a slight anterior commissure elevation in SIDE.
+//   * Growth lines are CONCENTRIC arcs centered on the beak that parallel the
+//     commissure perimeter (TOP) or each valve's curvature (FRONT/SIDE).
+//     Frills are the same geometry with bolder strokes and slight ruffling.
+//   * Ribs sweep across the FULL surface (TOP view), with fine longitudinal
+//     traces on dorsal and ventral surfaces in SIDE view, and small
+//     dorsoventral undulations of the valve outlines in FRONT view.
+//   * Strophic shells have a flat hinge line in TOP and a visible interarea
+//     wall at the back in SIDE; astrophic shells curve smoothly to a beak.
+//
+// Parametric morphospace
+// ----------------------
+// answersToShape(answers) → `s`, an object describing a single shell. All
+// three views read from `s`. Adding new traits means extending `s` and
+// teaching at least one view to render them.
 
-// Each rib density preset = {count, amp}. "few big" = sparse high-amp;
-// "many small" = dense low-amp. Total visual undulation roughly constant.
+// Rib presets. "few big" = sparse high-amp; "many small" = dense low-amp.
 const RIB_SETTINGS = {
-  sparse: { count: 6,  amp: 3.2 },   // few, big
-  medium: { count: 12, amp: 2.0 },
-  dense:  { count: 22, amp: 1.1 }    // many, small
+  sparse: { count: 10, amp: 2.5 },
+  medium: { count: 20, amp: 1.6 },
+  dense:  { count: 34, amp: 0.9 }
+};
+
+// Fold strength presets. "strong" produces a near-half-rectangle
+// commissure (steep sides + a flat top) — the deep "tent" peak seen
+// in Cyrtospirifer whitneyi anterior views. "weak" is the gentler atrypid
+// fold — a broader, lower bulge.
+const FOLD_SETTINGS = {
+  none:   { rise: 0,  shoulderU: 0,    halfU: 0    },
+  weak:   { rise: 10, shoulderU: 0.20, halfU: 0.05 },
+  strong: { rise: 32, shoulderU: 0.16, halfU: 0.14 }
+};
+
+// Stroke palette — centralised so the three views stay visually consistent.
+const SK = {
+  outlineW: 2.2,
+  ribCol:   "#5a5a5a", ribW:    0.7,
+  growthCol:"#8a8a8a", growthW: 0.7,
+  frillCol: "#1f1f1f", frillW:  1.4,
+  hingeCol: "#1a1a1a", hingeW:  2.0,
+  beakCol:  "#1a1a1a",
+  sulcusCol:"#7a7a7a", sulcusW: 0.7
 };
 
 function answersToShape(answers) {
   const features = featuresFromAnswers(answers);
   const o = answers.outline_pick || "subcircular";
   const p = answers.profile_pick || "biconvex";
-  const h = answers.hinge_pick || "astrophic";
-  const f = answers.fold_pick || "none";
+  const h = answers.hinge_pick   || "astrophic";
+  const f = answers.fold_pick    || "none";
+
+  // Top-view half-dimensions, in px (viewBox 200×200).
+  const halfWidth  = o === "wing-shaped"   ? 90
+                  : o === "elongate-oval"  ? 46
+                  : 70;
+  const halfLength = o === "elongate-oval" ? 86
+                  : o === "wing-shaped"    ? 60
+                  : 70;
+
+  // Hinge fraction — what proportion of the top edge is straight.
+  const hingeFrac  = h === "wide-strophic"   ? 0.95
+                  : h === "narrow-strophic" ? 0.55
+                  : 0;
+  // Astrophic shells have an umbo bulge; strophic ones flatten into the hinge.
+  const beakProm   = h === "astrophic" ? 4 : 0;
+  // Side-view interarea wall (visible only on strophic shells). The width
+  // determines how prominent the flat back wall is in side view.
+  const interareaH = h === "wide-strophic"   ? 30
+                   : h === "narrow-strophic" ? 16
+                   : 0;
+
+  // Valve convexity (px) — DORSI-biconvex by default (atrypid/spiriferid norm).
+  // Negative = concave valve. Values are tuned so a 200×200 viewBox shows a
+  // shell that fills most of the vertical extent in front view.
+  let dorsalConv, ventralConv;
+  if (p === "concavo-convex")    { dorsalConv = -22; ventralConv = 58; }
+  else if (p === "plano-convex") { dorsalConv =  54; ventralConv =  6; }
+  else                           { dorsalConv =  52; ventralConv = 30; }   // dorsibiconvex
+
+  const foldPreset = FOLD_SETTINGS[f] || FOLD_SETTINGS.none;
+  const ribCount = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0;
+  const ribAmp   = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0;
+
   return {
-    halfWidth:  o === "wing-shaped" ? 92 : o === "elongate-oval" ? 52 : 72,
-    halfLength: o === "elongate-oval" ? 84 : 70,
-    hingeFrac:  h === "wide-strophic" ? 0.92 : h === "narrow-strophic" ? 0.32 : 0,
-    beakProm:   h === "astrophic" ? 9 : 4,
-    // Most brachiopods are dorsibiconvex (dorsal valve more inflated than ventral).
-    // We default biconvex to that asymmetry — equibiconvex is rare.
-    dorsalConv:  p === "concavo-convex" ? 36 : p === "plano-convex" ? 52 : 42,
-    ventralConv: p === "concavo-convex" ? -25 : p === "plano-convex" ? 4  : 28,
-    foldStr:    f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
-    ribCount:   features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0,
-    ribAmp:     features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0,
-    hasFrills:  features.frills,
-    hasSpines:  features.spines,
-    hasGrowthLines: features.lines
+    outline: o, profile: p, hinge: h, fold: f,
+    halfWidth, halfLength, hingeFrac, beakProm, interareaH,
+    dorsalConv, ventralConv,
+    // foldStr is a 0..1 scalar kept for callers that just want strength.
+    foldStr: f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
+    // fold geometry: rise (peak height in px), shoulder (where the rise begins
+    // as a fraction of halfWidth), half (half-width of the flat top in
+    // normalized 0..1 of halfWidth).
+    foldRise: foldPreset.rise,
+    foldShoulderU: foldPreset.shoulderU,
+    foldHalfU: foldPreset.halfU,
+    ribCount, ribAmp,
+    hasFrills:      features.frills,
+    hasSpines:      features.spines,
+    hasGrowthLines: features.lines || features.frills
   };
+}
+
+// Half-rectangle fold profile, evaluated at normalized lateral position u
+// in [-1, 1]. Returns a non-negative px rise. The profile is:
+//   - zero for |u| outside (halfU + shoulderU)
+//   - smooth shoulder slope between halfU and halfU + shoulderU
+//   - flat top across |u| < halfU
+// This produces a near-rectangular commissure for "strong" (Cyrtospirifer-style)
+// and a softer arched bulge for "weak" (atrypid).
+function foldRiseAt(u, s) {
+  if (s.foldRise === 0) return 0;
+  const au = Math.abs(u);
+  const halfU = s.foldHalfU;
+  const shoulderU = s.foldShoulderU;
+  if (au >= halfU + shoulderU) return 0;
+  if (au <= halfU) return s.foldRise;
+  const t = (au - halfU) / shoulderU;          // 0 at top → 1 at base
+  // smooth-step easing keeps the silhouette from looking jagged at the shoulder
+  const ease = 1 - (3 * t * t - 2 * t * t * t);
+  return s.foldRise * ease;
 }
 
 function pointsToPath(pts, close = true) {
@@ -789,333 +870,558 @@ function pointsToPath(pts, close = true) {
   return close ? d + " Z" : d;
 }
 
-// ---------- TOP VIEW ----------
-function topOutlinePoints(s) {
-  const cx = 100, cy = 102;
-  const N = 96;
-  const pts = [];
-  const hingeY = cy - s.halfLength + 8;
+// ============================================================
+// TOP VIEW — dorsal valve seen from above
+// ============================================================
+// Build pipeline: outline shape (normalized -1..1) → hinge straightening
+// (strophic forms) → sulcus indent at anterior midline → rib perimeter
+// scallop → scale to screen coords → umbo bulge for astrophic.
 
-  for (let i = 0; i < N; i++) {
-    const theta = (i / N) * 2 * Math.PI;     // 0=top, π=front
-    const a = s.halfWidth, b = s.halfLength;
-    let x = cx + a * Math.sin(theta);
-    let y = cy - b * Math.cos(theta);
-
-    // Hinge straightening
-    if (s.hingeFrac > 0.05) {
-      const topness = Math.max(0, Math.cos(theta));
-      const flatness = topness ** 2.3;
-      const hingeHalfW = a * s.hingeFrac;
-      const baseTX = a * Math.sin(theta);
-      const tx = Math.max(-hingeHalfW, Math.min(hingeHalfW, baseTX));
-      x = x * (1 - flatness) + (cx + tx) * flatness;
-      y = y * (1 - flatness) + hingeY * flatness;
+function unitOutline(theta, s) {
+  // theta = 0 at beak, π at anterior commissure; CW (right at π/2).
+  const ct = Math.cos(theta), st = Math.sin(theta);
+  if (s.outline === "wing-shaped") {
+    // Alate (winged) outline. The hinge line is straight across the top
+    // (added separately by applyHingeStraightening + topHingeLine). The
+    // body tapers smoothly from the wingtips (at the hinge line) down to
+    // a rounded anterior point. We design this as:
+    //   * Upper outline (ct ≥ 0): rises near-vertically from each wingtip to
+    //     just below the hinge line, then runs nearly horizontal across the
+    //     hinge. This gets cleanly flattened by applyHingeStraightening.
+    //   * Lower outline: kite-like taper to an anterior commissure that is
+    //     broader than a point (ny=-ct hits -1 at the anterior).
+    const yAbs = Math.abs(ct);
+    let nx, ny;
+    if (ct >= 0) {
+      // Upper outline: superellipse with n=3 — wide upper band that curves
+      // into the wingtips. Subsequent hinge straightening pulls the top
+      // 25% onto the flat hinge line so the wingtip transitions stay smooth.
+      const n = 3;
+      const w = Math.pow(Math.max(0, 1 - Math.pow(yAbs, n)), 1 / n);
+      nx = Math.sign(st || 1) * w;
+      ny = -ct;
+    } else {
+      // Lower outline: kite-like taper. Power 0.7 keeps the anterior rounded.
+      const w = Math.pow(Math.max(0, 1 - yAbs), 0.7);
+      nx = Math.sign(st || 1) * w;
+      ny = -ct;
     }
-
-    // Rib perimeter bumps (max at front, zero at beak)
-    if (s.ribCount > 0) {
-      const ribness = Math.sin(theta / 2) ** 2;
-      const ribPhase = theta * s.ribCount;
-      const nx = Math.sin(theta), ny = -Math.cos(theta);
-      const bump = s.ribAmp * ribness * Math.sin(ribPhase);
-      x += nx * bump; y += ny * bump;
-    }
-
-    // Fold: front sulcus pulled inward, flanks pushed outward
-    if (s.foldStr > 0) {
-      const dt = theta - Math.PI;
-      const range = 0.7;
-      if (Math.abs(dt) < range) {
-        const w = 1 - Math.abs(dt) / range;
-        const nx = Math.sin(theta), ny = -Math.cos(theta);
-        const offset = Math.abs(dt) < 0.22
-          ? -s.foldStr * 8 * w
-          :  s.foldStr * 2.5 * w;
-        x += nx * offset; y += ny * offset;
-      }
-    }
-
-    pts.push([x, y]);
+    return [nx, ny];
   }
+  if (s.outline === "elongate-oval") return [st, -ct];
+  // subcircular — slightly narrower toward the beak; matches the gently
+  // pentagonal real outline of Pseudoatrypa / Schizophoria.
+  const r = 0.94 + 0.06 * ((1 - ct) / 2);
+  return [r * st, -r * ct];
+}
 
-  // Beak prominence: nudge the top-center point upward
-  if (s.beakProm > 0) pts[0] = [pts[0][0], pts[0][1] - s.beakProm];
+function applyHingeStraightening(nx, ny, s) {
+  // Pull the very top of the outline onto a flat hinge line at ny = -0.95.
+  // Range = top 25% of the perimeter; over that range, points are linearly
+  // blended toward (clamp(nx, ±hingeHalfW), -0.95). The same hingeY is used
+  // by topHingeLine() so the explicit hinge bar always coincides with the
+  // straightened outline edge.
+  if (s.hingeFrac < 0.05 || ny > 0) return [nx, ny];
+  const topness = -ny;
+  const range = 0.25;
+  if (topness < 1 - range) return [nx, ny];
+  const blend = Math.min(1, (topness - (1 - range)) / range);
+  const hingeHalfW = s.hingeFrac;
+  const hingeX = Math.max(-hingeHalfW, Math.min(hingeHalfW, nx));
+  const hingeY = -0.95;
+  return [
+    nx * (1 - blend) + hingeX * blend,
+    ny * (1 - blend) + hingeY * blend
+  ];
+}
+
+function applySulcusIndent(nx, ny, theta, s) {
+  if (s.foldStr === 0) return [nx, ny];
+  const dt = theta - Math.PI;
+  const range = 0.45;
+  if (Math.abs(dt) > range) return [nx, ny];
+  const w = Math.cos((dt / range) * (Math.PI / 2)) ** 2;
+  const depth = s.foldStr * 0.07 * w;     // scales toward centroid
+  return [nx * (1 - depth), ny * (1 - depth)];
+}
+
+function applyRibScallop(nx, ny, theta, s) {
+  if (s.ribCount === 0) return [nx, ny];
+  const ct = Math.cos(theta);
+  const sideStrength     = Math.pow(1 - Math.abs(ct), 0.5);
+  const anteriorStrength = Math.pow(Math.max(0, -ct), 0.7) * 0.9;
+  const ribness = Math.max(sideStrength, anteriorStrength) * 0.6;
+  if (ribness < 1e-3) return [nx, ny];
+  const bump = (s.ribAmp / s.halfWidth) * ribness * Math.cos(theta * s.ribCount);
+  const len = Math.hypot(nx, ny);
+  if (len < 1e-3) return [nx, ny];
+  return [nx + bump * (nx / len), ny + bump * (ny / len)];
+}
+
+function topPerimeterAt(theta, s) {
+  // Same pipeline as topOutlinePoints, evaluated at a single theta — used to
+  // anchor ribs/growth lines on the rib-perturbed perimeter.
+  const cx = 100, cy = 102;
+  let [nx, ny] = unitOutline(theta, s);
+  [nx, ny] = applyHingeStraightening(nx, ny, s);
+  [nx, ny] = applySulcusIndent(nx, ny, theta, s);
+  [nx, ny] = applyRibScallop(nx, ny, theta, s);
+  return [cx + nx * s.halfWidth, cy + ny * s.halfLength];
+}
+
+function topOutlinePoints(s) {
+  const N = 192;
+  const cx = 100, cy = 102;
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const theta = (i / N) * 2 * Math.PI;
+    let [nx, ny] = unitOutline(theta, s);
+    [nx, ny] = applyHingeStraightening(nx, ny, s);
+    [nx, ny] = applySulcusIndent(nx, ny, theta, s);
+    [nx, ny] = applyRibScallop(nx, ny, theta, s);
+    pts.push([cx + nx * s.halfWidth, cy + ny * s.halfLength]);
+  }
+  // Umbo as a small rounded bulge (3-point nudge), not a triangular spike.
+  if (s.beakProm > 0) {
+    let topI = 0, minY = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      if (pts[i][1] < minY) { minY = pts[i][1]; topI = i; }
+    }
+    const nudge = (i, f) => {
+      const idx = (i + pts.length) % pts.length;
+      pts[idx] = [pts[idx][0], pts[idx][1] - s.beakProm * f];
+    };
+    nudge(topI, 1.0);
+    nudge(topI - 1, 0.7); nudge(topI + 1, 0.7);
+    nudge(topI - 2, 0.4); nudge(topI + 2, 0.4);
+  }
   return pts;
 }
 
-function topRibInteriorLines(s) {
+function topRibLines(s) {
   if (s.ribCount === 0) return "";
-  let out = "";
-  // Lines from beak fanning to front+lateral commissure
   const cx = 100, cy = 102;
-  const beakX = cx, beakY = cy - s.halfLength + 14;
+  const beakY = cy - s.halfLength + 4;
+  const beakX = cx;
+  let out = "";
+  // Ribs sweep across the FULL perimeter, including over the anterior midline
+  // (the old code split into mirrored halves with a gap — fixed here).
   for (let i = 0; i < s.ribCount; i++) {
     const t = (i + 0.5) / s.ribCount;
-    const theta = Math.PI * (0.18 + t * 0.64);  // 0.18π..0.82π
-    const ex = cx + s.halfWidth * 0.92 * Math.sin(theta);
-    const ey = cy - s.halfLength * 0.92 * Math.cos(theta);
-    out += `<path d="M ${beakX},${beakY.toFixed(1)} Q ${((beakX + ex)/2).toFixed(1)},${((beakY + ey)/2 - 5).toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#555" stroke-width="0.7"/>`;
-  }
-  // Mirror to left side
-  for (let i = 0; i < s.ribCount; i++) {
-    const t = (i + 0.5) / s.ribCount;
-    const theta = Math.PI * (0.18 + t * 0.64);
-    const ex = cx - s.halfWidth * 0.92 * Math.sin(theta);
-    const ey = cy - s.halfLength * 0.92 * Math.cos(theta);
-    out += `<path d="M ${beakX},${beakY.toFixed(1)} Q ${((beakX + ex)/2).toFixed(1)},${((beakY + ey)/2 - 5).toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#555" stroke-width="0.7"/>`;
+    const margin = 0.04 * Math.PI;
+    const theta = margin + t * (2 * Math.PI - 2 * margin);
+    const [ex, ey] = topPerimeterAt(theta, s);
+    const dx = ex - beakX, dy = ey - beakY;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-3) continue;
+    // Gentle curvature: bend the rib outward following the shell surface.
+    const px = dy / len, py = -dx / len;
+    const side = Math.sign(ex - beakX) || 1;
+    const bend = Math.min(7, len * 0.04);
+    const ctlX = (beakX + ex) / 2 + px * side * bend;
+    const ctlY = (beakY + ey) / 2 + py * side * bend;
+    out += `<path d="M ${beakX.toFixed(1)},${beakY.toFixed(1)} Q ${ctlX.toFixed(1)},${ctlY.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW}"/>`;
   }
   return out;
 }
 
-function topGrowthLines(s) {
-  // Concentric arcs centered above the front (near beak's anterior trajectory),
-  // each one paralleling the perimeter at a deeper position. Real growth lines
-  // wrap around the umbo.
+function topGrowthArcs(s, count, strokeW, strokeCol) {
+  // Concentric arcs centered on the beak — each is a scaled copy of the
+  // outline. The arc spans most of the perimeter (skipping a small wedge
+  // over the beak itself).
   const cx = 100, cy = 102;
-  const beakY = cy - s.halfLength + 12;
-  const out = [];
-  for (let k = 1; k <= 4; k++) {
-    const f = 0.28 + k * 0.18;
-    const rx = s.halfWidth * f;
-    const ry = s.halfLength * f * 0.95;
-    out.push(`<path d="M ${(cx - rx).toFixed(1)},${(beakY + ry * 0.4).toFixed(1)} Q ${cx},${(beakY + ry * 1.1).toFixed(1)} ${(cx + rx).toFixed(1)},${(beakY + ry * 0.4).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.85"/>`);
+  const N = 64;
+  let out = "";
+  for (let k = 1; k <= count; k++) {
+    const f = k / (count + 1);
+    let path = "";
+    const tMin = 0.08, tMax = 1.92;
+    for (let i = 0; i <= N; i++) {
+      const tt = tMin + (tMax - tMin) * (i / N);
+      const theta = tt * Math.PI;
+      let [nx, ny] = unitOutline(theta, s);
+      [nx, ny] = applyHingeStraightening(nx, ny, s);
+      [nx, ny] = applySulcusIndent(nx, ny, theta, s);
+      // Scale toward the beak (normalized beak is at (0, -1))
+      const bx = 0, by = -1;
+      const px = bx + (nx - bx) * f;
+      const py = by + (ny - by) * f;
+      const x = cx + px * s.halfWidth;
+      const y = cy + py * s.halfLength;
+      path += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    out += `<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="${strokeW}"/>`;
   }
-  return out.join("");
+  return out;
+}
+
+function topSulcusMark(s) {
+  // Subtle dashed midline indicating the sulcus on the dorsal valve.
+  // Replaces the old thick black bar that dominated the view.
+  if (s.foldStr === 0) return "";
+  const cx = 100, cy = 102;
+  const y1 = cy - s.halfLength * 0.40;
+  const y2 = cy + s.halfLength * 0.82;
+  const sw = (0.55 + s.foldStr * 0.45).toFixed(2);
+  return `<line x1="${cx}" y1="${y1.toFixed(1)}" x2="${cx}" y2="${y2.toFixed(1)}" stroke="${SK.sulcusCol}" stroke-width="${sw}" stroke-dasharray="3,2"/>`;
 }
 
 function topSpines(s) {
-  // Golden-angle scatter inside the outline (sunflower-like natural distribution).
   const cx = 100, cy = 102;
   let out = "";
-  const N = 32;
+  const N = 30;
   for (let i = 0; i < N; i++) {
-    const a = i * 137.5 * Math.PI / 180;     // golden angle
-    const r = Math.sqrt((i + 0.5) / N) * 0.82;
+    const a = i * 137.5 * Math.PI / 180;
+    const r = Math.sqrt((i + 0.5) / N) * 0.78;
     const x = cx + r * Math.cos(a) * s.halfWidth;
     const y = cy + r * Math.sin(a) * s.halfLength;
-    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9" fill="#333"/>`;
+    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="#222"/>`;
   }
-  // Protruding spines from a few perimeter positions
+  // Perimeter spine stubs projecting outward (anterior half)
   for (let i = 0; i < 5; i++) {
-    const theta = Math.PI * (0.3 + i * 0.35);
-    const x1 = cx + s.halfWidth * 0.86 * Math.sin(theta);
-    const y1 = cy - s.halfLength * 0.86 * Math.cos(theta);
-    const x2 = cx + s.halfWidth * 1.02 * Math.sin(theta);
-    const y2 = cy - s.halfLength * 1.02 * Math.cos(theta);
-    out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#222" stroke-width="1.3"/>`;
+    const tt = 0.55 + i * 0.2;
+    const theta = tt * Math.PI;
+    const [ex, ey] = topPerimeterAt(theta, s);
+    const dx = ex - cx, dy = ey - cy;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-3) continue;
+    const ox = dx / len * 9, oy = dy / len * 9;
+    out += `<line x1="${ex.toFixed(1)}" y1="${ey.toFixed(1)}" x2="${(ex + ox).toFixed(1)}" y2="${(ey + oy).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
   }
   return out;
 }
 
+function topHingeLine(s) {
+  if (s.hingeFrac < 0.5) return "";
+  const cx = 100, cy = 102;
+  const hingeY = cy - s.halfLength * 0.95;
+  const hingeHalfW = s.halfWidth * s.hingeFrac;
+  return `<line x1="${(cx - hingeHalfW).toFixed(1)}" y1="${hingeY.toFixed(1)}" x2="${(cx + hingeHalfW).toFixed(1)}" y2="${hingeY.toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="${SK.hingeW}"/>`;
+}
+
+function topUmboDot(s) {
+  // Beak marker. For astrophic shells (curved hinge), the umbo is a visible
+  // little bump — we draw a small filled wedge. For strophic shells, the umbo
+  // sits on the straight hinge line; we render it as a small triangular notch
+  // pointing posteriorly.
+  const cx = 100, cy = 102;
+  const beakY = cy - s.halfLength + (s.beakProm > 0 ? -s.beakProm * 0.4 : 4);
+  if (s.beakProm > 0) {
+    // Astrophic — small triangular umbo bulge above the outline.
+    const h = 6;
+    const w = 4;
+    return `<path d="M ${cx},${(beakY - h).toFixed(1)} L ${(cx - w).toFixed(1)},${(beakY + 1).toFixed(1)} L ${(cx + w).toFixed(1)},${(beakY + 1).toFixed(1)} Z" fill="${SK.beakCol}"/>`;
+  }
+  // Strophic — small dorsal-beak triangle riding on top of the hinge bar.
+  const hingeY = cy - s.halfLength * 0.95;
+  const h = 7, w = 5;
+  return `<path d="M ${cx},${(hingeY - h).toFixed(1)} L ${(cx - w).toFixed(1)},${hingeY.toFixed(1)} L ${(cx + w).toFixed(1)},${hingeY.toFixed(1)} Z" fill="${SK.beakCol}"/>`;
+}
 
 function svgTopView(answers) {
   const s = answersToShape(answers);
   const pts = topOutlinePoints(s);
   const outlinePath = pointsToPath(pts);
-  const clipId = "brachTopClip";
+  const clipId = "brachTopClip_" + Math.floor(Math.random() * 1e6);
+
   let inner = "";
-  if (s.hasGrowthLines) inner += topGrowthLines(s);
-  if (s.ribCount > 0)   inner += topRibInteriorLines(s);
-  if (s.hasSpines)      inner += topSpines(s);
-  if (s.foldStr > 0) {
-    const beakY = 102 - s.halfLength + 14;
-    const frontY = 102 + s.halfLength - 8;
-    inner += `<line x1="100" y1="${beakY.toFixed(1)}" x2="100" y2="${frontY.toFixed(1)}" stroke="black" stroke-width="${(s.foldStr * 1.8 + 0.8).toFixed(1)}" opacity="${(0.4 + s.foldStr * 0.5).toFixed(2)}"/>`;
-  }
+  // Layer order: growth (background) → ribs → frills (bolder, on top of ribs)
+  //              → sulcus midline → spines.
+  if (s.hasGrowthLines && !s.hasFrills) inner += topGrowthArcs(s, 6, SK.growthW, SK.growthCol);
+  if (s.ribCount > 0)                   inner += topRibLines(s);
+  if (s.hasFrills)                      inner += topGrowthArcs(s, 5, SK.frillW, SK.frillCol);
+  inner += topSulcusMark(s);
+  if (s.hasSpines)                      inner += topSpines(s);
+
+  // Hinge line + umbo dot drawn on top of everything for clarity.
+  const overlay = topHingeLine(s) + topUmboDot(s);
+
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
     <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
-    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">${inner}</g>
+    ${overlay}
   </svg>`;
 }
 
-// ---------- FRONT VIEW ----------
-function frontEdgePoints(s, isTop) {
+// ============================================================
+// FRONT VIEW — anterior end seen from the front
+// ============================================================
+// Dorsal valve on top, ventral on bottom. Width = full shell width.
+// Default biconvex is DORSI-biconvex. Fold/sulcus convention:
+//   * Dorsal valve has a midline RIDGE (fold) → small peak on the upper outline.
+//   * Ventral valve has a midline TROUGH (sulcus) → the lower outline lifts
+//     UPWARD at center (depression dips into the shell). Strong sulcus
+//     produces a pronounced V-notch in the bottom — matches Day & Copper
+//     plate B5 of Pseudoatrypa.
+//   * The commissure becomes uniplicate (peaks at center).
+
+function frontDorsalCurve(s) {
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
-  const conv = isTop ? s.dorsalConv : s.ventralConv;
-  const sign = isTop ? -1 : 1;
-  const N = 64;
+  const N = 120;
   const pts = [];
   for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const x = cx + (t - 0.5) * 2 * halfW;
-    const rc = Math.abs(t - 0.5) * 2;
-    let y = cy + sign * conv * (1 - rc ** 2);
+    const u = (i / N - 0.5) * 2;          // -1..1
+    const x = cx + u * halfW;
+    let y = cy - s.dorsalConv * (1 - u * u);
+    // Half-rectangle fold ridge on the dorsal valve (smaller share of total
+    // rise — the dorsal ridge is a modest peak above the otherwise-domed
+    // valve).
+    y -= foldRiseAt(u, s) * 0.35;
     if (s.ribCount > 0) {
-      const ribness = Math.cos((t - 0.5) * Math.PI) ** 2;
-      y += sign * s.ribAmp * ribness * Math.sin(t * s.ribCount * Math.PI);
-    }
-    if (s.foldStr > 0) {
-      const cn = Math.max(0, 1 - Math.abs(t - 0.5) * 5);
-      if (isTop) y -= s.foldStr * 10 * cn;
-      else       y += s.foldStr * 10 * cn;
+      const ribness = Math.cos(u * Math.PI / 2) ** 2;
+      const phase = (u + 1) * Math.PI * s.ribCount / 2;
+      y -= s.ribAmp * 0.55 * ribness * Math.sin(phase);
     }
     pts.push([x, y]);
   }
   return pts;
 }
 
-function frontGrowthLines(s) {
-  // Horizontal-ish arcs nested on the dorsal apex (upper half) and ventral apex (lower).
+function frontVentralCurve(s) {
   const cx = 100, cy = 100;
-  let out = "";
-  for (let k = 1; k <= 3; k++) {
-    const f = 0.3 + k * 0.18;
-    const w = s.halfWidth * 0.85 * f;
-    const dY = cy - s.dorsalConv * f * 0.6;
-    out += `<path d="M ${(cx - w).toFixed(1)},${(cy - 4).toFixed(1)} Q ${cx},${dY.toFixed(1)} ${(cx + w).toFixed(1)},${(cy - 4).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.85"/>`;
-    if (s.ventralConv !== 0) {
-      const vY = cy + s.ventralConv * f * 0.6;
-      out += `<path d="M ${(cx - w).toFixed(1)},${(cy + 4).toFixed(1)} Q ${cx},${vY.toFixed(1)} ${(cx + w).toFixed(1)},${(cy + 4).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.85"/>`;
+  const halfW = s.halfWidth;
+  const N = 120;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const u = (i / N - 0.5) * 2;
+    const x = cx + u * halfW;
+    let y = cy + s.ventralConv * (1 - u * u);
+    // Half-rectangle sulcus on the ventral valve — the lower outline lifts
+    // UP at center (depression cuts into the shell). Takes the bulk of the
+    // commissure rise.
+    y -= foldRiseAt(u, s) * 0.9;
+    if (s.ribCount > 0) {
+      const ribness = Math.cos(u * Math.PI / 2) ** 2;
+      const phase = (u + 1) * Math.PI * s.ribCount / 2;
+      y += s.ribAmp * 0.55 * ribness * Math.sin(phase);
     }
+    pts.push([x, y]);
   }
-  return out;
+  return pts;
 }
 
-function frontFrills(s) {
+function frontCommissureLine(s) {
+  // Commissure runs horizontally at cy unless the fold lifts it into a peak
+  // at center. With "strong" fold this is a tall half-rectangle (vertical
+  // shoulders + flat top), matching the deep commissure of fold-bearing
+  // spiriferids and atrypids.
   const cx = 100, cy = 100;
-  const N = 50;
+  const halfW = s.halfWidth;
+  const N = 120;
   let d = "";
   for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const x = cx + (t - 0.5) * 2 * s.halfWidth * 0.88;
-    const wave = Math.sin(t * 22) * 1.5;
-    const y = cy + 4 + wave;
+    const u = (i / N - 0.5) * 2;
+    const x = cx + u * halfW;
+    const y = cy - foldRiseAt(u, s) * 0.62;
     d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
   }
-  return `<path d="${d}" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>`;
+  const dash = s.foldStr > 0 ? "" : "3,2";
+  const sw   = s.foldStr > 0 ? 1.6 : 1.0;
+  return `<path d="${d}" fill="none" stroke="#333" stroke-width="${sw}" stroke-dasharray="${dash}"/>`;
 }
 
-function frontSpines(s) {
-  // Golden-angle scatter on the dorsal valve (upper half of front view).
-  const cx = 100, cy = 100;
-  let out = "";
-  const N = 24;
-  for (let i = 0; i < N; i++) {
-    const a = i * 137.5 * Math.PI / 180;
-    const r = Math.sqrt((i + 0.5) / N) * 0.75;
-    const xf = r * Math.cos(a);
-    const yf = -Math.abs(r * Math.sin(a));  // negative = upper half only
-    const x = cx + xf * s.halfWidth * 0.9;
-    const y = cy + yf * s.dorsalConv * 0.85;
-    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="#333"/>`;
-  }
-  return out;
-}
-
-
-// Anterior commissure — line across the front view where the two valves meet.
-// Without fold: straight dashed line at cy. With fold: rises at center.
-function frontCommissureLine(s) {
+function frontGrowthArcs(s) {
+  // Arcs paralleling each valve's outline at smaller scales.
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
   const N = 48;
-  let d = "";
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const x = cx + (t - 0.5) * 2 * halfW;
-    let y = cy;
-    if (s.foldStr > 0) {
-      const cn = Math.max(0, 1 - Math.abs(t - 0.5) * 4);
-      y -= s.foldStr * 9 * cn;
+  const arcs = [];
+
+  function valveArc(sign, k, K) {
+    // sign = -1 for dorsal (upper), +1 for ventral (lower)
+    const f = k / (K + 1);
+    const conv = sign === -1 ? s.dorsalConv : s.ventralConv;
+    if (Math.abs(conv) < 5) return null;
+    let d = "";
+    for (let i = 0; i <= N; i++) {
+      const u = (i / N - 0.5) * 2;
+      const x = cx + u * halfW * (1 - 0.1 * f);
+      let y = cy + sign * Math.abs(conv) * (1 - u * u) * (1 - f);
+      if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * (1 - u * u) * (1 - f);
+      if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * (1 - u * u) * (1 - f);
+      // Use the same half-rectangle fold profile, scaled down toward the
+      // interior of the valve (less rise on inner arcs).
+      const riseScale = sign === -1 ? 0.35 : 0.9;
+      y -= foldRiseAt(u, s) * riseScale * (1 - f);
+      d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
     }
-    d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+    return d;
   }
-  const dash = s.foldStr > 0 ? "" : "4,3";
-  const sw   = s.foldStr > 0 ? 2.0 : 1.4;
-  return `<path d="${d}" fill="none" stroke="#333" stroke-width="${sw}" stroke-dasharray="${dash}"/>`;
+
+  for (let k = 1; k <= 3; k++) {
+    const dD = valveArc(-1, k, 3);
+    if (dD) arcs.push(`<path d="${dD}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`);
+    const dV = valveArc(+1, k, 3);
+    if (dV) arcs.push(`<path d="${dV}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`);
+  }
+  return arcs.join("");
+}
+
+function frontFrills(s) {
+  // Bolder lamellae — same geometry as growth arcs, drawn fewer + thicker.
+  const cx = 100, cy = 100;
+  const halfW = s.halfWidth;
+  const N = 48;
+  const arcs = [];
+
+  function valveArc(sign, k, K) {
+    const f = k / (K + 1);
+    const conv = sign === -1 ? s.dorsalConv : s.ventralConv;
+    if (Math.abs(conv) < 5) return null;
+    let d = "";
+    for (let i = 0; i <= N; i++) {
+      const u = (i / N - 0.5) * 2;
+      const x = cx + u * halfW * (1 - 0.12 * f);
+      let y = cy + sign * Math.abs(conv) * (1 - u * u) * (1 - f);
+      if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * (1 - u * u) * (1 - f);
+      if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * (1 - u * u) * (1 - f);
+      const riseScale = sign === -1 ? 0.35 : 0.9;
+      y -= foldRiseAt(u, s) * riseScale * (1 - f);
+      d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    return d;
+  }
+
+  for (let k = 1; k <= 2; k++) {
+    const dD = valveArc(-1, k, 2);
+    if (dD) arcs.push(`<path d="${dD}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW * 0.85}" opacity="0.85"/>`);
+    const dV = valveArc(+1, k, 2);
+    if (dV) arcs.push(`<path d="${dV}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW * 0.85}" opacity="0.85"/>`);
+  }
+  return arcs.join("");
+}
+
+function frontSpines(s) {
+  const cx = 100, cy = 100;
+  let out = "";
+  const N = 30;
+  for (let i = 0; i < N; i++) {
+    const a = i * 137.5 * Math.PI / 180;
+    const r = Math.sqrt((i + 0.5) / N) * 0.78;
+    const xf = r * Math.cos(a);
+    const yf = r * Math.sin(a);
+    const x = cx + xf * s.halfWidth * 0.85;
+    const conv = yf < 0 ? Math.max(0, s.dorsalConv) : Math.max(0, s.ventralConv);
+    const y = cy + Math.sign(yf) * Math.abs(yf) * conv * 0.95;
+    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.4" fill="#222"/>`;
+  }
+  return out;
 }
 
 function svgFrontView(answers) {
   const s = answersToShape(answers);
-  const topEdge = frontEdgePoints(s, true);
-  const bottomEdge = frontEdgePoints(s, false).reverse();
-  const outlinePath = pointsToPath(topEdge.concat(bottomEdge));
-  const clipId = "brachFrontClip";
+  const top = frontDorsalCurve(s);
+  const bot = frontVentralCurve(s).reverse();
+  const outlinePath = pointsToPath(top.concat(bot));
+  const clipId = "brachFrontClip_" + Math.floor(Math.random() * 1e6);
+
   let inner = "";
-  if (s.hasGrowthLines) inner += frontGrowthLines(s);
-  if (s.hasFrills) inner += frontFrills(s);
-  if (s.hasSpines) inner += frontSpines(s);
-  // Commissure drawn on top of decorations — it's the boundary, not a surface feature
+  if (s.hasGrowthLines && !s.hasFrills) inner += frontGrowthArcs(s);
+  if (s.hasFrills)                      inner += frontFrills(s);
+  if (s.hasSpines)                      inner += frontSpines(s);
+
   const commissure = frontCommissureLine(s);
+
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
     <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
-    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">${inner}</g>
     ${commissure}
   </svg>`;
 }
 
-// ---------- SIDE VIEW (rebuilt) ----------
+// ============================================================
+// SIDE VIEW — right lateral, looking from outside
+// ============================================================
+// Beak at left (posterior), anterior commissure at right.
+// Strophic shells show a vertical interarea wall at the back; astrophic
+// shells curve smoothly to a beak tip. Default biconvex = dorsibiconvex so
+// the silhouette is taller above the midline than below.
+
 function svgSideView(answers) {
   const s = answersToShape(answers);
   const cx = 100, cy = 100;
   const halfL = s.halfLength;
-  const beakX = cx - halfL, frontX = cx + halfL;
+  const beakX = cx - halfL;
+  const frontX = cx + halfL;
 
-  // Helpers for dorsal + ventral curves at position x.
-  const dorsalY  = (x) => { const rc = (x - cx) / halfL; return cy - s.dorsalConv  * (1 - rc * rc) * 0.92; };
-  const ventralY = (x) => { const rc = (x - cx) / halfL; return cy + s.ventralConv * (1 - rc * rc) * 0.92; };
+  const dorsalY  = (x) => {
+    const u = (x - cx) / halfL;
+    return cy - s.dorsalConv * (1 - u * u) * 0.95;
+  };
+  const ventralY = (x) => {
+    const u = (x - cx) / halfL;
+    return cy + s.ventralConv * (1 - u * u) * 0.95;
+  };
 
-  // Outline: smooth dorsal+ventral curves; no perimeter rib bumps (ribs on the
-  // surface aren't visible as silhouette undulations from a strict lateral view).
-  const N = 64;
-  const top = [], bottom = [];
+  // Interarea-induced offset at the back: for strophic shells the dorsal and
+  // ventral curves start at separated heights (interareaH apart) rather than
+  // meeting at the beak.
+  const interareaTop = cy - s.interareaH * 0.5;
+  const interareaBot = cy + s.interareaH * 0.5;
+
+  // Anterior commissure half-height: rather than letting the dorsal and
+  // ventral curves meet at a single point at frontX, hold them apart so the
+  // anterior edge is broader (matching the real flat-to-slightly-curved
+  // anterior commissure). With a strong fold, this commissure half-height
+  // grows because the fold pushes the two curves apart at the front.
+  const anteriorHalf = 4 + s.foldStr * 9;
+
+  const N = 96;
+  const top = [], bot = [];
   for (let i = 0; i <= N; i++) {
     const t = i / N;
     const x = beakX + t * 2 * halfL;
-    let dApex = dorsalY(x);
-    let vApex = ventralY(x);
-    // Fold is a MIDLINE feature — only a tiny notch at the very commissure tip.
-    const rc = (x - cx) / halfL;
-    if (s.foldStr > 0 && rc > 0.88) {
-      const phase = (rc - 0.88) / 0.12;
-      dApex -= s.foldStr * 1.5 * phase;
-      vApex += s.foldStr * 1.5 * phase;
+    let dy = dorsalY(x), vy = ventralY(x);
+    if (s.interareaH > 0 && t < 0.10) {
+      // Smoothly blend from interarea wall to the dorsal/ventral curve.
+      const k = t / 0.10;
+      dy = interareaTop * (1 - k) + dy * k;
+      vy = interareaBot * (1 - k) + vy * k;
     }
-    top.push([x, dApex]);
-    bottom.push([x, vApex]);
+    // Anterior broadening: over the last 12% of the length, pull the curves
+    // toward fixed offsets above/below cy so the silhouette flares out into
+    // a commissure edge rather than tapering to a sharp point.
+    if (t > 0.88) {
+      const k = (t - 0.88) / 0.12;
+      const targetTop = cy - anteriorHalf;
+      const targetBot = cy + anteriorHalf;
+      dy = dy * (1 - k) + targetTop * k;
+      vy = vy * (1 - k) + targetBot * k;
+    }
+    top.push([x, dy]);
+    bot.push([x, vy]);
   }
-  const outlinePath = pointsToPath(top.concat(bottom.reverse()));
-  const clipId = "brachSideClip";
+  // Draw the anterior commissure edge explicitly as a small vertical segment
+  // (added below as overlay).
 
-  // Beak / hinge mark at the back
-  let beakSvg = "", hingeBar = "";
-  if (s.hingeFrac >= 0.5) {
-    hingeBar = `<line x1="${beakX.toFixed(1)}" y1="${(cy - 14).toFixed(1)}" x2="${beakX.toFixed(1)}" y2="${(cy + 14).toFixed(1)}" stroke="black" stroke-width="3.5"/>`;
-  } else if (s.beakProm > 0) {
-    const bx = beakX - 5;
-    beakSvg = `<path d="M ${beakX.toFixed(1)},${(cy - 7).toFixed(1)} L ${bx.toFixed(1)},${cy.toFixed(1)} L ${beakX.toFixed(1)},${(cy + 7).toFixed(1)} Z" fill="#1a1a1a" opacity="0.55"/>`;
-  }
+  const outline = top.concat(bot.reverse());
+  const outlinePath = pointsToPath(outline);
+  const clipId = "brachSideClip_" + Math.floor(Math.random() * 1e6);
 
   let inner = "";
 
-  // Ribs: LONGITUDINAL lines running back-to-front (parallel to length axis),
-  // on the dorsal surface. From the side, each rib visible across the curved
-  // dorsal valve appears as a long thin line from beak area to commissure.
-  // Count: use roughly half the total rib count (the half facing the viewer).
+  // ---- Ribs ----
+  // Longitudinal traces on the visible (near) valve surfaces.
   if (s.ribCount > 0) {
-    const visibleRibs = Math.max(3, Math.round(s.ribCount * 0.55));
-    const steps = 24;
-    // Distribute ribs across the depth of the dorsal valve (top half of cross-section)
+    const visibleRibs = Math.min(14, Math.max(4, Math.round(s.ribCount * 0.55)));
+    const steps = 32;
     for (let r = 0; r < visibleRibs; r++) {
-      const depthFrac = (r + 0.5) / visibleRibs;  // 0..1, distance below dorsal apex
+      const depthFrac = (r + 0.5) / visibleRibs;
       let d = "";
       for (let j = 0; j <= steps; j++) {
         const u = j / steps;
         const x = beakX + u * 2 * halfL;
         const dY = dorsalY(x);
-        // Offset proportional to dorsal valve depth at this point
         const valveDepth = Math.max(0, cy - dY);
-        const y = dY + depthFrac * valveDepth * 1.05;
+        const y = dY + depthFrac * valveDepth * 1.0;
         d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
       }
-      inner += `<path d="${d}" fill="none" stroke="#555" stroke-width="0.65"/>`;
+      inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.9}"/>`;
     }
-    // Mirror on ventral surface for biconvex shells where ventral is meaningfully curved
-    if (s.ventralConv > 10) {
+    if (s.ventralConv > 8) {
       for (let r = 0; r < visibleRibs; r++) {
         const depthFrac = (r + 0.5) / visibleRibs;
         let d = "";
@@ -1124,71 +1430,101 @@ function svgSideView(answers) {
           const x = beakX + u * 2 * halfL;
           const vY = ventralY(x);
           const valveDepth = Math.max(0, vY - cy);
-          const y = vY - depthFrac * valveDepth * 1.05;
+          const y = vY - depthFrac * valveDepth * 1.0;
           d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
         }
-        inner += `<path d="${d}" fill="none" stroke="#555" stroke-width="0.65"/>`;
+        inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.9}"/>`;
       }
     }
   }
 
-  // Growth lines: LATITUDINAL arcs (dorsal-to-ventral across the shell) at
-  // decreasing x positions, paralleling the anterior commissure (right edge).
-  if (s.hasGrowthLines) {
+  // ---- Growth lines (transverse C-arcs paralleling the commissure) ----
+  if (s.hasGrowthLines && !s.hasFrills) {
+    for (let k = 1; k <= 6; k++) {
+      const xL = frontX - k * (halfL * 0.13);
+      if (xL < beakX + halfL * 0.20) continue;
+      const dY = dorsalY(xL) + 1;
+      const vY = ventralY(xL) - 1;
+      const bowX = xL + 4 + (6 - k) * 0.8;
+      inner += `<path d="M ${xL.toFixed(1)},${dY.toFixed(1)} Q ${bowX.toFixed(1)},${cy.toFixed(1)} ${xL.toFixed(1)},${vY.toFixed(1)}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`;
+    }
+  }
+
+  // ---- Frills (bolder transverse arcs with a slight ripple) ----
+  if (s.hasFrills) {
     for (let k = 1; k <= 5; k++) {
-      const xL = frontX - k * (halfL * 0.16);
+      const xL = frontX - k * (halfL * 0.14);
+      if (xL < beakX + halfL * 0.20) continue;
       const dY = dorsalY(xL) + 2;
       const vY = ventralY(xL) - 2;
-      // Curve bowing toward the front (paralleling the curved commissure)
-      const ctrlX = xL + 3 + (5 - k) * 1;
-      inner += `<path d="M ${xL.toFixed(1)},${dY.toFixed(1)} Q ${ctrlX.toFixed(1)},${cy.toFixed(1)} ${xL.toFixed(1)},${vY.toFixed(1)}" fill="none" stroke="#777" stroke-width="0.85"/>`;
+      const bowX = xL + 4 + (5 - k) * 0.9;
+      let d = `M ${xL.toFixed(1)},${dY.toFixed(1)}`;
+      const segs = 14;
+      for (let i = 1; i <= segs; i++) {
+        const u = i / segs;
+        const y = dY + (vY - dY) * u;
+        const wave = Math.sin(u * 7) * 1.1;
+        const xMid = xL + (bowX - xL) * Math.sin(u * Math.PI);
+        d += ` L ${(xMid + wave).toFixed(1)},${y.toFixed(1)}`;
+      }
+      d += ` L ${xL.toFixed(1)},${vY.toFixed(1)}`;
+      inner += `<path d="${d}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW * 0.8}" opacity="0.9"/>`;
     }
   }
 
-  if (s.hasFrills) {
-    // Wavy line just inside the anterior commissure (latitudinal)
-    const xR = frontX - halfL * 0.08;
-    const dY = dorsalY(xR) + 3;
-    const vY = ventralY(xR) - 3;
-    let d = `M ${xR.toFixed(1)},${dY.toFixed(1)}`;
-    const steps = 10;
-    for (let i = 1; i <= steps; i++) {
-      const u = i / steps;
-      const y = dY + (vY - dY) * u;
-      const offset = Math.sin(u * 10) * 2.5;
-      d += ` L ${(xR + offset).toFixed(1)},${y.toFixed(1)}`;
-    }
-    inner += `<path d="${d}" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>`;
-  }
-
+  // ---- Spines ----
   if (s.hasSpines) {
-    // Golden-angle scatter inside the upper (dorsal) region
-    const NS = 18;
+    const NS = 20;
     for (let i = 0; i < NS; i++) {
       const a = i * 137.5 * Math.PI / 180;
       const r = Math.sqrt((i + 0.5) / NS) * 0.75;
-      const xF = r * Math.cos(a);
-      const yF = -Math.abs(r * Math.sin(a));
-      const x = cx + xF * halfL * 0.95;
+      const xf = r * Math.cos(a);
+      const yf = -Math.abs(r * Math.sin(a));
+      const x = cx + xf * halfL * 0.92;
       const yTop = dorsalY(x);
-      const y = cy + yF * (cy - yTop) * 0.9;
-      inner += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="#333"/>`;
+      const y = cy + yf * (cy - yTop) * 0.9;
+      inner += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="#222"/>`;
     }
-    // A few protruding spines at the dorsal margin
-    for (let i = 0; i < 4; i++) {
-      const t = 0.2 + i * 0.2;
+    for (let i = 0; i < 5; i++) {
+      const t = 0.18 + i * 0.18;
       const x = beakX + t * 2 * halfL;
       const dY = dorsalY(x);
-      inner += `<line x1="${x.toFixed(1)}" y1="${dY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dY - 9).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+      inner += `<line x1="${x.toFixed(1)}" y1="${dY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dY - 8).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
     }
+  }
+
+  // ---- Beak / interarea overlay ----
+  let overlay = "";
+  if (s.interareaH > 0) {
+    // Interarea: the flat triangular back wall. We render it as a small
+    // trapezoid sitting on the posterior end so it reads as a real wall,
+    // not just a vertical line. The wall slopes back slightly (its top
+    // tilts a few px posteriorly to suggest its real-life angle).
+    const tilt = 6;
+    const x0 = beakX, y0a = interareaTop, y0b = interareaBot;
+    const x1 = beakX - tilt;
+    overlay += `<path d="M ${x0.toFixed(1)},${y0a.toFixed(1)} L ${x1.toFixed(1)},${(y0a - 1).toFixed(1)} L ${x1.toFixed(1)},${(y0b + 1).toFixed(1)} L ${x0.toFixed(1)},${y0b.toFixed(1)} Z" fill="#e8e3d4" stroke="${SK.hingeCol}" stroke-width="1.4"/>`;
+    // Delthyrium triangle on the interarea
+    const mid = (interareaTop + interareaBot) / 2;
+    const trW = 6;
+    overlay += `<path d="M ${(x0 - tilt * 0.4).toFixed(1)},${(mid - trW * 0.6).toFixed(1)} L ${(x1 + tilt * 0.2).toFixed(1)},${mid.toFixed(1)} L ${(x0 - tilt * 0.4).toFixed(1)},${(mid + trW * 0.6).toFixed(1)} Z" fill="#1a1a1a" opacity="0.65"/>`;
+  } else if (s.beakProm > 0) {
+    // Astrophic curved beak — small protruding tip at posterior.
+    const beakTipX = beakX - 5;
+    overlay += `<path d="M ${beakX.toFixed(1)},${(cy - 5).toFixed(1)} Q ${beakTipX.toFixed(1)},${cy.toFixed(1)} ${beakX.toFixed(1)},${(cy + 5).toFixed(1)} Z" fill="#1a1a1a" opacity="0.55"/>`;
+  }
+  // Anterior commissure edge — render explicitly so the flat front face
+  // reads as the join between the two valves, not as a sharp edge.
+  if (s.foldStr > 0 || s.interareaH > 0) {
+    const xR = frontX;
+    overlay += `<line x1="${xR.toFixed(1)}" y1="${(cy - (4 + s.foldStr * 9)).toFixed(1)}" x2="${xR.toFixed(1)}" y2="${(cy + (4 + s.foldStr * 9)).toFixed(1)}" stroke="#444" stroke-width="0.8" stroke-dasharray="3,2"/>`;
   }
 
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
     <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
-    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">${inner}</g>
-    ${beakSvg}
-    ${hingeBar}
+    ${overlay}
   </svg>`;
 }
 
@@ -1338,7 +1674,7 @@ function viewBuild(sid, answers) {
 function viewCalibrate(sid) {
   const SPECIES = [
     { name: "Pseudoatrypa devoniana",
-      blurb: "Atrypid: subcircular, biconvex, astrophic, many fine ribs with concentric frills, broad anterior fold.",
+      blurb: "Atrypid: subcircular, dorsibiconvex, astrophic, many fine ribs with concentric frills, broad anterior fold.",
       answers: {
         outline_pick: "subcircular", profile_pick: "biconvex",
         hinge_pick: "astrophic", surface_ribs: "yes",
@@ -1360,6 +1696,18 @@ function viewCalibrate(sid) {
         "cyrtospirifer/rockford/whitneyi_nathan_01.jpg",
         "cyrtospirifer/rockford/whitneyi_dave_01.jpg",
         "cyrtospirifer/rockford/whitneyi_jsm_01.png"
+      ] },
+    { name: "Schizophoria iowensis",
+      blurb: "Orthid: subcircular, biconvex, narrow strophic hinge, many fine costellae, subtle fold + sulcus.",
+      answers: {
+        outline_pick: "subcircular", profile_pick: "biconvex",
+        hinge_pick: "narrow-strophic", surface_ribs: "yes",
+        rib_density: "dense", fold_pick: "weak"
+      },
+      images: [
+        "schizophoria/rockford/iowensis_nathan_01.jpg",
+        "schizophoria/rockford/iowensis_dave_01.jpg",
+        "schizophoria/rockford/iowensis_stigallrode_01.png"
       ] }
   ];
 
