@@ -768,8 +768,10 @@ function answersToShape(answers) {
     halfLength: o === "elongate-oval" ? 84 : 70,
     hingeFrac:  h === "wide-strophic" ? 0.92 : h === "narrow-strophic" ? 0.32 : 0,
     beakProm:   h === "astrophic" ? 9 : 4,
-    dorsalConv:  p === "concavo-convex" ? 46 : p === "plano-convex" ? 52 : 38,
-    ventralConv: p === "concavo-convex" ? -22 : p === "plano-convex" ? 0 : 38,
+    // Most brachiopods are dorsibiconvex (dorsal valve more inflated than ventral).
+    // We default biconvex to that asymmetry — equibiconvex is rare.
+    dorsalConv:  p === "concavo-convex" ? 36 : p === "plano-convex" ? 52 : 42,
+    ventralConv: p === "concavo-convex" ? -25 : p === "plano-convex" ? 4  : 28,
     foldStr:    f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
     ribCount:   features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0,
     ribAmp:     features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0,
@@ -1004,6 +1006,28 @@ function frontSpines(s) {
 }
 
 
+// Anterior commissure — line across the front view where the two valves meet.
+// Without fold: straight dashed line at cy. With fold: rises at center.
+function frontCommissureLine(s) {
+  const cx = 100, cy = 100;
+  const halfW = s.halfWidth;
+  const N = 48;
+  let d = "";
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const x = cx + (t - 0.5) * 2 * halfW;
+    let y = cy;
+    if (s.foldStr > 0) {
+      const cn = Math.max(0, 1 - Math.abs(t - 0.5) * 4);
+      y -= s.foldStr * 9 * cn;
+    }
+    d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+  }
+  const dash = s.foldStr > 0 ? "" : "4,3";
+  const sw   = s.foldStr > 0 ? 2.0 : 1.4;
+  return `<path d="${d}" fill="none" stroke="#333" stroke-width="${sw}" stroke-dasharray="${dash}"/>`;
+}
+
 function svgFrontView(answers) {
   const s = answersToShape(answers);
   const topEdge = frontEdgePoints(s, true);
@@ -1014,10 +1038,13 @@ function svgFrontView(answers) {
   if (s.hasGrowthLines) inner += frontGrowthLines(s);
   if (s.hasFrills) inner += frontFrills(s);
   if (s.hasSpines) inner += frontSpines(s);
+  // Commissure drawn on top of decorations — it's the boundary, not a surface feature
+  const commissure = frontCommissureLine(s);
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
     <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
     <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">${inner}</g>
+    ${commissure}
   </svg>`;
 }
 
@@ -1027,30 +1054,26 @@ function svgSideView(answers) {
   const cx = 100, cy = 100;
   const halfL = s.halfLength;
   const beakX = cx - halfL, frontX = cx + halfL;
+
+  // Helpers for dorsal + ventral curves at position x.
+  const dorsalY  = (x) => { const rc = (x - cx) / halfL; return cy - s.dorsalConv  * (1 - rc * rc) * 0.92; };
+  const ventralY = (x) => { const rc = (x - cx) / halfL; return cy + s.ventralConv * (1 - rc * rc) * 0.92; };
+
+  // Outline: smooth dorsal+ventral curves; no perimeter rib bumps (ribs on the
+  // surface aren't visible as silhouette undulations from a strict lateral view).
   const N = 64;
   const top = [], bottom = [];
   for (let i = 0; i <= N; i++) {
     const t = i / N;
     const x = beakX + t * 2 * halfL;
+    let dApex = dorsalY(x);
+    let vApex = ventralY(x);
+    // Fold is a MIDLINE feature — only a tiny notch at the very commissure tip.
     const rc = (x - cx) / halfL;
-    let dApex = cy - s.dorsalConv  * (1 - rc * rc) * 0.92;
-    let vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
-
-    // Rib perimeter undulations on both dorsal and ventral curves.
-    // Ribness peaks at the middle and fades to zero at beak (back) and commissure (front).
-    if (s.ribCount > 0) {
-      const ribness = (1 - rc * rc);
-      const phase = t * s.ribCount * Math.PI;
-      dApex -= s.ribAmp * ribness * Math.sin(phase);
-      vApex += s.ribAmp * ribness * Math.sin(phase);
-    }
-
-    // Fold is a MIDLINE feature — mostly invisible from a strict lateral view.
-    // Only the tip of the anterior commissure shows a slight notch when fold is strong.
-    if (s.foldStr > 0 && rc > 0.85) {
-      const phase = (rc - 0.85) / 0.15;
-      dApex -= s.foldStr * 2 * phase;
-      vApex += s.foldStr * 2 * phase;
+    if (s.foldStr > 0 && rc > 0.88) {
+      const phase = (rc - 0.88) / 0.12;
+      dApex -= s.foldStr * 1.5 * phase;
+      vApex += s.foldStr * 1.5 * phase;
     }
     top.push([x, dApex]);
     bottom.push([x, vApex]);
@@ -1064,58 +1087,99 @@ function svgSideView(answers) {
     hingeBar = `<line x1="${beakX.toFixed(1)}" y1="${(cy - 14).toFixed(1)}" x2="${beakX.toFixed(1)}" y2="${(cy + 14).toFixed(1)}" stroke="black" stroke-width="3.5"/>`;
   } else if (s.beakProm > 0) {
     const bx = beakX - 5;
-    beakSvg = `<path d="M ${beakX.toFixed(1)},${(cy - 7).toFixed(1)} L ${bx.toFixed(1)},${cy.toFixed(1)} L ${beakX.toFixed(1)},${(cy + 7).toFixed(1)} Z" fill="#1a1a1a" opacity="0.5"/>`;
+    beakSvg = `<path d="M ${beakX.toFixed(1)},${(cy - 7).toFixed(1)} L ${bx.toFixed(1)},${cy.toFixed(1)} L ${beakX.toFixed(1)},${(cy + 7).toFixed(1)} Z" fill="#1a1a1a" opacity="0.55"/>`;
   }
 
-  // Interior surface texture
   let inner = "";
-  // Growth lines: nested arcs paralleling the anterior commissure (right edge).
-  // Each arc curves from the dorsal margin to the ventral margin.
-  if (s.hasGrowthLines) {
-    for (let k = 1; k <= 4; k++) {
-      const xL = frontX - k * (halfL * 0.18);
-      const rc = (xL - cx) / halfL;
-      const dY = cy - s.dorsalConv  * (1 - rc * rc) * 0.92 + 3;
-      const vY = cy + s.ventralConv * (1 - rc * rc) * 0.92 - 3;
-      // Curve bowing slightly toward the front (since growth lines parallel the commissure)
-      const ctrlX = xL + 3;
-      inner += `<path d="M ${xL.toFixed(1)},${dY.toFixed(1)} Q ${ctrlX.toFixed(1)},${cy.toFixed(1)} ${xL.toFixed(1)},${vY.toFixed(1)}" fill="none" stroke="#666" stroke-width="0.8"/>`;
+
+  // Ribs: LONGITUDINAL lines running back-to-front (parallel to length axis),
+  // on the dorsal surface. From the side, each rib visible across the curved
+  // dorsal valve appears as a long thin line from beak area to commissure.
+  // Count: use roughly half the total rib count (the half facing the viewer).
+  if (s.ribCount > 0) {
+    const visibleRibs = Math.max(3, Math.round(s.ribCount * 0.55));
+    const steps = 24;
+    // Distribute ribs across the depth of the dorsal valve (top half of cross-section)
+    for (let r = 0; r < visibleRibs; r++) {
+      const depthFrac = (r + 0.5) / visibleRibs;  // 0..1, distance below dorsal apex
+      let d = "";
+      for (let j = 0; j <= steps; j++) {
+        const u = j / steps;
+        const x = beakX + u * 2 * halfL;
+        const dY = dorsalY(x);
+        // Offset proportional to dorsal valve depth at this point
+        const valveDepth = Math.max(0, cy - dY);
+        const y = dY + depthFrac * valveDepth * 1.05;
+        d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+      }
+      inner += `<path d="${d}" fill="none" stroke="#555" stroke-width="0.65"/>`;
+    }
+    // Mirror on ventral surface for biconvex shells where ventral is meaningfully curved
+    if (s.ventralConv > 10) {
+      for (let r = 0; r < visibleRibs; r++) {
+        const depthFrac = (r + 0.5) / visibleRibs;
+        let d = "";
+        for (let j = 0; j <= steps; j++) {
+          const u = j / steps;
+          const x = beakX + u * 2 * halfL;
+          const vY = ventralY(x);
+          const valveDepth = Math.max(0, vY - cy);
+          const y = vY - depthFrac * valveDepth * 1.05;
+          d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+        }
+        inner += `<path d="${d}" fill="none" stroke="#555" stroke-width="0.65"/>`;
+      }
     }
   }
+
+  // Growth lines: LATITUDINAL arcs (dorsal-to-ventral across the shell) at
+  // decreasing x positions, paralleling the anterior commissure (right edge).
+  if (s.hasGrowthLines) {
+    for (let k = 1; k <= 5; k++) {
+      const xL = frontX - k * (halfL * 0.16);
+      const dY = dorsalY(xL) + 2;
+      const vY = ventralY(xL) - 2;
+      // Curve bowing toward the front (paralleling the curved commissure)
+      const ctrlX = xL + 3 + (5 - k) * 1;
+      inner += `<path d="M ${xL.toFixed(1)},${dY.toFixed(1)} Q ${ctrlX.toFixed(1)},${cy.toFixed(1)} ${xL.toFixed(1)},${vY.toFixed(1)}" fill="none" stroke="#777" stroke-width="0.85"/>`;
+    }
+  }
+
   if (s.hasFrills) {
-    // A wavy line just inside the anterior commissure
-    const xR = frontX - halfL * 0.07;
-    const rc = (xR - cx) / halfL;
-    const dY = cy - s.dorsalConv  * (1 - rc * rc) * 0.92 + 3;
-    const vY = cy + s.ventralConv * (1 - rc * rc) * 0.92 - 3;
-    // Wavy vertical curve
+    // Wavy line just inside the anterior commissure (latitudinal)
+    const xR = frontX - halfL * 0.08;
+    const dY = dorsalY(xR) + 3;
+    const vY = ventralY(xR) - 3;
     let d = `M ${xR.toFixed(1)},${dY.toFixed(1)}`;
-    const steps = 8;
+    const steps = 10;
     for (let i = 1; i <= steps; i++) {
       const u = i / steps;
       const y = dY + (vY - dY) * u;
-      const offset = Math.sin(u * 8) * 2.5;
+      const offset = Math.sin(u * 10) * 2.5;
       d += ` L ${(xR + offset).toFixed(1)},${y.toFixed(1)}`;
     }
     inner += `<path d="${d}" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>`;
   }
+
   if (s.hasSpines) {
-    // Spine bases scattered along the dorsal valve surface; a few protruding
-    for (let i = 1; i < 9; i++) {
-      const t = i / 9;
+    // Golden-angle scatter inside the upper (dorsal) region
+    const NS = 18;
+    for (let i = 0; i < NS; i++) {
+      const a = i * 137.5 * Math.PI / 180;
+      const r = Math.sqrt((i + 0.5) / NS) * 0.75;
+      const xF = r * Math.cos(a);
+      const yF = -Math.abs(r * Math.sin(a));
+      const x = cx + xF * halfL * 0.95;
+      const yTop = dorsalY(x);
+      const y = cy + yF * (cy - yTop) * 0.9;
+      inner += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="#333"/>`;
+    }
+    // A few protruding spines at the dorsal margin
+    for (let i = 0; i < 4; i++) {
+      const t = 0.2 + i * 0.2;
       const x = beakX + t * 2 * halfL;
-      const rc = (x - cx) / halfL;
-      const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
-      // dot just below dorsal curve
-      inner += `<circle cx="${x.toFixed(1)}" cy="${(dApex + 4).toFixed(1)}" r="1.6" fill="#333"/>`;
-      // Every 2nd, add a small protruding spine
-      if (i % 2 === 0)
-        inner += `<line x1="${x.toFixed(1)}" y1="${dApex.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dApex - 9).toFixed(1)}" stroke="#222" stroke-width="1.1"/>`;
-      // Second row on ventral surface
-      const vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
-      if (s.ventralConv > 5) {
-        inner += `<circle cx="${x.toFixed(1)}" cy="${(vApex - 4).toFixed(1)}" r="1.4" fill="#444"/>`;
-      }
+      const dY = dorsalY(x);
+      inner += `<line x1="${x.toFixed(1)}" y1="${dY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dY - 9).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
     }
   }
 
