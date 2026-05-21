@@ -323,6 +323,10 @@ function viewSiteLanding(sid) {
         el("span", { class: "ba-title" }, "Build a brachiopod (visual)"),
         el("span", { class: "ba-sub" }, "Move sliders to shape a silhouette live; the matching-species count updates as you go. Brachiopods only.")
       ]),
+      el("a", { class: "big-action", href: `${siteBase(sid)}/calibrate` }, [
+        el("span", { class: "ba-title" }, "Calibration: parametric vs real"),
+        el("span", { class: "ba-sub" }, "Side-by-side comparison of the build-view silhouettes against real specimen photos for Pseudoatrypa devoniana and Cyrtospirifer whitneyi. Diagnostic for spotting mismatches.")
+      ]),
       el("a", { class: "big-action", href: `${siteBase(sid)}/jump` }, [
         el("span", { class: "ba-title" }, "I already know the group"),
         el("span", { class: "ba-sub" }, "Skip the key and jump straight to spiriferids, atrypids, gastropods, etc.")
@@ -1041,11 +1045,12 @@ function svgSideView(answers) {
       vApex += s.ribAmp * ribness * Math.sin(phase);
     }
 
-    // Fold modifies the anterior (right) commissure region
-    if (s.foldStr > 0 && rc > 0.5) {
-      const phase = (rc - 0.5) / 0.5;
-      dApex -= s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
-      vApex += s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
+    // Fold is a MIDLINE feature — mostly invisible from a strict lateral view.
+    // Only the tip of the anterior commissure shows a slight notch when fold is strong.
+    if (s.foldStr > 0 && rc > 0.85) {
+      const phase = (rc - 0.85) / 0.15;
+      dApex -= s.foldStr * 2 * phase;
+      vApex += s.foldStr * 2 * phase;
     }
     top.push([x, dApex]);
     bottom.push([x, vApex]);
