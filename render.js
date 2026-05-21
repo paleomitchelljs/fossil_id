@@ -733,317 +733,327 @@ function viewKeyResult(sid, subIdsStr) {
 // ---------- TOP VIEW (dorsal) ----------
 // Smooth bezier outline with a small umbo bump at top center.
 // Parameters affecting top view: outline, hinge, surface, fold.
-function topOutlinePath(outline, hinge) {
-  // Each path closes back to (100, 18) — the beak tip — for a small umbo bump.
-  if (outline === "wing-shaped") {
-    // Wings always strophic-style. Body tapers from wing tips down to bottom point.
-    return "M 100,18 Q 110,22 115,32 L 195,42 Q 188,58 165,62 Q 165,95 145,128 Q 128,158 100,172 Q 72,158 55,128 Q 35,95 35,62 Q 12,58 5,42 L 85,32 Q 90,22 100,18 Z";
-  }
-  if (outline === "elongate-oval") {
-    if (hinge === "wide-strophic")
-      return "M 100,15 Q 115,18 122,32 L 162,32 Q 175,90 100,175 Q 25,90 38,32 L 78,32 Q 85,18 100,15 Z";
-    if (hinge === "narrow-strophic")
-      return "M 100,12 Q 115,15 122,28 L 138,28 Q 170,95 100,178 Q 30,95 62,28 L 78,28 Q 85,15 100,12 Z";
-    // astrophic + elongate
-    return "M 100,12 Q 115,15 122,28 Q 152,40 152,90 Q 152,140 100,178 Q 48,140 48,90 Q 48,40 78,28 Q 85,15 100,12 Z";
-  }
-  // subcircular (default)
-  if (hinge === "wide-strophic")
-    return "M 100,18 Q 112,22 118,32 L 178,32 Q 188,90 100,168 Q 12,90 22,32 L 82,32 Q 88,22 100,18 Z";
-  if (hinge === "narrow-strophic")
-    return "M 100,15 Q 112,18 118,30 L 138,30 Q 180,82 100,170 Q 20,82 62,30 L 82,30 Q 88,18 100,15 Z";
-  // astrophic + subcircular (most common — round + smoothly curved back)
-  return "M 100,18 Q 112,22 118,32 Q 168,42 178,90 Q 175,135 100,170 Q 25,135 22,90 Q 32,42 82,32 Q 88,22 100,18 Z";
-}
+// =================================================================
+// Parametric morphospace model
+// =================================================================
+// answersToShape(answers) returns a unified shape parameter object.
+// Top / Front / Side views are all computed from this object so the
+// outline, surface, and fold stay coherent across views.
+//
+// Ribs perturb the *actual perimeter* (not just interior overlay lines),
+// the fold pulls the front commissure inward in all three views, and
+// the side view shows real anatomy (beak, hinge line, dorsal+ventral
+// curvature, commissure undulations from the fold).
 
-// Density → number of ribs to draw (visual only — not a filter trait)
 const RIB_COUNTS = { sparse: 7, medium: 13, dense: 22 };
 
-// ---------- TOP view surface layers (each feature independent) ----------
-function topGrowthLines() {
-  return [
-    '<path d="M 35,68 Q 100,88 165,68" fill="none" stroke="#666" stroke-width="0.9"/>',
-    '<path d="M 30,95 Q 100,118 170,95" fill="none" stroke="#666" stroke-width="0.9"/>',
-    '<path d="M 32,122 Q 100,145 168,122" fill="none" stroke="#666" stroke-width="0.9"/>'
-  ].join("");
+function answersToShape(answers) {
+  const features = featuresFromAnswers(answers);
+  const o = answers.outline_pick || "subcircular";
+  const p = answers.profile_pick || "biconvex";
+  const h = answers.hinge_pick || "astrophic";
+  const f = answers.fold_pick || "none";
+  return {
+    halfWidth:  o === "wing-shaped" ? 92 : o === "elongate-oval" ? 52 : 72,
+    halfLength: o === "elongate-oval" ? 84 : 70,
+    hingeFrac:  h === "wide-strophic" ? 0.92 : h === "narrow-strophic" ? 0.32 : 0,
+    beakProm:   h === "astrophic" ? 9 : 4,
+    dorsalConv:  p === "concavo-convex" ? 46 : p === "plano-convex" ? 52 : 38,
+    ventralConv: p === "concavo-convex" ? -22 : p === "plano-convex" ? 0 : 38,
+    foldStr:    f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
+    ribCount:   features.ribs ? (RIB_COUNTS[features.density] || 13) : 0,
+    ribAmp:     features.ribs ? 1.9 : 0,
+    hasFrills:  features.frills,
+    hasSpines:  features.spines,
+    hasGrowthLines: features.lines
+  };
 }
-function topRibs(density) {
-  const N = RIB_COUNTS[density] || RIB_COUNTS.medium;
-  const out = [];
+
+function pointsToPath(pts, close = true) {
+  let d = `M ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    d += ` L ${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)}`;
+  }
+  return close ? d + " Z" : d;
+}
+
+// ---------- TOP VIEW ----------
+function topOutlinePoints(s) {
+  const cx = 100, cy = 102;
+  const N = 96;
+  const pts = [];
+  const hingeY = cy - s.halfLength + 8;
+
   for (let i = 0; i < N; i++) {
-    const t = (i + 0.5) / N;
-    const angle = -1.05 + t * 2.1;
-    const xMid = 100 + Math.sin(angle) * 55;
-    const yMid = 90 + Math.cos(angle) * 35;
-    const xEnd = 100 + Math.sin(angle) * 82;
-    const yEnd = 95 + Math.cos(angle) * 72;
-    out.push(`<path d="M 100,32 Q ${xMid.toFixed(1)},${yMid.toFixed(1)} ${xEnd.toFixed(1)},${yEnd.toFixed(1)}" fill="none" stroke="#444" stroke-width="0.85"/>`);
+    const theta = (i / N) * 2 * Math.PI;     // 0=top, π=front
+    const a = s.halfWidth, b = s.halfLength;
+    let x = cx + a * Math.sin(theta);
+    let y = cy - b * Math.cos(theta);
+
+    // Hinge straightening
+    if (s.hingeFrac > 0.05) {
+      const topness = Math.max(0, Math.cos(theta));
+      const flatness = topness ** 2.3;
+      const hingeHalfW = a * s.hingeFrac;
+      const baseTX = a * Math.sin(theta);
+      const tx = Math.max(-hingeHalfW, Math.min(hingeHalfW, baseTX));
+      x = x * (1 - flatness) + (cx + tx) * flatness;
+      y = y * (1 - flatness) + hingeY * flatness;
+    }
+
+    // Rib perimeter bumps (max at front, zero at beak)
+    if (s.ribCount > 0) {
+      const ribness = Math.sin(theta / 2) ** 2;
+      const ribPhase = theta * s.ribCount;
+      const nx = Math.sin(theta), ny = -Math.cos(theta);
+      const bump = s.ribAmp * ribness * Math.sin(ribPhase);
+      x += nx * bump; y += ny * bump;
+    }
+
+    // Fold: front sulcus pulled inward, flanks pushed outward
+    if (s.foldStr > 0) {
+      const dt = theta - Math.PI;
+      const range = 0.7;
+      if (Math.abs(dt) < range) {
+        const w = 1 - Math.abs(dt) / range;
+        const nx = Math.sin(theta), ny = -Math.cos(theta);
+        const offset = Math.abs(dt) < 0.22
+          ? -s.foldStr * 8 * w
+          :  s.foldStr * 2.5 * w;
+        x += nx * offset; y += ny * offset;
+      }
+    }
+
+    pts.push([x, y]);
+  }
+
+  // Beak prominence: nudge the top-center point upward
+  if (s.beakProm > 0) pts[0] = [pts[0][0], pts[0][1] - s.beakProm];
+  return pts;
+}
+
+function topRibInteriorLines(s) {
+  if (s.ribCount === 0) return "";
+  let out = "";
+  // Lines from beak fanning to front+lateral commissure
+  const cx = 100, cy = 102;
+  const beakX = cx, beakY = cy - s.halfLength + 14;
+  for (let i = 0; i < s.ribCount; i++) {
+    const t = (i + 0.5) / s.ribCount;
+    const theta = Math.PI * (0.18 + t * 0.64);  // 0.18π..0.82π
+    const ex = cx + s.halfWidth * 0.92 * Math.sin(theta);
+    const ey = cy - s.halfLength * 0.92 * Math.cos(theta);
+    out += `<path d="M ${beakX},${beakY.toFixed(1)} Q ${((beakX + ex)/2).toFixed(1)},${((beakY + ey)/2 - 5).toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#555" stroke-width="0.7"/>`;
+  }
+  // Mirror to left side
+  for (let i = 0; i < s.ribCount; i++) {
+    const t = (i + 0.5) / s.ribCount;
+    const theta = Math.PI * (0.18 + t * 0.64);
+    const ex = cx - s.halfWidth * 0.92 * Math.sin(theta);
+    const ey = cy - s.halfLength * 0.92 * Math.cos(theta);
+    out += `<path d="M ${beakX},${beakY.toFixed(1)} Q ${((beakX + ex)/2).toFixed(1)},${((beakY + ey)/2 - 5).toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="#555" stroke-width="0.7"/>`;
+  }
+  return out;
+}
+
+function topGrowthLines(s) {
+  const cx = 100, cy = 102;
+  const out = [];
+  for (let k = 1; k <= 3; k++) {
+    const f = 0.45 + k * 0.18;
+    const w = s.halfWidth * f * 0.9;
+    const h = s.halfLength * f * 0.9;
+    out.push(`<path d="M ${(cx - w).toFixed(1)},${cy} Q ${cx},${(cy + h).toFixed(1)} ${(cx + w).toFixed(1)},${cy}" fill="none" stroke="#666" stroke-width="0.85"/>`);
   }
   return out.join("");
 }
-function topFrills() {
-  return [
-    '<path d="M 28,128 Q 42,148 62,140 Q 80,152 100,144 Q 120,152 138,140 Q 158,148 172,128" fill="none" stroke="black" stroke-width="1.5"/>',
-    '<path d="M 33,146 Q 48,160 68,154 Q 84,164 100,158 Q 116,164 132,154 Q 152,160 167,146" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>'
-  ].join("");
-}
-function topSpines() {
-  const pts = [
-    [55,55],[75,50],[95,52],[115,52],[135,50],[150,55],
-    [45,75],[68,72],[90,70],[110,70],[132,72],[160,75],
-    [42,98],[65,95],[88,94],[112,94],[135,95],[162,98],
-    [50,120],[72,118],[95,116],[120,118],[145,120],
-    [60,138],[85,136],[110,136],[138,138]
-  ];
-  let out = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#333"/>`).join("");
-  out += '<line x1="45" y1="75" x2="30" y2="60" stroke="#222" stroke-width="1.3"/>';
-  out += '<line x1="160" y1="75" x2="175" y2="60" stroke="#222" stroke-width="1.3"/>';
-  out += '<line x1="50" y1="120" x2="38" y2="138" stroke="#222" stroke-width="1.3"/>';
-  out += '<line x1="145" y1="120" x2="158" y2="138" stroke="#222" stroke-width="1.3"/>';
-  return out;
-}
-function topSurfaceLayer(features) {
-  let out = "";
-  if (features.lines)  out += topGrowthLines();
-  if (features.ribs)   out += topRibs(features.density);
-  if (features.frills) out += topFrills();
-  if (features.spines) out += topSpines();
-  return out;
-}
 
-function topFoldLayer(fold) {
-  if (!fold || fold === "none") return "";
-  if (fold === "weak") {
-    return [
-      '<line x1="100" y1="32" x2="100" y2="160" stroke="#444" stroke-width="1.2" stroke-dasharray="4,3"/>',
-      '<path d="M 85,165 Q 100,158 115,165" fill="none" stroke="black" stroke-width="1.4"/>'
-    ].join("");
-  }
-  if (fold === "strong") {
-    return [
-      '<line x1="100" y1="28" x2="100" y2="166" stroke="black" stroke-width="2.2"/>',
-      '<path d="M 65,162 L 100,128 L 135,162" fill="none" stroke="black" stroke-width="2.4"/>'
-    ].join("");
-  }
-  return "";
+function topSpines(s) {
+  const cx = 100, cy = 102;
+  let out = "";
+  const rows = [
+    { yf: -0.55, xs: [-0.5, -0.25, 0, 0.25, 0.5] },
+    { yf: -0.2,  xs: [-0.65, -0.4, -0.15, 0.15, 0.4, 0.65] },
+    { yf:  0.15, xs: [-0.7, -0.45, -0.2, 0.2, 0.45, 0.7] },
+    { yf:  0.5,  xs: [-0.6, -0.3, 0, 0.3, 0.6] }
+  ];
+  for (const r of rows) for (const xf of r.xs)
+    out += `<circle cx="${(cx + xf * s.halfWidth).toFixed(1)}" cy="${(cy + r.yf * s.halfLength).toFixed(1)}" r="2" fill="#333"/>`;
+  // Protruding spines
+  out += `<line x1="${(cx - s.halfWidth * 0.7).toFixed(1)}" y1="${(cy - s.halfLength * 0.2).toFixed(1)}" x2="${(cx - s.halfWidth * 0.98).toFixed(1)}" y2="${(cy - s.halfLength * 0.35).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+  out += `<line x1="${(cx + s.halfWidth * 0.7).toFixed(1)}" y1="${(cy - s.halfLength * 0.2).toFixed(1)}" x2="${(cx + s.halfWidth * 0.98).toFixed(1)}" y2="${(cy - s.halfLength * 0.35).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+  return out;
 }
 
 function svgTopView(answers) {
-  const outline = answers.outline_pick || "subcircular";
-  const hinge   = answers.hinge_pick   || "astrophic";
-  const fold    = answers.fold_pick    || "none";
-  const features = featuresFromAnswers(answers);
-  const path = topOutlinePath(outline, hinge);
+  const s = answersToShape(answers);
+  const pts = topOutlinePoints(s);
+  const outlinePath = pointsToPath(pts);
   const clipId = "brachTopClip";
-  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
-    <defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs>
-    <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
-    <g clip-path="url(#${clipId})">
-      ${topSurfaceLayer(features)}
-      ${topFoldLayer(fold)}
-    </g>
-  </svg>`;
-}
-
-// ---------- FRONT VIEW (anterior) ----------
-// Shows the commissure line where the two valves meet, looking at the
-// shell front-on. Profile sets the overall vertical extent; fold sets
-// the commissure's shape (straight / wave / V).
-function svgFrontView(answers) {
-  const outline = answers.outline_pick || "subcircular";
-  const profile = answers.profile_pick || "biconvex";
-  const fold    = answers.fold_pick    || "none";
-
-  // Width depends on outline
-  const halfW = outline === "wing-shaped" ? 92 :
-                outline === "elongate-oval" ? 55 : 75;
-  const leftX = 100 - halfW, rightX = 100 + halfW;
-
-  // Profile sets dorsal + ventral curve depths
-  let dorsalDepth, ventralDepth;
-  if (profile === "biconvex")        { dorsalDepth = 45; ventralDepth = 45; }
-  else if (profile === "plano-convex") { dorsalDepth = 55; ventralDepth = 0; }
-  else /* concavo-convex */            { dorsalDepth = 55; ventralDepth = -25; }
-
-  // Single closed outline: from left commissure, curve up over the dorsal valve
-  // to the right commissure, then curve down under the ventral valve back to start.
-  // Negative ventralDepth makes the bottom curve go UP into the shell (concave).
-  const outlinePath = `M ${leftX},95 ` +
-    `Q 100,${95 - dorsalDepth} ${rightX},95 ` +
-    `Q 100,${95 + ventralDepth} ${leftX},95 Z`;
-
-  // Commissure line on top
-  let commPath, commWidth, commDash;
-  if (fold === "weak") {
-    commPath = `M ${leftX},95 Q ${leftX + halfW * 0.4},100 100,82 Q ${rightX - halfW * 0.4},100 ${rightX},95`;
-    commWidth = 2.0; commDash = "";
-  } else if (fold === "strong") {
-    commPath = `M ${leftX},95 L ${leftX + halfW * 0.55},100 L 100,52 L ${rightX - halfW * 0.55},100 L ${rightX},95`;
-    commWidth = 2.4; commDash = "";
-  } else {
-    commPath = `M ${leftX},95 L ${rightX},95`;
-    commWidth = 1.5; commDash = "5,3";
+  let inner = "";
+  if (s.hasGrowthLines) inner += topGrowthLines(s);
+  if (s.ribCount > 0)   inner += topRibInteriorLines(s);
+  if (s.hasSpines)      inner += topSpines(s);
+  if (s.foldStr > 0) {
+    const beakY = 102 - s.halfLength + 14;
+    const frontY = 102 + s.halfLength - 8;
+    inner += `<line x1="100" y1="${beakY.toFixed(1)}" x2="100" y2="${frontY.toFixed(1)}" stroke="black" stroke-width="${(s.foldStr * 1.8 + 0.8).toFixed(1)}" opacity="${(0.4 + s.foldStr * 0.5).toFixed(2)}"/>`;
   }
-
-  const clipId = "brachFrontClip";
-  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
     <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
     <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
-    <g clip-path="url(#${clipId})">
-      ${frontSurfaceLayer(featuresFromAnswers(answers), leftX, rightX, dorsalDepth, ventralDepth)}
-    </g>
-    <path d="${commPath}" fill="none" stroke="black" stroke-width="${commWidth}" stroke-dasharray="${commDash}"/>
+    <g clip-path="url(#${clipId})">${inner}</g>
   </svg>`;
 }
 
-// Surface decoration for the front view. The shell front shows the
-// commissure plane; ribs/frills/spines appear on the dorsal valve
-// (upper half) and ventral valve (lower half).
-// Front view surface — features rendered on the dorsal valve (upper half).
-function frontGrowthLines(leftX, rightX, dorsalDepth) {
-  const w = rightX - leftX;
-  return [
-    `<path d="M ${leftX + w*0.1},88 Q 100,${95 - dorsalDepth * 0.85} ${rightX - w*0.1},88" fill="none" stroke="#666" stroke-width="0.8"/>`,
-    `<path d="M ${leftX + w*0.2},82 Q 100,${95 - dorsalDepth * 0.65} ${rightX - w*0.2},82" fill="none" stroke="#666" stroke-width="0.8"/>`,
-    `<path d="M ${leftX + w*0.3},76 Q 100,${95 - dorsalDepth * 0.45} ${rightX - w*0.3},76" fill="none" stroke="#666" stroke-width="0.8"/>`
-  ].join("");
-}
-function frontRibs(leftX, rightX, dorsalDepth, density) {
-  const w = rightX - leftX;
-  const N = RIB_COUNTS[density] || RIB_COUNTS.medium;
-  let out = "";
-  for (let i = 1; i < N; i++) {
-    const x = leftX + (w * i) / N;
-    const ratio = Math.abs(x - 100) / (w/2);
-    const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 4;
-    out += `<line x1="${x.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${x.toFixed(1)}" y2="93" stroke="#444" stroke-width="0.7"/>`;
-  }
-  return out;
-}
-function frontFrills(leftX, rightX) {
-  const w = rightX - leftX;
-  return `<path d="M ${leftX + w*0.1},90 Q ${leftX + w*0.25},85 ${leftX + w*0.4},88 Q 100,83 ${rightX - w*0.4},88 Q ${rightX - w*0.25},85 ${rightX - w*0.1},90" fill="none" stroke="black" stroke-width="1.3"/>`;
-}
-function frontSpines(leftX, rightX, dorsalDepth) {
-  const w = rightX - leftX;
+// ---------- FRONT VIEW ----------
+function frontEdgePoints(s, isTop) {
+  const cx = 100, cy = 100;
+  const halfW = s.halfWidth;
+  const conv = isTop ? s.dorsalConv : s.ventralConv;
+  const sign = isTop ? -1 : 1;
+  const N = 64;
   const pts = [];
-  for (let i = 2; i < 9; i++) {
-    const x = leftX + (w * i) / 10;
-    const ratio = Math.abs(x - 100) / (w/2);
-    const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 6;
-    pts.push([x, yTop]);
-    pts.push([x, yTop + 8]);
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const x = cx + (t - 0.5) * 2 * halfW;
+    const rc = Math.abs(t - 0.5) * 2;
+    let y = cy + sign * conv * (1 - rc ** 2);
+    if (s.ribCount > 0) {
+      const ribness = Math.cos((t - 0.5) * Math.PI) ** 2;
+      y += sign * s.ribAmp * ribness * Math.sin(t * s.ribCount * Math.PI);
+    }
+    if (s.foldStr > 0) {
+      const cn = Math.max(0, 1 - Math.abs(t - 0.5) * 5);
+      if (isTop) y -= s.foldStr * 10 * cn;
+      else       y += s.foldStr * 10 * cn;
+    }
+    pts.push([x, y]);
   }
-  let out = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" fill="#333"/>`).join("");
-  out += `<line x1="${leftX + w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${leftX + w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
-  out += `<line x1="${rightX - w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${rightX - w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
-  return out;
+  return pts;
 }
-function frontSurfaceLayer(features, leftX, rightX, dorsalDepth, ventralDepth) {
+
+function frontFrills(s) {
+  const cx = 100, cy = 100;
+  const N = 50;
+  let d = "";
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const x = cx + (t - 0.5) * 2 * s.halfWidth * 0.88;
+    const wave = Math.sin(t * 20) * 1.6;
+    const y = cy + 4 + wave;
+    d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+  }
+  return `<path d="${d}" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>`;
+}
+
+function frontSpines(s) {
+  const cx = 100, cy = 100;
   let out = "";
-  if (features.lines)  out += frontGrowthLines(leftX, rightX, dorsalDepth);
-  if (features.ribs)   out += frontRibs(leftX, rightX, dorsalDepth, features.density);
-  if (features.frills) out += frontFrills(leftX, rightX);
-  if (features.spines) out += frontSpines(leftX, rightX, dorsalDepth);
+  for (let i = 0; i < 9; i++) {
+    const t = (i + 0.5) / 9;
+    const x = cx + (t - 0.5) * 2 * s.halfWidth * 0.82;
+    const rc = Math.abs(t - 0.5) * 2;
+    const y = cy - s.dorsalConv * (1 - rc * rc) + 5;
+    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="#333"/>`;
+  }
   return out;
 }
 
-// ---------- SIDE VIEW (lateral) ----------
-// Beak/hinge at left, anterior commissure at right; profile drives the
-// overall shape (biconvex lens / plano-convex D / concavo-convex crescent).
-function svgSideView(answers) {
-  const profile = answers.profile_pick || "biconvex";
-  const hinge   = answers.hinge_pick   || "astrophic";
-  const surface = answers.surface_pick || "smooth";
-
-  // Beak shape at back (left) — straight if strophic, pointed if astrophic
-  const beakX = hinge === "astrophic" ? 22 : 26;
-  const beakDip = hinge === "astrophic" ? 8 : 0;
-
-  let path, dorsalCurveY = 15, ventralCurveY = 175, sideBaseY = 95;
-  if (profile === "biconvex") {
-    sideBaseY     = 95;
-    dorsalCurveY  = 15 - beakDip/2;
-    ventralCurveY = 175 + beakDip/2;
-    path = `M ${beakX},95 Q 100,${dorsalCurveY} 180,95 Q 100,${ventralCurveY} ${beakX},95 Z`;
-  } else if (profile === "plano-convex") {
-    sideBaseY = 135;
-    dorsalCurveY = 25;
-    ventralCurveY = 135;
-    path = `M ${beakX},135 Q 100,${dorsalCurveY} 180,135 L ${beakX},135 Z`;
-  } else /* concavo-convex */ {
-    sideBaseY = 130;
-    dorsalCurveY = 15;
-    ventralCurveY = 75;
-    path = `M ${beakX},130 Q 100,${dorsalCurveY} 180,130 Q 100,${ventralCurveY} ${beakX},130 Z`;
-  }
-
-  const clipId = "brachSideClip";
-  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
-    <defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs>
-    <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
-    <g clip-path="url(#${clipId})">
-      ${sideSurfaceLayer(featuresFromAnswers(answers), beakX, dorsalCurveY, sideBaseY)}
-    </g>
-    ${hinge === "wide-strophic"
-      ? '<line x1="22" y1="80" x2="22" y2="110" stroke="black" stroke-width="3.5"/>'
-      : ""}
+function svgFrontView(answers) {
+  const s = answersToShape(answers);
+  const topEdge = frontEdgePoints(s, true);
+  const bottomEdge = frontEdgePoints(s, false).reverse();
+  const outlinePath = pointsToPath(topEdge.concat(bottomEdge));
+  const clipId = "brachFrontClip";
+  let inner = "";
+  if (s.hasFrills) inner += frontFrills(s);
+  if (s.hasSpines) inner += frontSpines(s);
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
+    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
+    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <g clip-path="url(#${clipId})">${inner}</g>
   </svg>`;
 }
 
-// Surface decoration for the side view. Decorations appear along the
-// dorsal (top) curve, which is the surface visible from the side.
-// Side view surface — features drawn along the dorsal (top) curve.
-// baseY is the endpoint Y of the dorsal curve (95 for biconvex, 135 for plano-convex, 130 for concavo-convex).
-function sideGrowthLines(beakX, dorsalCurveY, baseY) {
-  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
-  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
-  let out = "";
-  for (let i = 1; i < 8; i++) {
-    const t = i / 8;
-    const x = xAt(t), y = yAt(t);
-    out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 5).toFixed(1)}" stroke="#666" stroke-width="0.7"/>`;
-  }
-  return out;
-}
-function sideRibs(beakX, dorsalCurveY, baseY, density) {
-  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
-  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
-  const N = RIB_COUNTS[density] || RIB_COUNTS.medium;
-  let out = "";
-  for (let i = 1; i < N; i++) {
+// ---------- SIDE VIEW (rebuilt) ----------
+function svgSideView(answers) {
+  const s = answersToShape(answers);
+  const cx = 100, cy = 100;
+  const halfL = s.halfLength;
+  const beakX = cx - halfL, frontX = cx + halfL;
+  const N = 48;
+  const top = [], bottom = [];
+  for (let i = 0; i <= N; i++) {
     const t = i / N;
-    const x = xAt(t), y = yAt(t);
-    out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 9).toFixed(1)}" stroke="#444" stroke-width="0.7"/>`;
+    const x = beakX + t * 2 * halfL;
+    const rc = (x - cx) / halfL;
+    const dApex = cy - s.dorsalConv  * (1 - rc * rc) * 0.92;
+    const vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
+    // Fold modifies the anterior (right) commissure region
+    let dExtra = 0, vExtra = 0;
+    if (s.foldStr > 0 && rc > 0.5) {
+      const phase = (rc - 0.5) / 0.5;
+      dExtra = -s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
+      vExtra =  s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
+    }
+    top.push([x, dApex + dExtra]);
+    bottom.push([x, vApex + vExtra]);
   }
-  return out;
-}
-function sideFrills(beakX, dorsalCurveY, baseY) {
-  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
-  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
-  return `<path d="M ${xAt(0.6).toFixed(1)},${(yAt(0.6) + 1).toFixed(1)} Q ${xAt(0.7).toFixed(1)},${(yAt(0.7) - 3).toFixed(1)} ${xAt(0.8).toFixed(1)},${(yAt(0.8) + 1).toFixed(1)} Q ${xAt(0.9).toFixed(1)},${(yAt(0.9) - 2).toFixed(1)} ${xAt(0.97).toFixed(1)},${(yAt(0.97) + 1).toFixed(1)}" fill="none" stroke="black" stroke-width="1.2"/>`;
-}
-function sideSpines(beakX, dorsalCurveY, baseY) {
-  const yAt = (t) => (1-t)*(1-t)*baseY + 2*t*(1-t)*dorsalCurveY + t*t*baseY;
-  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
-  let out = "";
-  for (let i = 1; i < 9; i++) {
-    const t = i / 9;
-    const x = xAt(t), y = yAt(t);
-    out += `<circle cx="${x.toFixed(1)}" cy="${(y + 6).toFixed(1)}" r="1.8" fill="#333"/>`;
-    if (i % 3 === 0) {
-      out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y - 8).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+  const outlinePath = pointsToPath(top.concat(bottom.reverse()));
+  const clipId = "brachSideClip";
+
+  // Beak / hinge mark at the back
+  let beakSvg = "", hingeBar = "";
+  if (s.hingeFrac >= 0.5) {
+    hingeBar = `<line x1="${beakX.toFixed(1)}" y1="${(cy - 12).toFixed(1)}" x2="${beakX.toFixed(1)}" y2="${(cy + 12).toFixed(1)}" stroke="black" stroke-width="3.5"/>`;
+  } else if (s.beakProm > 0) {
+    const bx = beakX - 4;
+    beakSvg = `<path d="M ${beakX.toFixed(1)},${(cy - 6).toFixed(1)} L ${bx.toFixed(1)},${cy.toFixed(1)} L ${beakX.toFixed(1)},${(cy + 6).toFixed(1)} Z" fill="#1a1a1a" opacity="0.5"/>`;
+  }
+
+  // Dorsal surface texture
+  let inner = "";
+  if (s.ribCount > 0) {
+    for (let i = 1; i < s.ribCount; i++) {
+      const t = i / s.ribCount;
+      const x = beakX + t * 2 * halfL;
+      const rc = (x - cx) / halfL;
+      const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
+      inner += `<line x1="${x.toFixed(1)}" y1="${dApex.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dApex + 7).toFixed(1)}" stroke="#444" stroke-width="0.7"/>`;
     }
   }
-  return out;
-}
-function sideSurfaceLayer(features, beakX, dorsalCurveY, baseY) {
-  let out = "";
-  if (features.lines)  out += sideGrowthLines(beakX, dorsalCurveY, baseY);
-  if (features.ribs)   out += sideRibs(beakX, dorsalCurveY, baseY, features.density);
-  if (features.frills) out += sideFrills(beakX, dorsalCurveY, baseY);
-  if (features.spines) out += sideSpines(beakX, dorsalCurveY, baseY);
-  return out;
+  if (s.hasGrowthLines) {
+    for (let k = 1; k <= 3; k++) {
+      const x = frontX - k * (halfL * 0.18);
+      const rc = (x - cx) / halfL;
+      const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
+      const vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
+      inner += `<path d="M ${x.toFixed(1)},${(dApex + 3).toFixed(1)} L ${x.toFixed(1)},${(vApex - 3).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.7"/>`;
+    }
+  }
+  if (s.hasFrills) {
+    inner += `<path d="M ${(frontX - halfL * 0.3).toFixed(1)},${(cy - 5).toFixed(1)} Q ${(frontX - halfL * 0.2).toFixed(1)},${(cy - 10).toFixed(1)} ${(frontX - halfL * 0.1).toFixed(1)},${(cy - 5).toFixed(1)} Q ${(frontX - halfL * 0.02).toFixed(1)},${(cy - 11).toFixed(1)} ${(frontX - halfL * 0.03).toFixed(1)},${(cy - 3).toFixed(1)}" fill="none" stroke="black" stroke-width="1.2"/>`;
+  }
+  if (s.hasSpines) {
+    for (let i = 1; i < 7; i++) {
+      const t = i / 7;
+      const x = beakX + t * 2 * halfL;
+      const rc = (x - cx) / halfL;
+      const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
+      inner += `<circle cx="${x.toFixed(1)}" cy="${(dApex + 5).toFixed(1)}" r="1.6" fill="#333"/>`;
+      if (i % 2 === 0)
+        inner += `<line x1="${x.toFixed(1)}" y1="${dApex.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dApex - 8).toFixed(1)}" stroke="#222" stroke-width="1.1"/>`;
+    }
+  }
+
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
+    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
+    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <g clip-path="url(#${clipId})">${inner}</g>
+    ${beakSvg}
+    ${hingeBar}
+  </svg>`;
 }
 
 // Shape sliders: discrete preset stops, one choice active at a time.
