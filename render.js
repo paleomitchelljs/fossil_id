@@ -812,10 +812,17 @@ function svgTopView(answers) {
   const hinge   = answers.hinge_pick   || "astrophic";
   const surface = answers.surface_pick || "smooth";
   const fold    = answers.fold_pick    || "none";
+  const path = topOutlinePath(outline, hinge);
+  // Surface + fold decoration is clipped to the outline so it can't leak
+  // outside when outline changes. Each rendered SVG has its own clip id.
+  const clipId = "brachTopClip";
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
-    <path d="${topOutlinePath(outline, hinge)}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
-    ${topSurfaceLayer(surface)}
-    ${topFoldLayer(fold)}
+    <defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs>
+    <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <g clip-path="url(#${clipId})">
+      ${topSurfaceLayer(surface)}
+      ${topFoldLayer(fold)}
+    </g>
   </svg>`;
 }
 
@@ -859,10 +866,65 @@ function svgFrontView(answers) {
     commWidth = 1.5; commDash = "5,3";
   }
 
+  const clipId = "brachFrontClip";
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
+    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
     <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <g clip-path="url(#${clipId})">
+      ${frontSurfaceLayer(answers.surface_pick || "smooth", leftX, rightX, dorsalDepth, ventralDepth)}
+    </g>
     <path d="${commPath}" fill="none" stroke="black" stroke-width="${commWidth}" stroke-dasharray="${commDash}"/>
   </svg>`;
+}
+
+// Surface decoration for the front view. The shell front shows the
+// commissure plane; ribs/frills/spines appear on the dorsal valve
+// (upper half) and ventral valve (lower half).
+function frontSurfaceLayer(surface, leftX, rightX, dorsalDepth, ventralDepth) {
+  if (!surface || surface === "smooth") return "";
+  const w = rightX - leftX;
+  if (surface === "growth-lines-only") {
+    // Faint horizontal arcs following the dorsal curve (concentric growth)
+    return [
+      `<path d="M ${leftX + w*0.1},88 Q 100,${95 - dorsalDepth * 0.85} ${rightX - w*0.1},88" fill="none" stroke="#666" stroke-width="0.8"/>`,
+      `<path d="M ${leftX + w*0.2},82 Q 100,${95 - dorsalDepth * 0.65} ${rightX - w*0.2},82" fill="none" stroke="#666" stroke-width="0.8"/>`,
+      `<path d="M ${leftX + w*0.3},76 Q 100,${95 - dorsalDepth * 0.45} ${rightX - w*0.3},76" fill="none" stroke="#666" stroke-width="0.8"/>`
+    ].join("");
+  }
+  if (surface === "ribs" || surface === "ribs-and-frills") {
+    // Vertical tick marks across the dorsal valve (looking end-on at ribs)
+    let out = "";
+    const N = 11;
+    for (let i = 1; i < N; i++) {
+      const x = leftX + (w * i) / N;
+      const ratio = Math.abs(x - 100) / (w/2);  // 0 at center, 1 at edges
+      const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 4;
+      out += `<line x1="${x.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${x.toFixed(1)}" y2="93" stroke="#444" stroke-width="0.7"/>`;
+    }
+    if (surface === "ribs-and-frills") {
+      // Wavy frill line just above the commissure (visible on dorsal valve)
+      out += `<path d="M ${leftX + w*0.1},${90} Q ${leftX + w*0.25},${85} ${leftX + w*0.4},${88} Q 100,${83} ${rightX - w*0.4},${88} Q ${rightX - w*0.25},${85} ${rightX - w*0.1},${90}" fill="none" stroke="black" stroke-width="1.3"/>`;
+    }
+    return out;
+  }
+  if (surface === "spines-or-bumps") {
+    // Dots scattered on the dorsal valve, a few protruding spines
+    const pts = [];
+    for (let i = 2; i < 9; i++) {
+      const x = leftX + (w * i) / 10;
+      const ratio = Math.abs(x - 100) / (w/2);
+      const yTop = 95 - dorsalDepth * (1 - ratio * ratio) + 6;
+      pts.push([x, yTop]);
+      // Second row
+      pts.push([x, yTop + 8]);
+    }
+    let out = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" fill="#333"/>`).join("");
+    // A protruding spine on each side
+    out += `<line x1="${leftX + w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${leftX + w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
+    out += `<line x1="${rightX - w * 0.2}" y1="${95 - dorsalDepth * 0.5}" x2="${rightX - w * 0.05}" y2="${95 - dorsalDepth * 0.7 - 8}" stroke="#222" stroke-width="1.2"/>`;
+    return out;
+  }
+  return "";
 }
 
 // ---------- SIDE VIEW (lateral) ----------
@@ -871,29 +933,89 @@ function svgFrontView(answers) {
 function svgSideView(answers) {
   const profile = answers.profile_pick || "biconvex";
   const hinge   = answers.hinge_pick   || "astrophic";
+  const surface = answers.surface_pick || "smooth";
 
   // Beak shape at back (left) — straight if strophic, pointed if astrophic
   const beakX = hinge === "astrophic" ? 22 : 26;
   const beakDip = hinge === "astrophic" ? 8 : 0;
 
-  let path;
+  let path, dorsalCurveY = 15, ventralCurveY = 175;
   if (profile === "biconvex") {
-    // Symmetric lens, both dorsal + ventral curves bulge
-    path = `M ${beakX},95 Q 100,${15 - beakDip/2} 180,95 Q 100,${175 + beakDip/2} ${beakX},95 Z`;
+    dorsalCurveY  = 15 - beakDip/2;
+    ventralCurveY = 175 + beakDip/2;
+    path = `M ${beakX},95 Q 100,${dorsalCurveY} 180,95 Q 100,${ventralCurveY} ${beakX},95 Z`;
   } else if (profile === "plano-convex") {
-    // Top valve bulges; bottom valve flat (or nearly so)
-    path = `M ${beakX},135 Q 100,25 180,135 L ${beakX},135 Z`;
+    dorsalCurveY = 25;
+    ventralCurveY = 135;
+    path = `M ${beakX},135 Q 100,${dorsalCurveY} 180,135 L ${beakX},135 Z`;
   } else /* concavo-convex */ {
-    // Top valve bulges UP, bottom valve curves UP into it (concave when viewed from outside)
-    path = `M ${beakX},130 Q 100,15 180,130 Q 100,75 ${beakX},130 Z`;
+    dorsalCurveY = 15;
+    ventralCurveY = 75;
+    path = `M ${beakX},130 Q 100,${dorsalCurveY} 180,130 Q 100,${ventralCurveY} ${beakX},130 Z`;
   }
 
+  const clipId = "brachSideClip";
   return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
+    <defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs>
     <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <g clip-path="url(#${clipId})">
+      ${sideSurfaceLayer(surface, beakX, dorsalCurveY)}
+    </g>
     ${hinge === "wide-strophic"
       ? '<line x1="22" y1="80" x2="22" y2="110" stroke="black" stroke-width="3.5"/>'
       : ""}
   </svg>`;
+}
+
+// Surface decoration for the side view. Decorations appear along the
+// dorsal (top) curve, which is the surface visible from the side.
+function sideSurfaceLayer(surface, beakX, dorsalCurveY) {
+  if (!surface || surface === "smooth") return "";
+  // Helper: quadratic bezier y at parameter t along (beakX,95)→(100,dorsalCurveY)→(180,95)
+  const yAt = (t) => (1-t)*(1-t)*95 + 2*t*(1-t)*dorsalCurveY + t*t*95;
+  const xAt = (t) => (1-t)*(1-t)*beakX + 2*t*(1-t)*100 + t*t*180;
+
+  if (surface === "growth-lines-only") {
+    // Vertical strokes following the dorsal curve (concentric growth seen sideways)
+    let out = "";
+    for (let i = 1; i < 8; i++) {
+      const t = i / 8;
+      const x = xAt(t), y = yAt(t);
+      out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 5).toFixed(1)}" stroke="#666" stroke-width="0.7"/>`;
+    }
+    return out;
+  }
+  if (surface === "ribs" || surface === "ribs-and-frills") {
+    // Closely spaced hatches across the dorsal valve, perpendicular to its surface
+    let out = "";
+    const N = 14;
+    for (let i = 1; i < N; i++) {
+      const t = i / N;
+      const x = xAt(t), y = yAt(t);
+      out += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y + 9).toFixed(1)}" stroke="#444" stroke-width="0.7"/>`;
+    }
+    if (surface === "ribs-and-frills") {
+      // Wavy lamellae along the dorsal margin near the front
+      out += `<path d="M ${xAt(0.6).toFixed(1)},${(yAt(0.6) + 1).toFixed(1)} Q ${xAt(0.7).toFixed(1)},${(yAt(0.7) - 3).toFixed(1)} ${xAt(0.8).toFixed(1)},${(yAt(0.8) + 1).toFixed(1)} Q ${xAt(0.9).toFixed(1)},${(yAt(0.9) - 2).toFixed(1)} ${xAt(0.97).toFixed(1)},${(yAt(0.97) + 1).toFixed(1)}" fill="none" stroke="black" stroke-width="1.2"/>`;
+    }
+    return out;
+  }
+  if (surface === "spines-or-bumps") {
+    // Dots and a few protruding spines along the dorsal curve
+    let out = "";
+    for (let i = 1; i < 9; i++) {
+      const t = i / 9;
+      const x = xAt(t), y = yAt(t);
+      out += `<circle cx="${x.toFixed(1)}" cy="${(y + 6).toFixed(1)}" r="1.8" fill="#333"/>`;
+      // Every third dot gets a short protruding spine
+      if (i % 3 === 0) {
+        const sx = xAt(t), sy = yAt(t);
+        out += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${sx.toFixed(1)}" y2="${(sy - 8).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+      }
+    }
+    return out;
+  }
+  return "";
 }
 
 // Slider config: question id, label, list of {value, short label} stops.
