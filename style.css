@@ -566,22 +566,41 @@ img { max-width: 100%; display: block; }
   font-size: 0.9rem;
 }
 
-.build-svg-wrap {
-  display: flex;
-  justify-content: center;
+.build-tri-wrap {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
   background: var(--accent-soft);
   border-radius: 8px;
-  padding: 0.5rem;
+  padding: 0.6rem 0.4rem;
   margin-bottom: 0.75rem;
 }
-.build-svg {
-  width: 100%;
-  max-width: 260px;
+.build-tri {
+  margin: 0;
+  text-align: center;
 }
-.build-svg svg {
+.build-tri figcaption {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}
+.tri-svg {
+  background: white;
+  border-radius: 6px;
+  padding: 0.3rem;
+  border: 1px solid var(--rule);
+}
+.tri-svg svg {
   width: 100%;
   height: auto;
   display: block;
+  max-height: 160px;
+}
+@media (min-width: 700px) {
+  .tri-svg svg { max-height: 240px; }
 }
 
 .build-status {

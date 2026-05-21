@@ -706,102 +706,193 @@ function viewKeyResult(sid, subIdsStr) {
 // slider choices. Each slider has discrete preset stops (so it filters
 // cleanly) but visually feels like a slider.
 
-function buildBaseOutlinePath(outline, hinge) {
-  // Returns SVG <path d="..."> string for the base outline shape.
-  // viewBox is 200x170 across the board.
+// =================================================================
+// Tri-view silhouette synthesizer
+// Top / Front / Side composed live from slider answers.
+// Coords share viewBox 200x180 so the three SVGs line up visually.
+// =================================================================
+
+// ---------- TOP VIEW (dorsal) ----------
+// Smooth bezier outline with a small umbo bump at top center.
+// Parameters affecting top view: outline, hinge, surface, fold.
+function topOutlinePath(outline, hinge) {
+  // Each path closes back to (100, 18) — the beak tip — for a small umbo bump.
   if (outline === "wing-shaped") {
-    // Always with wings extended; hinge along top straight
-    return "M 50,30 L 150,30 L 195,42 L 165,108 L 100,158 L 35,108 L 5,42 L 50,30 Z";
+    // Wings always strophic-style. Body tapers from wing tips down to bottom point.
+    return "M 100,18 Q 110,22 115,32 L 195,42 Q 188,58 165,62 Q 165,95 145,128 Q 128,158 100,172 Q 72,158 55,128 Q 35,95 35,62 Q 12,58 5,42 L 85,32 Q 90,22 100,18 Z";
   }
   if (outline === "elongate-oval") {
     if (hinge === "wide-strophic")
-      return "M 35,25 L 165,25 Q 185,90 100,160 Q 15,90 35,25 Z";
+      return "M 100,15 Q 115,18 122,32 L 162,32 Q 175,90 100,175 Q 25,90 38,32 L 78,32 Q 85,18 100,15 Z";
     if (hinge === "narrow-strophic")
-      return "M 75,20 L 125,20 Q 175,90 100,162 Q 25,90 75,20 Z";
-    // astrophic (smooth) elongate
-    return "M 60,15 Q 100,3 140,15 Q 178,90 100,162 Q 22,90 60,15 Z";
+      return "M 100,12 Q 115,15 122,28 L 138,28 Q 170,95 100,178 Q 30,95 62,28 L 78,28 Q 85,15 100,12 Z";
+    // astrophic + elongate
+    return "M 100,12 Q 115,15 122,28 Q 152,40 152,90 Q 152,140 100,178 Q 48,140 48,90 Q 48,40 78,28 Q 85,15 100,12 Z";
   }
   // subcircular (default)
   if (hinge === "wide-strophic")
-    return "M 28,28 L 172,28 Q 192,95 100,155 Q 8,95 28,28 Z";
+    return "M 100,18 Q 112,22 118,32 L 178,32 Q 188,90 100,168 Q 12,90 22,32 L 82,32 Q 88,22 100,18 Z";
   if (hinge === "narrow-strophic")
-    return "M 72,22 L 128,22 Q 188,85 100,158 Q 12,85 72,22 Z";
-  // astrophic (smooth) round
-  return "M 30,48 Q 100,12 170,48 Q 195,108 100,158 Q 5,108 30,48 Z";
+    return "M 100,15 Q 112,18 118,30 L 138,30 Q 180,82 100,170 Q 20,82 62,30 L 82,30 Q 88,18 100,15 Z";
+  // astrophic + subcircular (most common — round + smoothly curved back)
+  return "M 100,18 Q 112,22 118,32 Q 168,42 178,90 Q 175,135 100,170 Q 25,135 22,90 Q 32,42 82,32 Q 88,22 100,18 Z";
 }
 
-function buildSurfaceLayer(surface) {
+function topSurfaceLayer(surface) {
   if (!surface || surface === "smooth") return "";
   if (surface === "growth-lines-only") {
+    // Concentric arcs following the natural shell growth
     return [
-      '<path d="M 25,78 Q 100,98 175,78" fill="none" stroke="black" stroke-width="1"/>',
-      '<path d="M 30,100 Q 100,120 170,100" fill="none" stroke="black" stroke-width="1"/>',
-      '<path d="M 38,120 Q 100,140 162,120" fill="none" stroke="black" stroke-width="1"/>'
+      '<path d="M 35,68 Q 100,88 165,68" fill="none" stroke="#555" stroke-width="0.9"/>',
+      '<path d="M 30,95 Q 100,118 170,95" fill="none" stroke="#555" stroke-width="0.9"/>',
+      '<path d="M 32,122 Q 100,145 168,122" fill="none" stroke="#555" stroke-width="0.9"/>'
     ].join("");
   }
   if (surface === "ribs" || surface === "ribs-and-frills") {
-    // 11 ribs fanning from the umbo (top-center) to bottom margin
+    // Slightly curved ribs that fan out from the beak; bezier control points
+    // give them an organic flare rather than straight lines.
     const ribs = [];
-    for (let i = 0; i < 11; i++) {
-      const x = 30 + i * 14;
-      ribs.push(`<line x1="100" y1="28" x2="${x}" y2="150" stroke="black" stroke-width="0.9"/>`);
+    const N = 13;
+    for (let i = 0; i < N; i++) {
+      const t = (i + 0.5) / N;            // 0..1
+      const angle = -1.0 + t * 2.0;       // fan angle in radians
+      const xMid = 100 + Math.sin(angle) * 55;
+      const yMid = 90 + Math.cos(angle) * 35;
+      const xEnd = 100 + Math.sin(angle) * 78;
+      const yEnd = 95 + Math.cos(angle) * 65;
+      ribs.push(`<path d="M 100,32 Q ${xMid.toFixed(1)},${yMid.toFixed(1)} ${xEnd.toFixed(1)},${yEnd.toFixed(1)}" fill="none" stroke="#444" stroke-width="0.9"/>`);
     }
     let out = ribs.join("");
     if (surface === "ribs-and-frills") {
-      // wavy frill along the bottom margin
-      out += '<path d="M 25,125 Q 38,140 55,132 Q 75,142 95,134 Q 115,142 135,132 Q 152,140 165,125" fill="none" stroke="black" stroke-width="1.5"/>';
+      // Two concentric frill arcs along the lower-margin growth front
+      out += '<path d="M 30,130 Q 45,148 65,140 Q 82,152 100,144 Q 118,152 135,140 Q 155,148 170,130" fill="none" stroke="black" stroke-width="1.5"/>';
+      out += '<path d="M 35,148 Q 50,160 70,155 Q 85,164 100,158 Q 115,164 130,155 Q 150,160 165,148" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>';
     }
     return out;
   }
   if (surface === "spines-or-bumps") {
-    // Fixed scatter of spine bases (no randomness so the picture is stable across renders)
+    // Fixed scatter of spine bases distributed across the shell
     const pts = [
-      [40, 50], [55, 45], [72, 50], [90, 48], [110, 48], [128, 50], [145, 48], [160, 52],
-      [38, 75], [60, 70], [82, 72], [100, 68], [120, 72], [140, 70], [162, 75],
-      [50, 100], [72, 102], [95, 98], [118, 102], [140, 100],
-      [60, 125], [82, 128], [105, 124], [128, 128]
+      [55,55],[75,50],[95,52],[115,52],[135,50],[150,55],
+      [45,75],[68,72],[90,70],[110,70],[132,72],[160,75],
+      [42,98],[65,95],[88,94],[112,94],[135,95],[162,98],
+      [50,120],[72,118],[95,116],[120,118],[145,120],
+      [60,138],[85,136],[110,136],[138,138]
     ];
-    let out = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2" fill="black"/>`).join("");
-    // Add a few short spines sticking out
-    out += '<line x1="40" y1="50" x2="28" y2="38" stroke="black" stroke-width="1.2"/>';
-    out += '<line x1="160" y1="52" x2="174" y2="40" stroke="black" stroke-width="1.2"/>';
-    out += '<line x1="100" y1="68" x2="100" y2="80" stroke="none"/>';  // placeholder
+    let out = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#333"/>`).join("");
+    // A few short spines sticking out beyond the shell edge
+    out += '<line x1="45" y1="75" x2="30" y2="60" stroke="#222" stroke-width="1.3"/>';
+    out += '<line x1="160" y1="75" x2="175" y2="60" stroke="#222" stroke-width="1.3"/>';
+    out += '<line x1="50" y1="120" x2="38" y2="138" stroke="#222" stroke-width="1.3"/>';
+    out += '<line x1="145" y1="120" x2="158" y2="138" stroke="#222" stroke-width="1.3"/>';
     return out;
   }
   return "";
 }
 
-function buildFoldLayer(fold) {
+function topFoldLayer(fold) {
   if (!fold || fold === "none") return "";
   if (fold === "weak") {
     return [
-      // Light central ridge line
-      '<line x1="100" y1="30" x2="100" y2="152" stroke="black" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>',
-      // Subtle indent at bottom center
-      '<path d="M 80,152 Q 100,144 120,152" fill="none" stroke="black" stroke-width="1.5"/>'
+      '<line x1="100" y1="32" x2="100" y2="160" stroke="#444" stroke-width="1.2" stroke-dasharray="4,3"/>',
+      '<path d="M 85,165 Q 100,158 115,165" fill="none" stroke="black" stroke-width="1.4"/>'
     ].join("");
   }
   if (fold === "strong") {
     return [
-      // Bold central ridge line
-      '<line x1="100" y1="28" x2="100" y2="155" stroke="black" stroke-width="2.5"/>',
-      // Sharp V at bottom center showing the sulcus
-      '<path d="M 55,150 L 100,118 L 145,150" fill="none" stroke="black" stroke-width="2.5"/>'
+      '<line x1="100" y1="28" x2="100" y2="166" stroke="black" stroke-width="2.2"/>',
+      '<path d="M 65,162 L 100,128 L 135,162" fill="none" stroke="black" stroke-width="2.4"/>'
     ].join("");
   }
   return "";
 }
 
-function buildBrachSVG(answers) {
+function svgTopView(answers) {
   const outline = answers.outline_pick || "subcircular";
   const hinge   = answers.hinge_pick   || "astrophic";
   const surface = answers.surface_pick || "smooth";
   const fold    = answers.fold_pick    || "none";
-  const path = buildBaseOutlinePath(outline, hinge);
-  return `<svg viewBox="0 0 200 170" xmlns="http://www.w3.org/2000/svg">
-    <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.5" stroke-linejoin="round"/>
-    ${buildSurfaceLayer(surface)}
-    ${buildFoldLayer(fold)}
+  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
+    <path d="${topOutlinePath(outline, hinge)}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    ${topSurfaceLayer(surface)}
+    ${topFoldLayer(fold)}
+  </svg>`;
+}
+
+// ---------- FRONT VIEW (anterior) ----------
+// Shows the commissure line where the two valves meet, looking at the
+// shell front-on. Profile sets the overall vertical extent; fold sets
+// the commissure's shape (straight / wave / V).
+function svgFrontView(answers) {
+  const outline = answers.outline_pick || "subcircular";
+  const profile = answers.profile_pick || "biconvex";
+  const fold    = answers.fold_pick    || "none";
+
+  // Width depends on outline
+  const halfW = outline === "wing-shaped" ? 92 :
+                outline === "elongate-oval" ? 55 : 75;
+  const leftX = 100 - halfW, rightX = 100 + halfW;
+
+  // Profile sets dorsal + ventral curve depths
+  let dorsalDepth, ventralDepth;
+  if (profile === "biconvex")        { dorsalDepth = 45; ventralDepth = 45; }
+  else if (profile === "plano-convex") { dorsalDepth = 55; ventralDepth = 0; }
+  else /* concavo-convex */            { dorsalDepth = 55; ventralDepth = -25; }
+
+  // Single closed outline: from left commissure, curve up over the dorsal valve
+  // to the right commissure, then curve down under the ventral valve back to start.
+  // Negative ventralDepth makes the bottom curve go UP into the shell (concave).
+  const outlinePath = `M ${leftX},95 ` +
+    `Q 100,${95 - dorsalDepth} ${rightX},95 ` +
+    `Q 100,${95 + ventralDepth} ${leftX},95 Z`;
+
+  // Commissure line on top
+  let commPath, commWidth, commDash;
+  if (fold === "weak") {
+    commPath = `M ${leftX},95 Q ${leftX + halfW * 0.4},100 100,82 Q ${rightX - halfW * 0.4},100 ${rightX},95`;
+    commWidth = 2.0; commDash = "";
+  } else if (fold === "strong") {
+    commPath = `M ${leftX},95 L ${leftX + halfW * 0.55},100 L 100,52 L ${rightX - halfW * 0.55},100 L ${rightX},95`;
+    commWidth = 2.4; commDash = "";
+  } else {
+    commPath = `M ${leftX},95 L ${rightX},95`;
+    commWidth = 1.5; commDash = "5,3";
+  }
+
+  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
+    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="${commPath}" fill="none" stroke="black" stroke-width="${commWidth}" stroke-dasharray="${commDash}"/>
+  </svg>`;
+}
+
+// ---------- SIDE VIEW (lateral) ----------
+// Beak/hinge at left, anterior commissure at right; profile drives the
+// overall shape (biconvex lens / plano-convex D / concavo-convex crescent).
+function svgSideView(answers) {
+  const profile = answers.profile_pick || "biconvex";
+  const hinge   = answers.hinge_pick   || "astrophic";
+
+  // Beak shape at back (left) — straight if strophic, pointed if astrophic
+  const beakX = hinge === "astrophic" ? 22 : 26;
+  const beakDip = hinge === "astrophic" ? 8 : 0;
+
+  let path;
+  if (profile === "biconvex") {
+    // Symmetric lens, both dorsal + ventral curves bulge
+    path = `M ${beakX},95 Q 100,${15 - beakDip/2} 180,95 Q 100,${175 + beakDip/2} ${beakX},95 Z`;
+  } else if (profile === "plano-convex") {
+    // Top valve bulges; bottom valve flat (or nearly so)
+    path = `M ${beakX},135 Q 100,25 180,135 L ${beakX},135 Z`;
+  } else /* concavo-convex */ {
+    // Top valve bulges UP, bottom valve curves UP into it (concave when viewed from outside)
+    path = `M ${beakX},130 Q 100,15 180,130 Q 100,75 ${beakX},130 Z`;
+  }
+
+  return `<svg viewBox="0 0 200 190" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
+    <path d="${path}" fill="#fffef7" stroke="black" stroke-width="2.4" stroke-linejoin="round"/>
+    ${hinge === "wide-strophic"
+      ? '<line x1="22" y1="80" x2="22" y2="110" stroke="black" stroke-width="3.5"/>'
+      : ""}
   </svg>`;
 }
 
@@ -814,6 +905,12 @@ function buildSliders() {
         { value: "wing-shaped",   short: "Winged" },
         { value: "subcircular",   short: "Round" },
         { value: "elongate-oval", short: "Elongate" }
+      ] },
+    { qid: "profile_pick", label: "Profile",
+      stops: [
+        { value: "biconvex",       short: "Biconvex" },
+        { value: "plano-convex",   short: "Plano" },
+        { value: "concavo-convex", short: "Concavo" }
       ] },
     { qid: "hinge_pick", label: "Hinge",
       stops: [
@@ -852,7 +949,10 @@ function viewBuild(sid, answers) {
   const matchingCount = allTaxa.filter(t => taxonMatches(t, answers)).length;
   const totalCount = allTaxa.length;
 
-  const svgString = buildBrachSVG(answers);
+  // Tri-view SVGs
+  const topSvg   = svgTopView(answers);
+  const frontSvg = svgFrontView(answers);
+  const sideSvg  = svgSideView(answers);
 
   const sliderBlocks = sliders.map(s => el("div", { class: "slider-row" }, [
     el("label", { class: "slider-label" }, s.label),
@@ -874,8 +974,19 @@ function viewBuild(sid, answers) {
     el("main", { class: "page build-page" }, [
       el("p", { class: "build-intro" },
         "Move the sliders to shape the silhouette. The brachiopod above updates live, and the count of matching species shrinks as you add detail."),
-      el("div", { class: "build-svg-wrap" }, [
-        el("div", { class: "build-svg", html: svgString })
+      el("div", { class: "build-tri-wrap" }, [
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: topSvg }),
+          el("figcaption", {}, "Top")
+        ]),
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: frontSvg }),
+          el("figcaption", {}, "Front")
+        ]),
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: sideSvg }),
+          el("figcaption", {}, "Side")
+        ])
       ]),
       el("div", { class: "build-status" }, [
         el("strong", {}, `${matchingCount}`),
