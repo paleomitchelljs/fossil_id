@@ -745,7 +745,13 @@ function viewKeyResult(sid, subIdsStr) {
 // the side view shows real anatomy (beak, hinge line, dorsal+ventral
 // curvature, commissure undulations from the fold).
 
-const RIB_COUNTS = { sparse: 7, medium: 13, dense: 22 };
+// Each rib density preset = {count, amp}. "few big" = sparse high-amp;
+// "many small" = dense low-amp. Total visual undulation roughly constant.
+const RIB_SETTINGS = {
+  sparse: { count: 6,  amp: 3.2 },   // few, big
+  medium: { count: 12, amp: 2.0 },
+  dense:  { count: 22, amp: 1.1 }    // many, small
+};
 
 function answersToShape(answers) {
   const features = featuresFromAnswers(answers);
@@ -761,8 +767,8 @@ function answersToShape(answers) {
     dorsalConv:  p === "concavo-convex" ? 46 : p === "plano-convex" ? 52 : 38,
     ventralConv: p === "concavo-convex" ? -22 : p === "plano-convex" ? 0 : 38,
     foldStr:    f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
-    ribCount:   features.ribs ? (RIB_COUNTS[features.density] || 13) : 0,
-    ribAmp:     features.ribs ? 1.9 : 0,
+    ribCount:   features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0,
+    ribAmp:     features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0,
     hasFrills:  features.frills,
     hasSpines:  features.spines,
     hasGrowthLines: features.lines
@@ -857,33 +863,45 @@ function topRibInteriorLines(s) {
 }
 
 function topGrowthLines(s) {
+  // Concentric arcs centered above the front (near beak's anterior trajectory),
+  // each one paralleling the perimeter at a deeper position. Real growth lines
+  // wrap around the umbo.
   const cx = 100, cy = 102;
+  const beakY = cy - s.halfLength + 12;
   const out = [];
-  for (let k = 1; k <= 3; k++) {
-    const f = 0.45 + k * 0.18;
-    const w = s.halfWidth * f * 0.9;
-    const h = s.halfLength * f * 0.9;
-    out.push(`<path d="M ${(cx - w).toFixed(1)},${cy} Q ${cx},${(cy + h).toFixed(1)} ${(cx + w).toFixed(1)},${cy}" fill="none" stroke="#666" stroke-width="0.85"/>`);
+  for (let k = 1; k <= 4; k++) {
+    const f = 0.28 + k * 0.18;
+    const rx = s.halfWidth * f;
+    const ry = s.halfLength * f * 0.95;
+    out.push(`<path d="M ${(cx - rx).toFixed(1)},${(beakY + ry * 0.4).toFixed(1)} Q ${cx},${(beakY + ry * 1.1).toFixed(1)} ${(cx + rx).toFixed(1)},${(beakY + ry * 0.4).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.85"/>`);
   }
   return out.join("");
 }
 
 function topSpines(s) {
+  // Golden-angle scatter inside the outline (sunflower-like natural distribution).
   const cx = 100, cy = 102;
   let out = "";
-  const rows = [
-    { yf: -0.55, xs: [-0.5, -0.25, 0, 0.25, 0.5] },
-    { yf: -0.2,  xs: [-0.65, -0.4, -0.15, 0.15, 0.4, 0.65] },
-    { yf:  0.15, xs: [-0.7, -0.45, -0.2, 0.2, 0.45, 0.7] },
-    { yf:  0.5,  xs: [-0.6, -0.3, 0, 0.3, 0.6] }
-  ];
-  for (const r of rows) for (const xf of r.xs)
-    out += `<circle cx="${(cx + xf * s.halfWidth).toFixed(1)}" cy="${(cy + r.yf * s.halfLength).toFixed(1)}" r="2" fill="#333"/>`;
-  // Protruding spines
-  out += `<line x1="${(cx - s.halfWidth * 0.7).toFixed(1)}" y1="${(cy - s.halfLength * 0.2).toFixed(1)}" x2="${(cx - s.halfWidth * 0.98).toFixed(1)}" y2="${(cy - s.halfLength * 0.35).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
-  out += `<line x1="${(cx + s.halfWidth * 0.7).toFixed(1)}" y1="${(cy - s.halfLength * 0.2).toFixed(1)}" x2="${(cx + s.halfWidth * 0.98).toFixed(1)}" y2="${(cy - s.halfLength * 0.35).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+  const N = 32;
+  for (let i = 0; i < N; i++) {
+    const a = i * 137.5 * Math.PI / 180;     // golden angle
+    const r = Math.sqrt((i + 0.5) / N) * 0.82;
+    const x = cx + r * Math.cos(a) * s.halfWidth;
+    const y = cy + r * Math.sin(a) * s.halfLength;
+    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9" fill="#333"/>`;
+  }
+  // Protruding spines from a few perimeter positions
+  for (let i = 0; i < 5; i++) {
+    const theta = Math.PI * (0.3 + i * 0.35);
+    const x1 = cx + s.halfWidth * 0.86 * Math.sin(theta);
+    const y1 = cy - s.halfLength * 0.86 * Math.cos(theta);
+    const x2 = cx + s.halfWidth * 1.02 * Math.sin(theta);
+    const y2 = cy - s.halfLength * 1.02 * Math.cos(theta);
+    out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#222" stroke-width="1.3"/>`;
+  }
   return out;
 }
+
 
 function svgTopView(answers) {
   const s = answersToShape(answers);
@@ -933,6 +951,23 @@ function frontEdgePoints(s, isTop) {
   return pts;
 }
 
+function frontGrowthLines(s) {
+  // Horizontal-ish arcs nested on the dorsal apex (upper half) and ventral apex (lower).
+  const cx = 100, cy = 100;
+  let out = "";
+  for (let k = 1; k <= 3; k++) {
+    const f = 0.3 + k * 0.18;
+    const w = s.halfWidth * 0.85 * f;
+    const dY = cy - s.dorsalConv * f * 0.6;
+    out += `<path d="M ${(cx - w).toFixed(1)},${(cy - 4).toFixed(1)} Q ${cx},${dY.toFixed(1)} ${(cx + w).toFixed(1)},${(cy - 4).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.85"/>`;
+    if (s.ventralConv !== 0) {
+      const vY = cy + s.ventralConv * f * 0.6;
+      out += `<path d="M ${(cx - w).toFixed(1)},${(cy + 4).toFixed(1)} Q ${cx},${vY.toFixed(1)} ${(cx + w).toFixed(1)},${(cy + 4).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.85"/>`;
+    }
+  }
+  return out;
+}
+
 function frontFrills(s) {
   const cx = 100, cy = 100;
   const N = 50;
@@ -940,7 +975,7 @@ function frontFrills(s) {
   for (let i = 0; i <= N; i++) {
     const t = i / N;
     const x = cx + (t - 0.5) * 2 * s.halfWidth * 0.88;
-    const wave = Math.sin(t * 20) * 1.6;
+    const wave = Math.sin(t * 22) * 1.5;
     const y = cy + 4 + wave;
     d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
   }
@@ -948,17 +983,22 @@ function frontFrills(s) {
 }
 
 function frontSpines(s) {
+  // Golden-angle scatter on the dorsal valve (upper half of front view).
   const cx = 100, cy = 100;
   let out = "";
-  for (let i = 0; i < 9; i++) {
-    const t = (i + 0.5) / 9;
-    const x = cx + (t - 0.5) * 2 * s.halfWidth * 0.82;
-    const rc = Math.abs(t - 0.5) * 2;
-    const y = cy - s.dorsalConv * (1 - rc * rc) + 5;
-    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="#333"/>`;
+  const N = 24;
+  for (let i = 0; i < N; i++) {
+    const a = i * 137.5 * Math.PI / 180;
+    const r = Math.sqrt((i + 0.5) / N) * 0.75;
+    const xf = r * Math.cos(a);
+    const yf = -Math.abs(r * Math.sin(a));  // negative = upper half only
+    const x = cx + xf * s.halfWidth * 0.9;
+    const y = cy + yf * s.dorsalConv * 0.85;
+    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="#333"/>`;
   }
   return out;
 }
+
 
 function svgFrontView(answers) {
   const s = answersToShape(answers);
@@ -967,6 +1007,7 @@ function svgFrontView(answers) {
   const outlinePath = pointsToPath(topEdge.concat(bottomEdge));
   const clipId = "brachFrontClip";
   let inner = "";
+  if (s.hasGrowthLines) inner += frontGrowthLines(s);
   if (s.hasFrills) inner += frontFrills(s);
   if (s.hasSpines) inner += frontSpines(s);
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
@@ -982,23 +1023,32 @@ function svgSideView(answers) {
   const cx = 100, cy = 100;
   const halfL = s.halfLength;
   const beakX = cx - halfL, frontX = cx + halfL;
-  const N = 48;
+  const N = 64;
   const top = [], bottom = [];
   for (let i = 0; i <= N; i++) {
     const t = i / N;
     const x = beakX + t * 2 * halfL;
     const rc = (x - cx) / halfL;
-    const dApex = cy - s.dorsalConv  * (1 - rc * rc) * 0.92;
-    const vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
+    let dApex = cy - s.dorsalConv  * (1 - rc * rc) * 0.92;
+    let vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
+
+    // Rib perimeter undulations on both dorsal and ventral curves.
+    // Ribness peaks at the middle and fades to zero at beak (back) and commissure (front).
+    if (s.ribCount > 0) {
+      const ribness = (1 - rc * rc);
+      const phase = t * s.ribCount * Math.PI;
+      dApex -= s.ribAmp * ribness * Math.sin(phase);
+      vApex += s.ribAmp * ribness * Math.sin(phase);
+    }
+
     // Fold modifies the anterior (right) commissure region
-    let dExtra = 0, vExtra = 0;
     if (s.foldStr > 0 && rc > 0.5) {
       const phase = (rc - 0.5) / 0.5;
-      dExtra = -s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
-      vExtra =  s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
+      dApex -= s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
+      vApex += s.foldStr * 5 * phase * Math.sin(phase * Math.PI);
     }
-    top.push([x, dApex + dExtra]);
-    bottom.push([x, vApex + vExtra]);
+    top.push([x, dApex]);
+    bottom.push([x, vApex]);
   }
   const outlinePath = pointsToPath(top.concat(bottom.reverse()));
   const clipId = "brachSideClip";
@@ -1006,44 +1056,61 @@ function svgSideView(answers) {
   // Beak / hinge mark at the back
   let beakSvg = "", hingeBar = "";
   if (s.hingeFrac >= 0.5) {
-    hingeBar = `<line x1="${beakX.toFixed(1)}" y1="${(cy - 12).toFixed(1)}" x2="${beakX.toFixed(1)}" y2="${(cy + 12).toFixed(1)}" stroke="black" stroke-width="3.5"/>`;
+    hingeBar = `<line x1="${beakX.toFixed(1)}" y1="${(cy - 14).toFixed(1)}" x2="${beakX.toFixed(1)}" y2="${(cy + 14).toFixed(1)}" stroke="black" stroke-width="3.5"/>`;
   } else if (s.beakProm > 0) {
-    const bx = beakX - 4;
-    beakSvg = `<path d="M ${beakX.toFixed(1)},${(cy - 6).toFixed(1)} L ${bx.toFixed(1)},${cy.toFixed(1)} L ${beakX.toFixed(1)},${(cy + 6).toFixed(1)} Z" fill="#1a1a1a" opacity="0.5"/>`;
+    const bx = beakX - 5;
+    beakSvg = `<path d="M ${beakX.toFixed(1)},${(cy - 7).toFixed(1)} L ${bx.toFixed(1)},${cy.toFixed(1)} L ${beakX.toFixed(1)},${(cy + 7).toFixed(1)} Z" fill="#1a1a1a" opacity="0.5"/>`;
   }
 
-  // Dorsal surface texture
+  // Interior surface texture
   let inner = "";
-  if (s.ribCount > 0) {
-    for (let i = 1; i < s.ribCount; i++) {
-      const t = i / s.ribCount;
-      const x = beakX + t * 2 * halfL;
-      const rc = (x - cx) / halfL;
-      const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
-      inner += `<line x1="${x.toFixed(1)}" y1="${dApex.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dApex + 7).toFixed(1)}" stroke="#444" stroke-width="0.7"/>`;
-    }
-  }
+  // Growth lines: nested arcs paralleling the anterior commissure (right edge).
+  // Each arc curves from the dorsal margin to the ventral margin.
   if (s.hasGrowthLines) {
-    for (let k = 1; k <= 3; k++) {
-      const x = frontX - k * (halfL * 0.18);
-      const rc = (x - cx) / halfL;
-      const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
-      const vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
-      inner += `<path d="M ${x.toFixed(1)},${(dApex + 3).toFixed(1)} L ${x.toFixed(1)},${(vApex - 3).toFixed(1)}" fill="none" stroke="#666" stroke-width="0.7"/>`;
+    for (let k = 1; k <= 4; k++) {
+      const xL = frontX - k * (halfL * 0.18);
+      const rc = (xL - cx) / halfL;
+      const dY = cy - s.dorsalConv  * (1 - rc * rc) * 0.92 + 3;
+      const vY = cy + s.ventralConv * (1 - rc * rc) * 0.92 - 3;
+      // Curve bowing slightly toward the front (since growth lines parallel the commissure)
+      const ctrlX = xL + 3;
+      inner += `<path d="M ${xL.toFixed(1)},${dY.toFixed(1)} Q ${ctrlX.toFixed(1)},${cy.toFixed(1)} ${xL.toFixed(1)},${vY.toFixed(1)}" fill="none" stroke="#666" stroke-width="0.8"/>`;
     }
   }
   if (s.hasFrills) {
-    inner += `<path d="M ${(frontX - halfL * 0.3).toFixed(1)},${(cy - 5).toFixed(1)} Q ${(frontX - halfL * 0.2).toFixed(1)},${(cy - 10).toFixed(1)} ${(frontX - halfL * 0.1).toFixed(1)},${(cy - 5).toFixed(1)} Q ${(frontX - halfL * 0.02).toFixed(1)},${(cy - 11).toFixed(1)} ${(frontX - halfL * 0.03).toFixed(1)},${(cy - 3).toFixed(1)}" fill="none" stroke="black" stroke-width="1.2"/>`;
+    // A wavy line just inside the anterior commissure
+    const xR = frontX - halfL * 0.07;
+    const rc = (xR - cx) / halfL;
+    const dY = cy - s.dorsalConv  * (1 - rc * rc) * 0.92 + 3;
+    const vY = cy + s.ventralConv * (1 - rc * rc) * 0.92 - 3;
+    // Wavy vertical curve
+    let d = `M ${xR.toFixed(1)},${dY.toFixed(1)}`;
+    const steps = 8;
+    for (let i = 1; i <= steps; i++) {
+      const u = i / steps;
+      const y = dY + (vY - dY) * u;
+      const offset = Math.sin(u * 8) * 2.5;
+      d += ` L ${(xR + offset).toFixed(1)},${y.toFixed(1)}`;
+    }
+    inner += `<path d="${d}" fill="none" stroke="black" stroke-width="1.2" opacity="0.7"/>`;
   }
   if (s.hasSpines) {
-    for (let i = 1; i < 7; i++) {
-      const t = i / 7;
+    // Spine bases scattered along the dorsal valve surface; a few protruding
+    for (let i = 1; i < 9; i++) {
+      const t = i / 9;
       const x = beakX + t * 2 * halfL;
       const rc = (x - cx) / halfL;
       const dApex = cy - s.dorsalConv * (1 - rc * rc) * 0.92;
-      inner += `<circle cx="${x.toFixed(1)}" cy="${(dApex + 5).toFixed(1)}" r="1.6" fill="#333"/>`;
+      // dot just below dorsal curve
+      inner += `<circle cx="${x.toFixed(1)}" cy="${(dApex + 4).toFixed(1)}" r="1.6" fill="#333"/>`;
+      // Every 2nd, add a small protruding spine
       if (i % 2 === 0)
-        inner += `<line x1="${x.toFixed(1)}" y1="${dApex.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dApex - 8).toFixed(1)}" stroke="#222" stroke-width="1.1"/>`;
+        inner += `<line x1="${x.toFixed(1)}" y1="${dApex.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dApex - 9).toFixed(1)}" stroke="#222" stroke-width="1.1"/>`;
+      // Second row on ventral surface
+      const vApex = cy + s.ventralConv * (1 - rc * rc) * 0.92;
+      if (s.ventralConv > 5) {
+        inner += `<circle cx="${x.toFixed(1)}" cy="${(vApex - 4).toFixed(1)}" r="1.4" fill="#444"/>`;
+      }
     }
   }
 
@@ -1191,8 +1258,82 @@ function viewBuild(sid, answers) {
       ribsOn ? sliderRow(densitySlider) : null,
       el("div", { class: "key-footer" }, [
         haveAny ? el("a", { class: "restart-link", href: resetHref }, "Reset all sliders") : null,
-        el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Use the question wizard instead")
+        el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Use the question wizard instead"),
+        el("a", { class: "restart-link", href: `${siteBase(sid)}/calibrate` }, "Calibrate vs real specimens →")
       ])
+    ])
+  ]);
+}
+
+// ---------- Calibration view: parametric SVG vs real specimens ----------
+function viewCalibrate(sid) {
+  const SPECIES = [
+    { name: "Pseudoatrypa devoniana",
+      blurb: "Atrypid: subcircular, biconvex, astrophic, many fine ribs with concentric frills, broad anterior fold.",
+      answers: {
+        outline_pick: "subcircular", profile_pick: "biconvex",
+        hinge_pick: "astrophic", surface_ribs: "yes",
+        surface_frills: "yes", rib_density: "dense", fold_pick: "strong"
+      },
+      images: [
+        "pseudoatrypa/rockford/devoniana_nathan_01.jpg",
+        "pseudoatrypa/rockford/devoniana_dave_01.jpg",
+        "pseudoatrypa/rockford/devoniana_daycopper_01.png"
+      ] },
+    { name: "Cyrtospirifer whitneyi",
+      blurb: "Spiriferid: wing-shaped (alate), biconvex, wide strophic hinge, many fine radial ribs, deep fold + sulcus.",
+      answers: {
+        outline_pick: "wing-shaped", profile_pick: "biconvex",
+        hinge_pick: "wide-strophic", surface_ribs: "yes",
+        rib_density: "dense", fold_pick: "strong"
+      },
+      images: [
+        "cyrtospirifer/rockford/whitneyi_nathan_01.jpg",
+        "cyrtospirifer/rockford/whitneyi_dave_01.jpg",
+        "cyrtospirifer/rockford/whitneyi_jsm_01.png"
+      ] }
+  ];
+
+  const sections = SPECIES.map(sp => el("section", { class: "calibrate-section" }, [
+    el("h2", { class: "calibrate-h" }, [
+      el("em", {}, sp.name.split(" ")[0]),
+      " ",
+      sp.name.split(" ").slice(1).join(" ")
+    ]),
+    el("p", { class: "page-blurb" }, sp.blurb),
+    el("h3", { class: "calibrate-row-h" }, "Parametric outlines"),
+    el("div", { class: "build-tri-wrap" }, [
+      el("figure", { class: "build-tri" }, [
+        el("div", { class: "tri-svg", html: svgTopView(sp.answers) }),
+        el("figcaption", {}, "Top")
+      ]),
+      el("figure", { class: "build-tri" }, [
+        el("div", { class: "tri-svg", html: svgFrontView(sp.answers) }),
+        el("figcaption", {}, "Front")
+      ]),
+      el("figure", { class: "build-tri" }, [
+        el("div", { class: "tri-svg", html: svgSideView(sp.answers) }),
+        el("figcaption", {}, "Side")
+      ])
+    ]),
+    el("h3", { class: "calibrate-row-h" }, "Real specimens"),
+    el("div", { class: "calibrate-images" },
+      sp.images.map(img =>
+        el("img", { src: `images/${img}`, alt: sp.name, loading: "lazy", class: "calibrate-photo" })
+      )
+    )
+  ]));
+
+  return el("div", { class: "view" }, [
+    topBar({ title: "Calibration", sid }),
+    siteSubBar(sid),
+    el("main", { class: "page" }, [
+      el("h2", { class: "page-title" }, "Parametric vs real — calibration"),
+      el("p", { class: "page-blurb" },
+        "Two well-imaged Rockford brachiopods, with their parametric tri-view rendered from fixed slider settings next to real photos. Use this to spot where the parametric model is misaligned with the actual morphology."),
+      ...sections,
+      el("p", { class: "more-link" },
+        el("a", { href: `${siteBase(sid)}/build` }, "← Back to build view"))
     ])
   ]);
 }
@@ -1333,6 +1474,7 @@ function route() {
     else if (p[2] === "filter" && p[3] === "results") view = viewFilterResults(sid, parseAnswers(p.__query));
     else if (p[2] === "filter")             view = viewFilter(sid, parseAnswers(p.__query));
     else if (p[2] === "build")              view = viewBuild(sid, parseAnswers(p.__query));
+    else if (p[2] === "calibrate")          view = viewCalibrate(sid);
     else if (p[2] === "all")                view = viewAll(sid);
     else                                     view = viewNotFound();
   }

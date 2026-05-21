@@ -710,6 +710,44 @@ img { max-width: 100%; display: block; }
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(107, 52, 16, 0.25);
 }
+
+/* Calibration view */
+.calibrate-section {
+  margin-bottom: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+.calibrate-h {
+  margin: 0.5rem 0 0.3rem;
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+.calibrate-row-h {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.calibrate-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+.calibrate-photo {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: white;
+}
+@media (min-width: 700px) {
+  .calibrate-photo { height: 220px; }
+}
 .thumb-diff {
   padding: 0.3rem 0.5rem 0.4rem;
   font-size: 0.72rem;
