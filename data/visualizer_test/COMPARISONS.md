@@ -136,6 +136,38 @@ been *too* flat — closer to a real shell's commissure shape now) and
 relaxed the wing-shape superellipse from n=4 to n=3 so the wingtip
 shoulders curve rather than corner.
 
+## Cycle 5 — make the side view earn its place
+
+The cycle 4 side view was a clean profile but redundant with the front view:
+both showed the dorsibiconvex asymmetry, and there were no side-view-only
+features in the parameter space. Two new traits were added so the side view
+carries information the other views can't:
+
+**`beak_prom`** — subdued / moderate / prominent / pyramidal. Drives:
+- Strophic shells: `interareaH` scales 0.6× / 1.0× / 1.6× / 2.4×, so a
+  Cyrtina-style pyramidal back is visibly distinct from a Schizophoria
+  short hinge.
+- Astrophic shells: the umbo bulge grows from 3 px to 18 px.
+- All shells: `apexShift` pulls the dorsal/ventral convexity peak
+  posteriorly (0.05 → 0.55 of half-length), so pyramidal shells get a
+  triangular profile with the apex back near the beak and a long anterior
+  taper.
+
+**`lateral_profile`** — smooth / geniculate / resupinate. Side-view-only
+shape variants the standard `profile` trait can't express:
+- `geniculate`: the ventral valve has a sharp angular bend at ~55% of the
+  length (Douvillina-style; concavo-convex strophomenids).
+- `resupinate`: dorsal/ventral curvature inverts across the anterior half,
+  producing the S-profile of *Strophonelloides reversa*.
+
+`beak_lateral.png` sweeps these eight combinations so the differentiation
+is visible at large scale.
+
+In the manifest both traits also drive trait filtering (`beak_pick` and
+`lateral_pick` questions are gated on `hinge_pick`/`profile_pick` and
+appear after the core questions). Existing taxa default to `moderate` /
+`smooth` until tagged explicitly.
+
 ## Cycle 4 — rib-driven commissure zigzag + side-view rework
 
 Feedback after the first commit was that the side view felt like a striped

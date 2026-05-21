@@ -7,4 +7,5 @@ data/treatise_pages/
 # Visualizer test rig — intermediate SVGs are regenerable from gen.cjs
 data/visualizer_test/svgs/
 data/visualizer_test/svgs_zigzag/
+data/visualizer_test/svgs_beak/
 data/visualizer_test/__pycache__/

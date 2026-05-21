@@ -777,6 +777,34 @@ const FOLD_SETTINGS = {
   strong: { rise: 32, shoulderU: 0.16, halfU: 0.14 }
 };
 
+// Beak/umbo prominence presets — drive the side view's posterior shape.
+//   apexShift : where the dorsal/ventral apex sits along the AP axis
+//               (0 = mid-shell, 0.5 = halfway back toward the beak).
+//               Pyramidal forms (Cyrtina, Pyramidspirifer) have the apex
+//               way back.
+//   umboPx     : astrophic shells get a curled beak this tall (px).
+//   interareaScale: strophic shells get their interareaH multiplied here.
+const BEAK_SETTINGS = {
+  subdued:   { apexShift: 0.05, umboPx: 3,  interareaScale: 0.6 },
+  moderate:  { apexShift: 0.20, umboPx: 6,  interareaScale: 1.0 },
+  prominent: { apexShift: 0.40, umboPx: 12, interareaScale: 1.6 },
+  pyramidal: { apexShift: 0.55, umboPx: 18, interareaScale: 2.4 }
+};
+
+// Lateral profile kinks — features that only the SIDE view can show.
+//   smooth:     no kink, dorsal/ventral curves are smooth parabolas
+//   geniculate: sharp 90°-ish bend in the ventral valve at kinkAt (fraction
+//               of length from beak). Typical of Douvillina-style
+//               concavo-convex strophomenids.
+//   resupinate: dorsal/ventral curvature INVERTS at kinkAt — the dorsal
+//               valve starts convex and becomes concave anteriorly
+//               (Strophonelloides reversa).
+const LATERAL_PROFILE_SETTINGS = {
+  smooth:     { type: "smooth"                            },
+  geniculate: { type: "geniculate", kinkAt: 0.55, dropPx: 16 },
+  resupinate: { type: "resupinate", kinkAt: 0.50, invertFactor: 1.0 }
+};
+
 // Stroke palette — centralised so the three views stay visually consistent.
 const SK = {
   outlineW: 2.2,
@@ -794,6 +822,8 @@ function answersToShape(answers) {
   const p = answers.profile_pick || "biconvex";
   const h = answers.hinge_pick   || "astrophic";
   const f = answers.fold_pick    || "none";
+  const b = answers.beak_pick    || "moderate";
+  const k = answers.lateral_pick || "smooth";
 
   // Top-view half-dimensions, in px (viewBox 200×200).
   const halfWidth  = o === "wing-shaped"   ? 90
@@ -807,13 +837,21 @@ function answersToShape(answers) {
   const hingeFrac  = h === "wide-strophic"   ? 0.95
                   : h === "narrow-strophic" ? 0.55
                   : 0;
+  const beakPreset = BEAK_SETTINGS[b] || BEAK_SETTINGS.moderate;
   // Astrophic shells have an umbo bulge; strophic ones flatten into the hinge.
-  const beakProm   = h === "astrophic" ? 4 : 0;
-  // Side-view interarea wall (visible only on strophic shells). The width
-  // determines how prominent the flat back wall is in side view.
-  const interareaH = h === "wide-strophic"   ? 30
-                   : h === "narrow-strophic" ? 16
-                   : 0;
+  // Beak prominence scales the bulge height.
+  const beakProm   = h === "astrophic" ? beakPreset.umboPx : 0;
+  // Side-view interarea wall (visible only on strophic shells). The base width
+  // depends on hinge type; beak prominence scales it further so a "pyramidal"
+  // wide-strophic shell (e.g. Cyrtina) shows a tall back wall.
+  const baseInterarea = h === "wide-strophic"   ? 30
+                     : h === "narrow-strophic" ? 16
+                     : 0;
+  const interareaH = baseInterarea * beakPreset.interareaScale;
+  // Posterior shift of the dorsal/ventral apex — drives the side view shape.
+  // 0 = symmetric lemon (apex at mid-shell), positive = apex pulled back toward
+  // the beak (teardrop/triangle shape, typical of pyramidal forms).
+  const apexShift = beakPreset.apexShift;
 
   // Valve convexity (px) — DORSI-biconvex by default (atrypid/spiriferid norm).
   // Negative = concave valve. Values are tuned so a 200×200 viewBox shows a
@@ -824,21 +862,23 @@ function answersToShape(answers) {
   else                           { dorsalConv =  52; ventralConv = 30; }   // dorsibiconvex
 
   const foldPreset = FOLD_SETTINGS[f] || FOLD_SETTINGS.none;
+  const lateralPreset = LATERAL_PROFILE_SETTINGS[k] || LATERAL_PROFILE_SETTINGS.smooth;
   const ribCount = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0;
   const ribAmp   = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0;
 
   return {
-    outline: o, profile: p, hinge: h, fold: f,
-    halfWidth, halfLength, hingeFrac, beakProm, interareaH,
+    outline: o, profile: p, hinge: h, fold: f, beak: b, lateral: k,
+    halfWidth, halfLength, hingeFrac, beakProm, interareaH, apexShift,
     dorsalConv, ventralConv,
-    // foldStr is a 0..1 scalar kept for callers that just want strength.
     foldStr: f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
-    // fold geometry: rise (peak height in px), shoulder (where the rise begins
-    // as a fraction of halfWidth), half (half-width of the flat top in
-    // normalized 0..1 of halfWidth).
     foldRise: foldPreset.rise,
     foldShoulderU: foldPreset.shoulderU,
     foldHalfU: foldPreset.halfU,
+    // Lateral kink (side-view only) — geniculate or resupinate
+    lateralType: lateralPreset.type,
+    lateralKinkAt: lateralPreset.kinkAt || 0,
+    lateralDropPx: lateralPreset.dropPx || 0,
+    lateralInvert: lateralPreset.invertFactor || 0,
     ribCount, ribAmp,
     hasFrills:      features.frills,
     hasSpines:      features.spines,
@@ -1376,13 +1416,62 @@ function svgSideView(answers) {
   const beakX = cx - halfL;
   const frontX = cx + halfL;
 
-  const dorsalY  = (x) => {
+  // ---- Dorsal/ventral curves ----
+  //
+  // Asymmetric parabolas with the apex shifted posteriorly by `apexShift`.
+  // u in [-1, +1] is the AP coordinate (-1 = beak, +1 = anterior).
+  // peakU is where the curve hits its maximum/minimum (apex of the valve).
+  // For subdued beaks, peakU≈0 (symmetric lemon); for pyramidal forms,
+  // peakU ≪ 0 (apex sits well back, anterior is a long taper — a triangle).
+  //
+  // Lateral kinks (geniculate / resupinate) reshape the curves piecewise,
+  // overriding the smooth parabola in specific AP regions.
+  const peakU = -s.apexShift;
+
+  function smoothParabola(u, conv) {
+    // Two half-parabolas joined at peakU, each going from valve apex to cy.
+    if (u <= peakU) {
+      const t = (u - (-1)) / (peakU - (-1));   // 0 at beak, 1 at apex
+      return cy - conv * (1 - (1 - t) ** 2) * 0.95;
+    }
+    const t = (u - peakU) / (1 - peakU);       // 0 at apex, 1 at anterior
+    return cy - conv * (1 - t ** 2) * 0.95;
+  }
+
+  const dorsalY = (x) => {
     const u = (x - cx) / halfL;
-    return cy - s.dorsalConv * (1 - u * u) * 0.95;
+    let y = smoothParabola(u, s.dorsalConv);
+    if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
+      // Anterior third inverts: the dorsal valve curves DOWN instead of up.
+      const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
+      const baseY = smoothParabola(u, s.dorsalConv);
+      const flipped = cy + (cy - baseY) * 0.6;   // mirrored across cy
+      y = baseY * (1 - t) + flipped * t;
+    }
+    return y;
   };
+
   const ventralY = (x) => {
     const u = (x - cx) / halfL;
-    return cy + s.ventralConv * (1 - u * u) * 0.95;
+    let y;
+    if (s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
+      // Sharp angular bend in the ventral valve at kinkAt — typical of
+      // Douvillina-style concavo-convex strophomenids. Before the kink the
+      // ventral is gently convex; after the kink the trail drops sharply.
+      const kinkU = 2 * s.lateralKinkAt - 1;
+      const kinkY = cy + Math.max(0, s.ventralConv) * 0.55;
+      const t = (u - kinkU) / (1 - kinkU);
+      y = kinkY + s.lateralDropPx * t;
+    } else {
+      y = smoothParabola(u, -s.ventralConv);   // ventral apex below cy
+      if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
+        const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
+        const baseY = smoothParabola(u, -s.ventralConv);
+        const flipped = cy - (baseY - cy) * 0.6;
+        y = baseY * (1 - t) + flipped * t;
+      }
+    }
+    return y;
   };
 
   // Interarea-induced offset at the back: for strophic shells the dorsal and
@@ -1567,6 +1656,19 @@ function buildShapeSliders() {
         { value: "none",   short: "None" },
         { value: "weak",   short: "Weak" },
         { value: "strong", short: "Strong" }
+      ] },
+    { qid: "beak_pick", label: "Beak",
+      stops: [
+        { value: "subdued",   short: "Low" },
+        { value: "moderate",  short: "Mid" },
+        { value: "prominent", short: "Tall" },
+        { value: "pyramidal", short: "Pyr" }
+      ] },
+    { qid: "lateral_pick", label: "Lateral",
+      stops: [
+        { value: "smooth",     short: "Smooth" },
+        { value: "geniculate", short: "Genic" },
+        { value: "resupinate", short: "Resup" }
       ] }
   ];
 }
@@ -1687,11 +1789,12 @@ function viewBuild(sid, answers) {
 function viewCalibrate(sid) {
   const SPECIES = [
     { name: "Pseudoatrypa devoniana",
-      blurb: "Atrypid: subcircular, dorsibiconvex, astrophic, many fine ribs with concentric frills, broad anterior fold.",
+      blurb: "Atrypid: subcircular, dorsibiconvex, astrophic, subdued beak, many fine ribs with concentric frills, broad anterior fold.",
       answers: {
         outline_pick: "subcircular", profile_pick: "biconvex",
         hinge_pick: "astrophic", surface_ribs: "yes",
-        surface_frills: "yes", rib_density: "dense", fold_pick: "strong"
+        surface_frills: "yes", rib_density: "dense", fold_pick: "strong",
+        beak_pick: "subdued", lateral_pick: "smooth"
       },
       images: [
         "pseudoatrypa/rockford/devoniana_nathan_01.jpg",
@@ -1699,11 +1802,12 @@ function viewCalibrate(sid) {
         "pseudoatrypa/rockford/devoniana_daycopper_01.png"
       ] },
     { name: "Cyrtospirifer whitneyi",
-      blurb: "Spiriferid: wing-shaped (alate), biconvex, wide strophic hinge, many fine radial ribs, deep fold + sulcus.",
+      blurb: "Spiriferid: wing-shaped (alate), biconvex, wide strophic hinge with a prominent interarea, many fine radial ribs, deep fold + sulcus.",
       answers: {
         outline_pick: "wing-shaped", profile_pick: "biconvex",
         hinge_pick: "wide-strophic", surface_ribs: "yes",
-        rib_density: "dense", fold_pick: "strong"
+        rib_density: "dense", fold_pick: "strong",
+        beak_pick: "prominent", lateral_pick: "smooth"
       },
       images: [
         "cyrtospirifer/rockford/whitneyi_nathan_01.jpg",
@@ -1711,11 +1815,12 @@ function viewCalibrate(sid) {
         "cyrtospirifer/rockford/whitneyi_jsm_01.png"
       ] },
     { name: "Schizophoria iowensis",
-      blurb: "Orthid: subcircular, biconvex, narrow strophic hinge, many fine costellae, subtle fold + sulcus.",
+      blurb: "Orthid: subcircular, biconvex, narrow strophic hinge, moderate beak, many fine costellae, subtle fold + sulcus.",
       answers: {
         outline_pick: "subcircular", profile_pick: "biconvex",
         hinge_pick: "narrow-strophic", surface_ribs: "yes",
-        rib_density: "dense", fold_pick: "weak"
+        rib_density: "dense", fold_pick: "weak",
+        beak_pick: "moderate", lateral_pick: "smooth"
       },
       images: [
         "schizophoria/rockford/iowensis_nathan_01.jpg",

@@ -743,7 +743,11 @@ const TRAITS = {
   fold_sulcus:    { label: "Fold + sulcus" },
   outline:        { label: "Outline shape" },
   size:           { label: "Size" },
-  umbones:        { label: "Umbones" }
+  umbones:        { label: "Umbones" },
+  // Side-view traits — features that are essentially invisible from the
+  // top/front views and need a lateral look to read.
+  beak_prom:       { label: "Beak/umbo prominence" },
+  lateral_profile: { label: "Lateral profile shape" }
 };
 
 // Asked in order. `core: true` = always asked. Others gated by `when(answers)`.
@@ -898,6 +902,50 @@ const QUESTIONS = [
     options: [
       { value: "yes", label: "Ribs continue onto the beak",         setsTraitTo: "ribbed" },
       { value: "no",  label: "Beak is smooth — ribs only toward front", setsTraitTo: "smooth" }
+    ] },
+
+  // Beak prominence — drives the side-view shape of the back of the shell.
+  // Critical for splitting subdued atrypids from pyramidal Cyrtina-style spiriferids.
+  { id: "beak_pick", trait: "beak_prom",
+    when: a => a.hinge_pick !== undefined,
+    text: "Looking from the side, how tall is the back of the shell?",
+    figure: "ukyProfiles",
+    hint: "Pyramidal = the back is a tall triangle (Cyrtina, Pyramidspirifer). Low = the beak is barely visible (most atrypids, terebratulids). Moderate = a clear umbo or short interarea. Prominent = a tall but not pyramidal back.",
+    optionsLayout: "visual",
+    options: [
+      { value: "subdued",   setsTraitTo: "subdued",
+        label: "Low — small curved beak, almost flush",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 6,30 Q 65,4 124,30 Q 65,52 6,30 Z" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "moderate",  setsTraitTo: "moderate",
+        label: "Moderate — visible umbo or short back wall",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 10,30 Q 20,8 50,8 Q 95,8 122,30 Q 65,52 10,30 Z" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "prominent", setsTraitTo: "prominent",
+        label: "Tall — clearly elevated back, not pyramidal",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 8,32 L 16,8 Q 28,2 42,4 Q 105,12 122,32 Q 65,54 8,32 Z" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "pyramidal", setsTraitTo: "pyramidal",
+        label: "Pyramidal — tall triangular back wall (Cyrtina)",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 14,32 L 22,2 L 32,2 L 122,32 Q 65,52 14,32 Z" fill="white" stroke="black" stroke-width="2"/></svg>' }
+    ] },
+
+  // Lateral profile — kinks/inversions only visible from the side.
+  // Smooth covers the vast majority of taxa; geniculate is the Douvillina
+  // bend; resupinate is the Strophonelloides curvature reversal.
+  { id: "lateral_pick", trait: "lateral_profile",
+    when: a => a.profile_pick !== undefined,
+    text: "Looking from the side, is the lateral profile smooth or kinked?",
+    figure: "ukyProfiles",
+    hint: "Most brachiopods are smooth (no kink). Geniculate = a sharp angular bend (Douvillina, some productids). Resupinate = the curvature reverses across growth (Strophonelloides reversa).",
+    optionsLayout: "visual",
+    options: [
+      { value: "smooth",     setsTraitTo: "smooth",
+        label: "Smooth — gentle curves, no kink",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 6,30 Q 65,6 124,30 Q 65,54 6,30 Z" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "geniculate", setsTraitTo: "geniculate",
+        label: "Geniculate — sharp angular bend in the ventral valve",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 6,28 Q 50,12 78,22 L 100,40 L 124,40 L 124,32 Q 90,38 78,30 Q 50,40 6,28 Z" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "resupinate", setsTraitTo: "resupinate",
+        label: "Resupinate — curvature reverses (S-profile)",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 6,30 Q 30,10 60,18 Q 95,28 124,46 Q 95,38 60,42 Q 30,50 6,30 Z" fill="white" stroke="black" stroke-width="2"/></svg>' }
     ] }
 ];
 
