@@ -1830,6 +1830,37 @@ function svgSideView(answers) {
   //     extend anteriorly
   //   - a small "← P" posterior label sits just behind the interarea
   let overlay = "";
+  // ---- Umbo curl (dorsal beak hooking back over the interarea) ----
+  //
+  // brach3 (Conispirifer) and brach4 (Cyrtospirifer) side photos show
+  // the dorsal beak/umbo curling BACK over the top of the interarea
+  // wall — a small comma-shaped hook protruding from the upper-back of
+  // the shell. Cyrtospirifer's hook is large and prominent; the cone
+  // spiriferids' hook is smaller because the tall interarea already
+  // accommodates the umbo. Both need this curl in side view to read
+  // as actual brachiopod beaks rather than flat-backed rectangles.
+  if (s.interareaH > 0 && s.beak !== "subdued") {
+    // Wing-shaped spirifers (Cyrtospirifer-style) have a prominent umbo
+    // curl that protrudes substantially. Conical/cone forms have a tall
+    // interarea wall already, so the curl on top of it is proportionally
+    // smaller.
+    const hookFrac = s.outline === "wing-shaped" ? 0.28 : 0.16;
+    const hookExt = halfL * hookFrac;
+    // Anchor at upper-back corner of body (top of interarea wall).
+    const ax = beakX, ay = interareaTop;
+    // Tip extends BACK and slightly DOWN
+    const tipX = ax - hookExt;
+    const tipY = ay + hookExt * 0.22;
+    // Outer curve: bulges UP and back
+    const oC1x = ax - hookExt * 0.10, oC1y = ay - hookExt * 0.55;
+    const oC2x = ax - hookExt * 0.95, oC2y = ay - hookExt * 0.25;
+    // Inner curve: returns inward toward the body
+    const iCx = ax - hookExt * 0.42, iCy = ay + hookExt * 0.05;
+    overlay += `<path d="M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
+      `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
+      `Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z" ` +
+      `fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>`;
+  }
   if (s.interareaH > 0) {
     // Larger tilt — the interarea looks like a real flat wall, deeper than
     // any rib-zigzag teeth at the anterior.
