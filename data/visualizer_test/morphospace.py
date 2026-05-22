@@ -90,6 +90,33 @@ class AnalyticShell:
         v = self.dorsal if valve == "dorsal" else self.ventral
         return v["r0"] * np.exp(v["C1"] * theta + v["C2"] * theta**2)
 
+    # Arc-length parameterization --------------------------------------------
+    # The mantle margin in (X, Y) doesn't have uniform arc-length per unit
+    # of phi when S_x > 1 — wingtips traverse more arc length per dphi than
+    # the anterior midline. To keep ribs evenly spaced around the perimeter
+    # (instead of stretched at the wings), we parameterize ribs by normalized
+    # arc length s(phi) ∈ [0, 1] rather than by phi directly.
+
+    def _arc_length_lookup(self, n_phi=400):
+        """Compute (phi, s_norm) lookup table for the anterior arc."""
+        phi = np.linspace(-np.pi / 2, np.pi / 2, n_phi)
+        # Use theta_max — shape is identical at all theta, just scaled.
+        r = 1.0  # normalized; only the SHAPE matters for arc-length ratios
+        S_x_factor = 1.0 + (self.S_x - 1.0) * np.abs(np.sin(phi))
+        x = r * np.sin(phi) * S_x_factor
+        y = r * np.cos(phi)
+        ds = np.hypot(np.diff(x), np.diff(y))
+        s = np.concatenate([[0], np.cumsum(ds)])
+        s_norm = s / s[-1]   # [0, 1]
+        return phi, s_norm
+
+    def arc_length_at(self, phi):
+        """Map phi → normalized arc length s_norm ∈ [0, 1] along the
+        anterior margin. s_norm = 0 at φ=-π/2 (left cardinal), 0.5 at φ=0
+        (anterior midline), 1 at φ=+π/2 (right cardinal)."""
+        phi_lut, s_lut = self._arc_length_lookup()
+        return np.interp(phi, phi_lut, s_lut)
+
     # Surface sampling -------------------------------------------------------
 
     def surface(self, valve: str, n_theta: int = 60, n_phi: int = 140):
@@ -152,21 +179,33 @@ class AnalyticShell:
         lateral_profile = np.maximum(np.cos(PH), 0) ** p
         Z = v["z_max"] * ap_profile * lateral_profile
 
-        # Sulcus on the dorsal valve (Gaussian along midline). Strength
-        # ramps up toward the margin (R/R_max → 1). The sulcus DEPRESSES
-        # z toward the commissure on the dorsal valve.
+        # Commissure undulation (atrypid / spiriferid convention: dorsal
+        # FOLD + ventral SULCUS, both raising the commissure at midline):
+        #   - Dorsal valve: small ridge added at midline (z increases)
+        #   - Ventral valve: depression in the EXTERIOR (z decreases pre-
+        #     negation, so the post-negation ventral z is LESS negative
+        #     at midline — the ventral exterior pulls UP toward the
+        #     commissure).
+        # Strength tapers to zero at the umbo (R/R_max → 0).
         R_frac = R / max(R_max, 1e-6)
         sulcus_strength = R_frac ** 2
         sulcus_pattern = np.exp(-PH ** 2 / (2 * self.sulcus_sigma ** 2))
         if valve == "dorsal":
-            Z = Z - self.sulcus_depth * sulcus_strength * sulcus_pattern
+            # Dorsal fold raises z by ~40% of the sulcus amplitude
+            Z = Z + self.sulcus_depth * 0.40 * sulcus_strength * sulcus_pattern
         else:
-            Z = Z + self.sulcus_depth * sulcus_strength * sulcus_pattern
+            # Ventral sulcus pulls the exterior up (pre-negation z decreases)
+            Z = Z - self.sulcus_depth * sulcus_strength * sulcus_pattern
 
-        # Ribs (periodic in phi, amplitude grows with theta).
+        # Ribs (periodic in ARC LENGTH along the perimeter, NOT in phi).
+        # cos(N · φ) would crowd ribs near the anterior midline (where dphi
+        # carries little arc length) and stretch them at the wings (where
+        # dphi carries a lot). Using arc length keeps spacing uniform.
         if self.rib_count > 0 and self.rib_amp > 0:
             rib_strength = R_frac ** 1.5
-            rib_pattern = np.cos(self.rib_count * PH)
+            phi_lut, s_lut = self._arc_length_lookup()
+            S = np.interp(PH, phi_lut, s_lut)         # arc length along anterior margin [0, 1]
+            rib_pattern = np.cos(2 * np.pi * self.rib_count * S)
             sign = 1 if valve == "dorsal" else -1
             Z = Z + sign * self.rib_amp * rib_strength * rib_pattern * 0.5
 
@@ -200,35 +239,71 @@ class AnalyticShell:
     def is_strophic(self) -> bool:
         return self.S_x > 1.20
 
-    def closed_outline(self, valve: str = "dorsal", n_phi: int = 240):
+    def closed_outline(self, valve: str = "dorsal", n_phi: int = 240,
+                       include_features: bool = True):
         """Return the full closed mantle outline (x, y) in the commissure plane.
 
         Anterior arc spans phi in [-pi/2, pi/2]; the posterior is closed
         through the umbo. For strophic shells the back is a near-straight
         hinge line with a small umbonal bump; for astrophic shells the back
         curves smoothly to a deeper umbo extension.
+
+        If include_features is True, the anterior arc is perturbed by:
+          - Rib scallops: a high-frequency radial bump indexed by NORMALIZED
+            ARC LENGTH along the margin (uniform spacing across wide hinges
+            instead of stretched at the wings).
+          - Sulcus indent: a localized inward pull at the midline of the
+            anterior arc (the sulcus on the dorsal valve pulls the margin
+            toward the umbo).
         """
         v = self.dorsal if valve == "dorsal" else self.ventral
         r = v["r0"] * np.exp(v["C1"] * self.theta_max + v["C2"] * self.theta_max ** 2)
-        # Anterior arc
+
+        # --- Anterior arc ---
         n_front = (n_phi * 2) // 3
         phi_f = np.linspace(-np.pi / 2, np.pi / 2, n_front)
         S_x_f = 1.0 + (self.S_x - 1.0) * np.abs(np.sin(phi_f))
         x_f = r * np.sin(phi_f) * S_x_f
         y_f = r * np.cos(phi_f)
-        # Posterior arc
+
+        if include_features:
+            # Outward normal at each anterior-arc point (approx. radial from origin).
+            norm = np.hypot(x_f, y_f)
+            nx = x_f / np.maximum(norm, 1e-6)
+            ny = y_f / np.maximum(norm, 1e-6)
+
+            # Rib scallops: indexed by normalized arc length along the anterior
+            # margin so spacing stays uniform from cardinal to cardinal.
+            if self.rib_count > 0 and self.rib_amp > 0:
+                phi_lut, s_lut = self._arc_length_lookup()
+                S = np.interp(phi_f, phi_lut, s_lut)
+                # Amplitude tapers to zero at the cardinals so ribs don't
+                # spill into the hinge area.
+                lateral_taper = np.cos(phi_f) ** 0.5
+                rib_bump = self.rib_amp * np.cos(2 * np.pi * self.rib_count * S) * lateral_taper
+                x_f = x_f + rib_bump * nx
+                y_f = y_f + rib_bump * ny
+
+            # Sulcus indent on the dorsal valve — pulls the anterior margin
+            # inward at the midline (toward the umbo).
+            if valve == "dorsal" and self.sulcus_depth > 0:
+                sulcus_pull = self.sulcus_depth * 0.35 * np.exp(
+                    -phi_f ** 2 / (2 * self.sulcus_sigma ** 2)
+                )
+                x_f = x_f - sulcus_pull * nx
+                y_f = y_f - sulcus_pull * ny
+
+        # --- Posterior arc ---
         n_back = n_phi - n_front
         phi_b = np.linspace(0, np.pi, n_back)
         if self.is_strophic():
-            # Strophic: near-flat hinge line with a small umbo bump
             back_extent = 0.06 * r
         else:
-            # Astrophic: smooth curve that swings well behind the cardinals
             back_extent = 0.30 * r
         S_x_b = 1.0 + (self.S_x - 1.0) * np.abs(np.cos(phi_b))
         x_b = r * np.cos(phi_b) * S_x_b
-        # y stays in the -y half-plane (behind the cardinals at y=0)
         y_b = -back_extent * np.sin(phi_b)
+
         x = np.concatenate([x_f, x_b])
         y = np.concatenate([y_f, y_b])
         return x, y
@@ -304,7 +379,7 @@ SPECIES = {
             dorsal={"r0": 1.8, "C1": 4.2, "C2": -0.40, "z_max": 50},
             ventral={"r0": 1.8, "C1": 4.2, "C2": -0.40, "z_max": 28},
             S_x=1.05,            # nearly circular, no hinge stretch
-            dome_p=2.0,
+            dome_p=1.8,          # mid-range bell, mild lateral taper
             rib_count=22,
             rib_amp=2.4,
             sulcus_depth=10.0,
@@ -324,7 +399,7 @@ SPECIES = {
             dorsal={"r0": 1.7, "C1": 4.30, "C2": -0.45, "z_max": 52},
             ventral={"r0": 1.7, "C1": 4.30, "C2": -0.45, "z_max": 28},
             S_x=1.85,            # wide alate hinge
-            dome_p=1.8,
+            dome_p=0.7,          # broad plateau — wings stay inflated until tips
             rib_count=28,
             rib_amp=1.8,
             sulcus_depth=22.0,
@@ -344,7 +419,7 @@ SPECIES = {
             dorsal={"r0": 2.0, "C1": 4.00, "C2": -0.35, "z_max": 44},
             ventral={"r0": 2.0, "C1": 4.00, "C2": -0.35, "z_max": 24},
             S_x=1.15,            # very mild hinge widening
-            dome_p=2.0,
+            dome_p=1.6,
             rib_count=32,
             rib_amp=1.0,
             sulcus_depth=6.0,
@@ -469,7 +544,7 @@ def main():
     #            photo1, photo2, photo3.
     n_cols = 9
     fig, axes = plt.subplots(n_rows, n_cols,
-                             figsize=(2.2 * n_cols, 2.6 * n_rows),
+                             figsize=(3.0 * n_cols, 3.4 * n_rows),
                              gridspec_kw=dict(wspace=0.10, hspace=0.30))
     col_titles = ["ANALYTIC top", "ANALYTIC front", "ANALYTIC side",
                   "PARAM top",    "PARAM front",    "PARAM side",
