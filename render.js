@@ -1366,7 +1366,12 @@ function frontBodyShape(u, s) {
 //    creating a W-shape with lateral lobes and a midline V-indent.
 function frontFoldSplit(s) {
   if (s.outline === "wing-shaped") {
-    return { outerDorsal: 0.45, outerVentral: 0.80, commissure: 0.25 };
+    // Alate spiriferid (Cyrtospirifer) — anterior view shows a near
+    // diamond/kite with the dorsal triangle peaked by the fold and the
+    // ventral triangle pointing DOWN to the sulcus. The sulcus produces
+    // only a subtle V-indent on the bottom outline (brach4 anterior),
+    // not a Conispirifer-style deep W.
+    return { outerDorsal: 0.30, outerVentral: 0.25, commissure: 0.30 };
   }
   if (s.outline === "conical") {
     // Dorsal: modest fold contribution (the conical's dorsal valve is
@@ -1381,14 +1386,26 @@ function frontFoldSplit(s) {
   return { outerDorsal: 0.05, outerVentral: 0.05, commissure: 1.20 };
 }
 
+// frontValveScale — front-view foreshortening per outline. The side
+// view shows full DV depth (dorsalConv, ventralConv). The front view
+// shows the valve viewed end-on, which is geometrically foreshortened:
+// a tall cone or a wide-winged dome doesn't project its full DV span
+// when seen anteriorly. Without per-outline scaling, the side view's
+// generous convexity bleeds straight through into a front view that
+// looks too tall and produces over-pronounced lobes/W-cuts.
+function frontValveScale(s) {
+  if (s.outline === "conical") return { dorsal: 1.0, ventral: 0.35 };
+  if (s.outline === "wing-shaped") return { dorsal: 0.60, ventral: 0.55 };
+  return { dorsal: 1.0, ventral: 1.0 };
+}
+
 function frontDorsalY(u, s) {
+  const scale = frontValveScale(s);
   if (s.outline === "wing-shaped" || s.outline === "conical") {
     // Triangular outlines: dorsal silhouette is a SINGLE smooth triangle.
-    // The fold's contribution lifts the peak; the body's convexity also
-    // contributes to the peak. There's no separate "fold spike on top of
-    // body wings" — the outer silhouette is one continuous descent from
-    // peak to wingtips. Matches the red-overlay diagnostic for brach3.
-    const peak = s.dorsalConv + foldRiseAt(0, s) * frontFoldSplit(s).outerDorsal;
+    // Peak height = foreshortened body + fold contribution. The body's
+    // shape function provides the descent to wingtips.
+    const peak = s.dorsalConv * scale.dorsal + foldRiseAt(0, s) * frontFoldSplit(s).outerDorsal;
     return peak * frontBodyShape(u, s);
   }
   // Dome outlines: smooth dome + minimal fold contribution to outer
@@ -1398,21 +1415,14 @@ function frontDorsalY(u, s) {
 }
 
 function frontVentralY(u, s) {
-  // Ventral side keeps the additive body+sulcus model on all outlines:
-  // for triangular shells the sulcus creates a visible W-shape (central
-  // V-indent flanked by lobes) on the bottom silhouette; for dome shells
-  // the contribution is small and the bottom stays a smooth half-dome.
-  //
-  // For conical shells the side-view ventral cone is tall (ventralConv=78
-  // gives Conispirifer its tall pyramidal profile), but the FRONT-view
-  // projection of that cone is much shallower — you're looking at the
-  // cone's lateral cross-section, not its full DV depth. Without
-  // foreshortening, the lobes of the W run far too deep and the sulcus
-  // V notch becomes hyper-prominent. The 0.35 scale here keeps the side
-  // view tall while shrinking the front-view ventral lobes to a depth
-  // that matches the brach3 anterior red overlay.
-  const ventralScale = s.outline === "conical" ? 0.35 : 1.0;
-  const body = s.ventralConv * ventralScale * frontBodyShape(u, s);
+  // Ventral keeps the additive body+sulcus model. The sulcus creates a
+  // V-indent at center on triangular outlines; for wing-shaped the
+  // contribution is small (brach4 anterior shows a near-diamond with
+  // subtle V); for conical the contribution is moderate (brach3 shows
+  // a clear W). Body foreshortening (frontValveScale) keeps the lobe
+  // depth proportional to the projected ventral height.
+  const scale = frontValveScale(s);
+  const body = s.ventralConv * scale.ventral * frontBodyShape(u, s);
   const fold = foldRiseAt(u, s) * frontFoldSplit(s).outerVentral;
   return body - fold;
 }
