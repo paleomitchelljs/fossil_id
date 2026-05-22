@@ -861,19 +861,26 @@ function answersToShape(answers) {
   const b = answers.beak_pick    || "moderate";
   const k = answers.lateral_pick || "smooth";
 
-  // Top-view half-dimensions, in px (viewBox 200×200).
-  // Conical specimens (Conispirifer, Cyrtina, Pyramidspirifer) are squat
-  // when viewed from the side — the cone-shaped ventral valve packs the
-  // DV depth into a short AP length, so halfLength is small relative to
-  // the DV span the interarea + ventralConv produce.
-  const halfWidth  = o === "wing-shaped"   ? 90
-                  : o === "elongate-oval"  ? 46
-                  : o === "conical"        ? 40
-                  : 70;
-  const halfLength = o === "elongate-oval" ? 86
-                  : o === "wing-shaped"    ? 60
-                  : o === "conical"        ? 50
-                  : 70;
+  // Top-view half-dimensions, in px (viewBox 200×200). Per-outline base
+  // dimensions, then nudged based on surface features so atrypids look
+  // different from spinatryids look different from pentameroids:
+  //   * Spinatryid (frills + spines): TRANSVERSE — wider than long
+  //   * Atrypid (frills only): mild teardrop — slightly taller than wide
+  //   * Default subcircular: square circle
+  let halfWidth, halfLength;
+  if (o === "wing-shaped")        { halfWidth = 90; halfLength = 60; }
+  else if (o === "elongate-oval") { halfWidth = 46; halfLength = 86; }
+  else if (o === "conical")       { halfWidth = 40; halfLength = 50; }
+  else {
+    halfWidth = 70; halfLength = 70;
+    if (features.frills && features.spines) {
+      // Spinatryid: transverse outline (wider than long, ~1.3:1)
+      halfWidth = 80; halfLength = 60;
+    } else if (features.frills) {
+      // Atrypid: slightly taller-than-wide teardrop (~0.92:1)
+      halfWidth = 66; halfLength = 72;
+    }
+  }
 
   // Hinge fraction — what proportion of the top edge is straight.
   // For wing-shaped / conical shells, the hinge IS the cardinal axis (the
@@ -1054,9 +1061,22 @@ function unitOutline(theta, s) {
     const xFrac = Math.pow(Math.max(0, 1 - Math.pow(yAbs, n)), 1 / n);
     return [Math.sign(st || 1) * xFrac, -ct];
   }
-  // subcircular — slightly narrower toward the beak; matches the gently
-  // pentagonal real outline of Pseudoatrypa / Schizophoria.
-  const r = 0.94 + 0.06 * ((1 - ct) / 2);
+  // subcircular — TEARDROP / shield shape with a meaningful narrowing
+  // toward the beak. Real Pseudoatrypa / Spinatrypa / Theodossia have
+  // a noticeable taper at the posterior (where the umbo sits) and
+  // typically a slight anterior bulge (the widest part is anterior of
+  // the equator). The previous near-circular formula collapsed all
+  // taxa to the same outline — user critique noted "shells snap to
+  // rigid geometric primitives. It forces Spinatrypa and Pseudoatrypa
+  // into almost perfect circles."
+  let r;
+  if (ct >= 0) {
+    // Posterior half: shrink toward the beak (20% narrower at the umbo)
+    r = 1 - 0.20 * ct;
+  } else {
+    // Anterior half: slight outward bulge (widest just anterior of equator)
+    r = 1 + 0.04 * (-ct) * (1 - (-ct));
+  }
   return [r * st, -r * ct];
 }
 
@@ -1222,26 +1242,47 @@ function topSulcusMark(s) {
 }
 
 function topSpines(s) {
+  // Spinatryid spines arise from intersections of growth lamellae with
+  // radial ribs — a coherent grid pattern, NOT random dots. Previous
+  // Vogel-spiral placement disrupted the structural outline (user
+  // critique). New placement: at fixed radial fractions (lamellae) on a
+  // subset of the rib angles, concentrated on the anterior + lateral
+  // commissure where lamellae are thickest.
   const cx = 100, cy = 102;
   let out = "";
-  const N = 30;
-  for (let i = 0; i < N; i++) {
-    const a = i * 137.5 * Math.PI / 180;
-    const r = Math.sqrt((i + 0.5) / N) * 0.78;
-    const x = cx + r * Math.cos(a) * s.halfWidth;
-    const y = cy + r * Math.sin(a) * s.halfLength;
-    out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="#222"/>`;
+  // Spine angular range — skip the back ~80° around the hinge area
+  // (theta=0 is the beak / posterior; we span from theta ≈ 0.22π
+  // out around to theta ≈ 1.78π, i.e., 320° of the perimeter)
+  const thetaMin = Math.PI * 0.22;
+  const thetaMax = Math.PI * 1.78;
+  const ribCount = Math.max(8, s.ribCount || 16);
+  // Spines per lamella — every ~third rib, so they read as discrete
+  const spinesPerRing = Math.max(6, Math.min(14, Math.floor(ribCount / 3)));
+  // Three concentric lamella positions
+  const rings = [0.55, 0.74, 0.90];
+  for (const ringR of rings) {
+    for (let i = 0; i < spinesPerRing; i++) {
+      const tFrac = i / (spinesPerRing - 1);
+      const theta = thetaMin + tFrac * (thetaMax - thetaMin);
+      const [nx, ny] = unitOutline(theta, s);
+      const x = cx + nx * s.halfWidth * ringR;
+      const y = cy + ny * s.halfLength * ringR;
+      out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.4" fill="#222"/>`;
+    }
   }
-  // Perimeter spine stubs projecting outward (anterior half)
-  for (let i = 0; i < 5; i++) {
-    const tt = 0.55 + i * 0.2;
-    const theta = tt * Math.PI;
+  // Perimeter spine stubs projecting outward — the most prominent spines,
+  // visible as protrusions at the shell edge. Fewer than ring spines.
+  const NP = Math.max(5, Math.floor(spinesPerRing * 0.7));
+  for (let i = 0; i < NP; i++) {
+    const tFrac = i / (NP - 1);
+    // Slightly narrower angular range for perimeter stubs (lateral+anterior)
+    const theta = Math.PI * 0.35 + tFrac * Math.PI * 1.30;
     const [ex, ey] = topPerimeterAt(theta, s);
     const dx = ex - cx, dy = ey - cy;
     const len = Math.hypot(dx, dy);
     if (len < 1e-3) continue;
-    const ox = dx / len * 9, oy = dy / len * 9;
-    out += `<line x1="${ex.toFixed(1)}" y1="${ey.toFixed(1)}" x2="${(ex + ox).toFixed(1)}" y2="${(ey + oy).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
+    const ox = dx / len * 6.5, oy = dy / len * 6.5;
+    out += `<line x1="${ex.toFixed(1)}" y1="${ey.toFixed(1)}" x2="${(ex + ox).toFixed(1)}" y2="${(ey + oy).toFixed(1)}" stroke="#222" stroke-width="1.3" stroke-linecap="round"/>`;
   }
   return out;
 }

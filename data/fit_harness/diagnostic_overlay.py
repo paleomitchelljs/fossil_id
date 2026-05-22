@@ -122,6 +122,24 @@ SPECIMENS = [
                        hinge_pick="astrophic", surface_ribs="yes",
                        rib_density="medium", fold_pick="strong",
                        beak_pick="prominent", lateral_pick="smooth")),
+    # brach7 — strophomenid: very flat concavo-convex shell with fine
+    # radial ribs, wide strophic hinge, small subdued umbo, and a
+    # subtle geniculate bend at the anterior visible in side view.
+    # Likely Douvillina arcuata.
+    dict(name="brach7",
+         photo="images/unknown_misc/rockford/brach7.png",
+         tiles=dict(
+             dorsal   =(60,   60,  530, 480),
+             ventral  =(60,  380,  530, 620),
+             side     =(370, 250,  770, 410),
+             hinge    =(700,  70, 1140, 290),
+             anterior =(770, 400, 1140, 610),
+         ),
+         best_guess="Douvillina arcuata (geniculate strophomenid)",
+         answers=dict(outline_pick="subcircular", profile_pick="concavo-convex",
+                       hinge_pick="wide-strophic", surface_ribs="yes",
+                       rib_density="dense", fold_pick="none",
+                       beak_pick="subdued", lateral_pick="geniculate")),
 ]
 
 
