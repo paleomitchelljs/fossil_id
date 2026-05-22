@@ -96,10 +96,26 @@ class AnalyticShell:
         """Sample one valve surface on a (theta, phi) grid. Returns
         meshed arrays X, Y, Z (each n_theta × n_phi).
 
-        The surface is a TRUE DOME: the umbo is a single point at z = z_max
-        (where R(0) is small), and the margin lies in the commissure plane
-        z = 0. The dome height depends only on R(theta) — older shell has
-        higher z because more material accumulated."""
+        Dome model:
+            z(θ, φ) = z_max · sin(π · θ/θ_max) · cos(φ)^p · taper_correction
+
+        Key properties:
+          * z = 0 at θ = 0 (umbo) — so older shell sits ON the commissure
+            plane near the umbo, not raised. (A small umbo bulge can be
+            added separately if needed for prominent-beak forms.)
+          * z = 0 at θ = θ_max (margin) — silhouette tapers cleanly to the
+            mantle edge, no flat-top/vertical-wall artifact.
+          * z = 0 at φ = ±π/2 (cardinals) — the lateral extremities lie
+            on the commissure, so growth lines on the surface taper to
+            zero height as they approach the hinge.
+          * z = z_max at (θ_apex, φ = 0) — a SINGLE point apex, midway
+            between umbo and anterior margin (or shifted posteriorly for
+            pyramidal forms via apex_shift).
+
+        This replaces the previous z = f(R/R_max) model, which made the
+        apex a ridge along a contour of constant age — yielding the
+        boxy "telescoping cup" silhouette artifacts.
+        """
         v = self.dorsal if valve == "dorsal" else self.ventral
         thetas = np.linspace(0.0, self.theta_max, n_theta)
         phis = np.linspace(-np.pi / 2, np.pi / 2, n_phi)
@@ -111,26 +127,35 @@ class AnalyticShell:
         # Lateral hinge scaling (Ubukata): stretch toward cardinals only.
         S_x_factor = 1.0 + (self.S_x - 1.0) * np.abs(np.sin(PH))
         X = R * np.sin(PH) * S_x_factor
-        # Y in [0, R_max] — anterior at +y, cardinals (PH=±π/2) at y = 0.
         Y = R * np.cos(PH)
 
-        # Dome height: bell-curve in R/R_max so the peak sits midway
-        # between the umbo and the anterior margin (typical of biconvex
-        # brachiopods). z is zero at R=0 (umbo) and R=R_max (margin) and
-        # peaks at R = R_max·apex_pos. apex_pos=0.4 puts the dome peak
-        # slightly posterior of mid-shell; 0.6 puts it slightly anterior.
-        R_frac = R / max(R_max, 1e-6)
-        apex_pos = 0.5 - 0.3 * self.apex_shift  # 0.5 default, smaller for pyramidal
-        # Use a Gaussian centred at apex_pos with width adjusted by dome_p:
-        sigma = 0.35 / max(self.dome_p, 0.5)
-        Z = v["z_max"] * np.exp(-((R_frac - apex_pos) ** 2) / (2 * sigma ** 2))
-        # Ensure the margin is at z=0 (small offset cleanup)
-        Z = Z - v["z_max"] * np.exp(-((1.0 - apex_pos) ** 2) / (2 * sigma ** 2))
-        Z = np.maximum(Z, 0)
+        # Single-point apex dome.
+        # apex_shift in [0, 1) moves the apex posteriorly (toward the
+        # umbo) so pyramidal forms get a higher back and an extended
+        # anterior taper.
+        apex_pos = 0.5 - 0.3 * self.apex_shift   # 0.5 default → midway
+        # AP profile: zero at theta=0 and theta=theta_max; peak at apex_pos
+        # Use a power of sin so we can shift the peak: sin(π·(θ/θ_max)) with
+        # exponentiation skewed toward apex_pos via remapping.
+        t = TH / self.theta_max
+        # Skew t so the peak of sin(π·t_skewed) lies at t = apex_pos
+        t_skewed = np.where(
+            t < apex_pos,
+            0.5 * t / apex_pos,
+            0.5 + 0.5 * (t - apex_pos) / (1.0 - apex_pos)
+        )
+        ap_profile = np.sin(np.pi * t_skewed)
+        # Lateral profile: peak at phi=0, zero at phi=±π/2.
+        # The exponent p controls how concentrated the dome is along the
+        # midline (larger p → narrower ridge along anterior axis).
+        p = self.dome_p
+        lateral_profile = np.maximum(np.cos(PH), 0) ** p
+        Z = v["z_max"] * ap_profile * lateral_profile
 
         # Sulcus on the dorsal valve (Gaussian along midline). Strength
-        # ramps up with theta — sulcus is most pronounced near the margin.
-        # The sulcus DEPRESSES z toward the commissure on the dorsal valve.
+        # ramps up toward the margin (R/R_max → 1). The sulcus DEPRESSES
+        # z toward the commissure on the dorsal valve.
+        R_frac = R / max(R_max, 1e-6)
         sulcus_strength = R_frac ** 2
         sulcus_pattern = np.exp(-PH ** 2 / (2 * self.sulcus_sigma ** 2))
         if valve == "dorsal":
@@ -145,9 +170,11 @@ class AnalyticShell:
             sign = 1 if valve == "dorsal" else -1
             Z = Z + sign * self.rib_amp * rib_strength * rib_pattern * 0.5
 
-        # Ventral valve sits on the -z side of the commissure plane.
+        # Clamp dorsal to non-negative, ventral after sign flip.
         if valve == "ventral":
-            Z = -Z
+            Z = -np.maximum(Z, 0)
+        else:
+            Z = np.maximum(Z, 0)
 
         return X, Y, Z
 
