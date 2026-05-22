@@ -896,7 +896,14 @@ function answersToShape(answers) {
   // Posterior shift of the dorsal/ventral apex — drives the side view shape.
   // 0 = symmetric lemon (apex at mid-shell), positive = apex pulled back toward
   // the beak (teardrop/triangle shape, typical of pyramidal forms).
-  const apexShift = beakPreset.apexShift;
+  // For conical shells the dorsal/ventral apex sits AT the back wall
+  // (the interarea is the maximum-DV point), so the side-view curves
+  // descend monotonically from the back to the anterior tip — no
+  // interior parabolic peak. Push apexShift toward the back regardless
+  // of beak_pick (a conical shell with subdued beak still has its apex
+  // at the back). Brach3 red overlay confirms this geometry.
+  let apexShift = beakPreset.apexShift;
+  if (o === "conical") apexShift = Math.max(apexShift, 0.92);
 
   // Valve convexity (px) — DORSI-biconvex by default (atrypid/spiriferid norm).
   // Negative = concave valve. Tuned against the brach1/2/3 photos —
@@ -942,24 +949,20 @@ function answersToShape(answers) {
   };
 }
 
-// Half-rectangle fold profile, evaluated at normalized lateral position u
-// in [-1, 1]. Returns a non-negative px rise. The profile is:
-//   - zero for |u| outside (halfU + shoulderU)
-//   - smooth shoulder slope between halfU and halfU + shoulderU
-//   - flat top across |u| < halfU
-// This produces a near-rectangular commissure for "strong" (Cyrtospirifer-style)
-// and a softer arched bulge for "weak" (atrypid).
+// Fold profile — flat plateau across |u| < halfU, then a Gaussian
+// decay outside. The Gaussian's long tail prevents the silhouette
+// "bifurcating divot" that an abrupt cutoff produces when the fold
+// contribution drops to zero abruptly while the body envelope is still
+// descending. Gaussians never reach zero, so the fold smoothly merges
+// into the body slope.
+//
+// shoulderU = characteristic width of the Gaussian decay (1/e width).
 function foldRiseAt(u, s) {
   if (s.foldRise === 0) return 0;
   const au = Math.abs(u);
-  const halfU = s.foldHalfU;
-  const shoulderU = s.foldShoulderU;
-  if (au >= halfU + shoulderU) return 0;
-  if (au <= halfU) return s.foldRise;
-  const t = (au - halfU) / shoulderU;          // 0 at top → 1 at base
-  // smooth-step easing keeps the silhouette from looking jagged at the shoulder
-  const ease = 1 - (3 * t * t - 2 * t * t * t);
-  return s.foldRise * ease;
+  if (au <= s.foldHalfU) return s.foldRise;
+  const d = au - s.foldHalfU;
+  return s.foldRise * Math.exp(-Math.pow(d / s.foldShoulderU, 2));
 }
 
 function pointsToPath(pts, close = true) {
@@ -1006,15 +1009,15 @@ function unitOutline(theta, s) {
     // body is narrow (the interarea wall takes up most of the apparent
     // length when viewed from the front). Upper half: vertical sides at
     // full lateral extent like wing-shaped, but the lateral extent is
-    // already narrow (halfWidth 42 vs wing-shaped 90). Lower half:
-    // strong taper to a sharply pointed anterior — gives the pyramid-like
-    // teardrop of Conispirifer / Cyrtina / Pyramidspirifer.
+    // already narrow (halfWidth 40 vs wing-shaped 90). Lower half:
+    // rounded taper (exponent 0.65) to a blunted anterior — Conispirifer
+    // / Cyrtina / Pyramidspirifer aren't dagger-sharp at the front.
     let nx, ny;
     if (ct >= 0) {
       nx = Math.sign(st || 1);
       ny = -ct;
     } else {
-      const w = Math.pow(Math.max(0, 1 - Math.abs(ct)), 1.1);
+      const w = Math.pow(Math.max(0, 1 - Math.abs(ct)), 0.65);
       nx = Math.sign(st || 1) * w;
       ny = -ct;
     }
@@ -1246,6 +1249,11 @@ function topUmboDot(s) {
     const w = 4;
     return `<path d="M ${cx},${(beakY - h).toFixed(1)} L ${(cx - w).toFixed(1)},${(beakY + 1).toFixed(1)} L ${(cx + w).toFixed(1)},${(beakY + 1).toFixed(1)} Z" fill="${SK.beakCol}"/>`;
   }
+  // Conical (Conispirifer / Cyrtina / Pyramidspirifer) — the dorsal beak
+  // sits at the apex of the interarea wall, which is visible in SIDE view
+  // not top view. From above, the hinge line is the back edge with no
+  // bump above it. Skip the triangle.
+  if (s.outline === "conical") return "";
   // Strophic — small dorsal-beak triangle riding on top of the hinge bar.
   const hingeY = cy - s.halfLength * 0.95;
   const h = 7, w = 5;
@@ -1336,21 +1344,66 @@ function frontBodyShape(u, s) {
   return Math.max(0, 1 - au * au);
 }
 
+// frontFoldSplit — distribute the fold's rise between three places it
+// can visually manifest in the front view:
+//   * outerDorsal  : how much the dorsal silhouette rises at center
+//   * outerVentral : how much the ventral silhouette pulls UP at center
+//                    (the sulcus indent visible in the outer outline)
+//   * commissure   : how much the internal commissure line peaks at center
+//                    (the V where dorsal & ventral surfaces meet INSIDE)
+//
+// The user's red-overlay diagnostics showed that:
+//
+//  • For dome shells (Gypidula / atrypids / orthids — subcircular,
+//    pentagonal, elongate-oval) the OUTER silhouette is a smooth dome
+//    with no visible fold influence. The fold lives entirely in the
+//    INTERNAL commissure line — a clear V/peak inside the dome where
+//    dorsal and ventral surfaces meet at the midline.
+//
+//  • For triangular shells (wing-shaped, conical) the OUTER silhouette
+//    IS the commissure (no separate inner line). The dorsal outline
+//    rises into a central peak; the ventral outline pulls UP at center
+//    creating a W-shape with lateral lobes and a midline V-indent.
+function frontFoldSplit(s) {
+  if (s.outline === "wing-shaped") {
+    return { outerDorsal: 0.45, outerVentral: 0.80, commissure: 0.25 };
+  }
+  if (s.outline === "conical") {
+    // Lower outer-dorsal contribution — the conical's dorsal valve is
+    // small/flat (most of the DV depth lives in the ventral cone), so
+    // the fold's contribution to the dorsal silhouette is modest.
+    // Outer-ventral stays high — the sulcus carves a deep V into the
+    // bottom outline of the front view.
+    return { outerDorsal: 0.30, outerVentral: 0.85, commissure: 0.15 };
+  }
+  // Dome outlines — outer is essentially a smooth dome; the V-peak
+  // commissure line carries the full fold height.
+  return { outerDorsal: 0.05, outerVentral: 0.05, commissure: 1.20 };
+}
+
 function frontDorsalY(u, s) {
-  // Signed height of the dorsal valve silhouette above the equator
-  // (positive = above, toward smaller y in SVG space). Negative valveConv
-  // means a concave dorsal (concavo-convex profile) — handled by sign.
+  if (s.outline === "wing-shaped" || s.outline === "conical") {
+    // Triangular outlines: dorsal silhouette is a SINGLE smooth triangle.
+    // The fold's contribution lifts the peak; the body's convexity also
+    // contributes to the peak. There's no separate "fold spike on top of
+    // body wings" — the outer silhouette is one continuous descent from
+    // peak to wingtips. Matches the red-overlay diagnostic for brach3.
+    const peak = s.dorsalConv + foldRiseAt(0, s) * frontFoldSplit(s).outerDorsal;
+    return peak * frontBodyShape(u, s);
+  }
+  // Dome outlines: smooth dome + minimal fold contribution to outer
   const body = s.dorsalConv * frontBodyShape(u, s);
-  const fold = foldRiseAt(u, s) * 0.95;
+  const fold = foldRiseAt(u, s) * frontFoldSplit(s).outerDorsal;
   return body + fold;
 }
 
 function frontVentralY(u, s) {
-  // Signed depth of the ventral valve silhouette below the equator.
-  // The fold creates a sulcus on the ventral side (depression rising
-  // INTO the shell), so the fold's rise subtracts from the depth.
+  // Ventral side keeps the additive body+sulcus model on all outlines:
+  // for triangular shells the sulcus creates a visible W-shape (central
+  // V-indent flanked by lobes) on the bottom silhouette; for dome shells
+  // the contribution is small and the bottom stays a smooth half-dome.
   const body = s.ventralConv * frontBodyShape(u, s);
-  const fold = foldRiseAt(u, s) * 0.9;
+  const fold = foldRiseAt(u, s) * frontFoldSplit(s).outerVentral;
   return body - fold;
 }
 
@@ -1393,22 +1446,22 @@ function frontVentralCurve(s) {
 }
 
 function frontCommissureLine(s) {
-  // Commissure runs horizontally at cy unless the fold lifts it into a peak
-  // at center. With "strong" fold this is a tall half-rectangle (vertical
-  // shoulders + flat top), matching the deep commissure of fold-bearing
-  // spiriferids and atrypids. With ribs, the commissure also picks up a
-  // small zigzag — each rib creates a notch as it crosses the commissure.
+  // Internal commissure line — the V/peak inside the outer silhouette
+  // where the dorsal and ventral surfaces meet at the midline. For
+  // dome-bodied shells (atrypids, pentameroids) this is the PRIMARY
+  // way the fold reads on the front view because the outer silhouette
+  // stays a smooth dome. For triangular shells (wing-shaped/conical)
+  // the outer outline already carries the fold so the internal line
+  // is suppressed (commissureCoef ~0.2).
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
+  const split = frontFoldSplit(s);
   const N = 240;
   let d = "";
   for (let i = 0; i <= N; i++) {
     const u = (i / N - 0.5) * 2;
     const x = cx + u * halfW;
-    let y = cy - foldRiseAt(u, s) * 0.62;
-    // Rib zigzag — small vertical wiggle stamped onto the commissure line.
-    // Amplitude fades at the lateral edges (cos(u·π/2)² so the wiggle is
-    // strongest at center, smooth at the wingtips).
+    let y = cy - foldRiseAt(u, s) * split.commissure;
     if (s.ribCount > 0) {
       const ribness = Math.cos(u * Math.PI / 2) ** 2;
       y += s.ribAmp * 0.7 * ribness * Math.cos((u + 1) * Math.PI * s.ribCount / 2);
