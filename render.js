@@ -1285,38 +1285,35 @@ function frontCommissureLine(s) {
 }
 
 function frontGrowthArcs(s) {
-  // Arcs paralleling each valve's outline at smaller scales.
+  // Growth lines arc BACK and UP toward the hinge (where the dorsal apex is
+  // when seen end-on). Each line is a scaled-down copy of the dorsal valve
+  // outline, contracted toward the apex point. Older growth lines are
+  // narrower AND sit higher — they don't touch the lateral commissure.
+  //
+  // Geometric model: scale the dorsal silhouette toward the apex (0, cy −
+  // dorsalApex − foldApex). At scale (1−f), each point lies at
+  //   p_apex + (1−f) · (p_silhouette − p_apex)
+  // f=0 reproduces the silhouette (we skip it — it IS the outline); higher
+  // f yields tighter, higher arcs.
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
-  const N = 48;
+  const N = 64;
+  const dorsalApex = Math.max(0, s.dorsalConv);
+  const foldApex = foldRiseAt(0, s) * 0.62;
+  const y_apex = cy - dorsalApex - foldApex;
+  const K = 5;
   const arcs = [];
-
-  function valveArc(sign, k, K) {
-    // sign = -1 for dorsal (upper), +1 for ventral (lower)
+  for (let k = 1; k <= K; k++) {
     const f = k / (K + 1);
-    const conv = sign === -1 ? s.dorsalConv : s.ventralConv;
-    if (Math.abs(conv) < 5) return null;
     let d = "";
     for (let i = 0; i <= N; i++) {
       const u = (i / N - 0.5) * 2;
-      const x = cx + u * halfW * (1 - 0.1 * f);
-      let y = cy + sign * Math.abs(conv) * (1 - u * u) * (1 - f);
-      if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * (1 - u * u) * (1 - f);
-      if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * (1 - u * u) * (1 - f);
-      // Use the same half-rectangle fold profile, scaled down toward the
-      // interior of the valve (less rise on inner arcs).
-      const riseScale = sign === -1 ? 0.35 : 0.9;
-      y -= foldRiseAt(u, s) * riseScale * (1 - f);
+      const y_silhouette = cy - dorsalApex * (1 - u * u) - foldRiseAt(u, s) * 0.62;
+      const x = cx + (1 - f) * u * halfW;
+      const y = y_apex + (1 - f) * (y_silhouette - y_apex);
       d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
     }
-    return d;
-  }
-
-  for (let k = 1; k <= 3; k++) {
-    const dD = valveArc(-1, k, 3);
-    if (dD) arcs.push(`<path d="${dD}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`);
-    const dV = valveArc(+1, k, 3);
-    if (dV) arcs.push(`<path d="${dV}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`);
+    arcs.push(`<path d="${d}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`);
   }
   return arcs.join("");
 }
@@ -1540,15 +1537,41 @@ function svgSideView(answers) {
 
   let inner = "";
 
-  // ---- Growth lines (transverse C-arcs paralleling the commissure) ----
+  // ---- Growth lines (concentric arcs around the umbo) ----
+  //
+  // Each growth line is the silhouette outline scaled toward the umbo
+  // position (beakX, cy). Scaling by (1−f) gives nested C-curves opening
+  // toward the anterior — the same geometric model as the TOP view (where
+  // growth lines are concentric arcs centered on the beak).
+  //
+  // The newest growth line (k=1, smallest f) is closest to the silhouette
+  // outline; the oldest (k=K, largest f) is a tiny C around the umbo.
   if (s.hasGrowthLines && !s.hasFrills) {
-    for (let k = 1; k <= 6; k++) {
-      const xL = frontX - k * (halfL * 0.13);
-      if (xL < beakX + halfL * 0.20) continue;
-      const dY = dorsalY(xL) + 1;
-      const vY = ventralY(xL) - 1;
-      const bowX = xL + 4 + (6 - k) * 0.8;
-      inner += `<path d="M ${xL.toFixed(1)},${dY.toFixed(1)} Q ${bowX.toFixed(1)},${cy.toFixed(1)} ${xL.toFixed(1)},${vY.toFixed(1)}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`;
+    const umboX = beakX, umboY = cy;
+    const K = 6;
+    // Pre-build the silhouette as a list of (x, y) points so we can scale
+    // it directly toward the umbo, just like topGrowthArcs does it.
+    // We sample the dorsal/ventral curves and skip the rear interarea
+    // sliver so growth lines don't double up on the back wall.
+    for (let k = 1; k <= K; k++) {
+      const f = k / (K + 1);
+      let d = "";
+      // Traverse outline from a point past the interarea, around the
+      // anterior, and back. Use the top and bot arrays sampled earlier.
+      const samples = [];
+      // Forward along dorsal (skip the first few interarea-blend points)
+      for (let i = Math.round(top.length * 0.15); i < top.length; i++) samples.push(top[i]);
+      // Anterior commissure points (frontX with zigzag/straight edge)
+      if (zigzag.length) for (const p of zigzag) samples.push(p);
+      // Back along ventral
+      for (let i = bot.length - 1; i >= Math.round(bot.length * 0.15); i--) samples.push(bot[i]);
+      for (let i = 0; i < samples.length; i++) {
+        const [px, py] = samples[i];
+        const sx = umboX + (1 - f) * (px - umboX);
+        const sy = umboY + (1 - f) * (py - umboY);
+        d += (i === 0 ? "M " : " L ") + `${sx.toFixed(1)},${sy.toFixed(1)}`;
+      }
+      inner += `<path d="${d}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`;
     }
   }
 
