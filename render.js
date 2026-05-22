@@ -767,20 +767,50 @@ const RIB_SETTINGS = {
   dense:  { count: 34, amp: 1.5 }
 };
 
-// Fold strength presets. "strong" produces a near-half-rectangle
-// commissure (steep sides + a flat top) — the deep "tent" peak seen
-// in Cyrtospirifer whitneyi anterior views. "weak" is the gentler atrypid
-// fold — a broader, lower bulge.
-const FOLD_SETTINGS = {
-  none:   { rise: 0,  shoulderU: 0,    halfU: 0    },
-  // Atrypid weak fold — gentle bulge with a small plateau.
-  weak:   { rise: 14, shoulderU: 0.22, halfU: 0.06 },
-  // Cyrtospirifer-style deep fold: tall sharp central peak, narrow
-  // plateau. The dorsal valve picks up nearly the full rise so the
-  // anterior view shows the dramatic central commissure peak the
-  // brach3 photo confirms is the real morphology.
-  strong: { rise: 50, shoulderU: 0.20, halfU: 0.05 }
-};
+// Fold profile resolution — RICHER THAN THE USER-FACING SLIDER.
+//
+// The student picks one of {none, weak, strong} for fold strength,
+// but the actual shape of a "strong fold" depends on the outline
+// archetype. The same strength keyword maps to dramatically different
+// profiles:
+//
+//   - Wing-shaped (Cyrtospirifer) "strong"  → tall sharp central peak,
+//     narrow shoulder, near-half-rectangle plateau.
+//   - Conical (Conispirifer)      "strong"  → even narrower peak.
+//   - Subcircular (Gypidula, etc.) "strong" → BROAD smooth hump, more
+//     modest rise. Atrypid/pentameroid folds lift the entire midline
+//     gently, never producing a Cyrtospirifer-style spike — the fold
+//     IS the commissure curvature, not a separate spike on a dome.
+//
+// shape:
+//   * `rise`      — px height of the fold above the body envelope
+//   * `shoulderU` — width of the easing transition (smoothstep) from
+//                   plateau to body, in normalized u
+//   * `halfU`     — half-width of the flat plateau
+//   Total fold influence radius = halfU + shoulderU.
+function resolveFoldParams(f, o) {
+  if (f === "none") return { rise: 0, shoulderU: 0, halfU: 0 };
+
+  const isTriangular = o === "wing-shaped" || o === "conical";
+
+  if (isTriangular) {
+    // Sharp tall peak that emerges from a triangular body envelope.
+    // The fold itself is the dominant midline-height feature.
+    if (f === "strong") {
+      return o === "conical"
+        ? { rise: 55, shoulderU: 0.18, halfU: 0.04 }
+        : { rise: 50, shoulderU: 0.20, halfU: 0.05 };
+    }
+    return { rise: 16, shoulderU: 0.22, halfU: 0.06 };
+  }
+
+  // Subcircular / pentagonal / elongate-oval — the body itself is the
+  // dome, the fold adds a broad smooth midline rise.
+  // Strong: a Gypidula-style pronounced hump, NOT a spike.
+  // Weak: an atrypid-style subtle midline lift.
+  if (f === "strong") return { rise: 22, shoulderU: 0.55, halfU: 0.18 };
+  return { rise: 9, shoulderU: 0.42, halfU: 0.10 };
+}
 
 // Beak/umbo prominence presets — drive the side view's posterior shape.
 //   apexShift : where the dorsal/ventral apex sits along the AP axis
@@ -887,7 +917,7 @@ function answersToShape(answers) {
     dorsalConv = 62; ventralConv = 38;   // dorsibiconvex
   }
 
-  const foldPreset = FOLD_SETTINGS[f] || FOLD_SETTINGS.none;
+  const foldPreset = resolveFoldParams(f, o);
   const lateralPreset = LATERAL_PROFILE_SETTINGS[k] || LATERAL_PROFILE_SETTINGS.smooth;
   const ribCount = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0;
   const ribAmp   = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0;
