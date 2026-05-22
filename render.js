@@ -1651,6 +1651,243 @@ function svgSideView(answers) {
   </svg>`;
 }
 
+// ============================================================
+// Analytical morphospace renderer (port of data/fit_harness/model.py)
+// ============================================================
+//
+// Per-taxon fitted parameter tuples drive this renderer. Each tuple has:
+//   lat_half       lateral half-width (X in [-lat_half, +lat_half])
+//   p_ant, p_post  super-ellipse exponents for the anterior / posterior
+//                   halves of the outline (TOP view)
+//   apex_y         AP coord of the dome apex (in [-0.5, +0.5])
+//   dorsal_z       max dorsal valve height
+//   ventral_z      max ventral valve depth (positive number; valve sits at -z)
+//   dome_k         super-Gaussian exponent (sharpness of the dome plateau)
+//   sulcus_depth   strength of the ventral sulcus / dorsal fold
+//   sulcus_sigma   angular width of the sulcus Gaussian
+//
+// Coordinate frame matches data/fit_harness:
+//   X = lateral, Y = AP (umbo at -0.5, anterior at +0.5), Z = DV.
+// Renders into a 200×200 viewBox via _morphScale().
+
+const MORPH_SCALE = 180;           // px per unit (so range [-0.5, +0.5] → 90 px each side)
+const MORPH_CX = 100;
+const MORPH_CY = 100;
+
+function _morphScreen(x, y) {
+  // Convert normalised coords → (svgX, svgY) with anterior at bottom of view.
+  return [MORPH_CX + x * MORPH_SCALE, MORPH_CY - y * MORPH_SCALE];
+}
+
+function _morphTopOutline(p, n = 360) {
+  // Piecewise super-ellipse closed curve in normalised (X, Y) coords.
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * 2 * Math.PI;
+    const ct = Math.cos(t), st = Math.sin(t);
+    const exp = st >= 0 ? p.p_ant : p.p_post;
+    const inv = 2.0 / exp;
+    let x = p.lat_half * Math.sign(ct) * Math.pow(Math.abs(ct), inv);
+    let y = 0.5 * Math.sign(st) * Math.pow(Math.abs(st), inv);
+    // Sulcus indent on the anterior margin (pulls midline inward toward umbo)
+    if (p.sulcus_depth > 0 && st > 0) {
+      const phi = Math.atan2(x, Math.max(y, 1e-6));
+      const ant = st * st;
+      const mid = Math.exp(-(phi * phi) / (2 * p.sulcus_sigma * p.sulcus_sigma));
+      const pull = p.sulcus_depth * 0.15 * ant * mid;
+      const r = Math.hypot(x, y);
+      if (r > 1e-6) {
+        x -= pull * (x / r);
+        y -= pull * (y / r);
+      }
+    }
+    pts.push([x, y]);
+  }
+  return pts;
+}
+
+function _morphOutlineRadiusPolar(p, nLut = 400) {
+  // Precompute (sortedTheta, sortedR) for polar lookups from the dome apex.
+  const apexX = 0, apexY = p.apex_y;
+  const samples = [];
+  for (let i = 0; i < nLut; i++) {
+    const t = (i / nLut) * 2 * Math.PI;
+    const ct = Math.cos(t), st = Math.sin(t);
+    const exp = st >= 0 ? p.p_ant : p.p_post;
+    const inv = 2.0 / exp;
+    const x = p.lat_half * Math.sign(ct) * Math.pow(Math.abs(ct), inv);
+    const y = 0.5 * Math.sign(st) * Math.pow(Math.abs(st), inv);
+    const dx = x - apexX, dy = y - apexY;
+    samples.push([Math.atan2(dy, dx), Math.hypot(dx, dy)]);
+  }
+  samples.sort((a, b) => a[0] - b[0]);
+  const thetas = samples.map(s => s[0]);
+  const rs = samples.map(s => s[1]);
+  return (theta) => {
+    // Normalise theta to [-π, π]; binary search interpolation.
+    let q = ((theta + Math.PI) % (2 * Math.PI));
+    if (q < 0) q += 2 * Math.PI;
+    q -= Math.PI;
+    // Linear search good enough at this size; binary search if profiling matters.
+    let lo = 0, hi = thetas.length - 1;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (thetas[mid] <= q) lo = mid; else hi = mid;
+    }
+    const a = (q - thetas[lo]) / Math.max(thetas[hi] - thetas[lo], 1e-9);
+    return rs[lo] * (1 - a) + rs[hi] * a;
+  };
+}
+
+function _morphSurface(p, nS = 100, nT = 280) {
+  // Sample the dorsal+ventral valve surfaces. Returns {X, Y, Zd, Zv}
+  // as flat arrays of length nS*nT.
+  const k = Math.max(p.dome_k, 1.01);
+  const rOf = _morphOutlineRadiusPolar(p);
+  const N = nS * nT;
+  const X = new Float64Array(N), Y = new Float64Array(N);
+  const Zd = new Float64Array(N), Zv = new Float64Array(N);
+  let i = 0;
+  for (let si = 0; si < nS; si++) {
+    const s = si / (nS - 1);
+    for (let ti = 0; ti < nT; ti++) {
+      const t = (ti / nT) * 2 * Math.PI;
+      const ct = Math.cos(t), st = Math.sin(t);
+      const rMargin = rOf(t);
+      const r = s * rMargin;
+      const x = r * ct;
+      const y = p.apex_y + r * st;
+      X[i] = x; Y[i] = y;
+      const h = Math.pow(Math.max(1 - Math.pow(s, k), 0), 1 / k);
+      let sulcus = 0;
+      if (p.sulcus_depth > 0) {
+        const antFactor = Math.pow(Math.max(st, 0), 1.5);
+        const phi = Math.atan2(x, Math.max(y - p.apex_y, 1e-6));
+        const midFactor = Math.exp(-(phi * phi) / (2 * p.sulcus_sigma * p.sulcus_sigma));
+        sulcus = p.sulcus_depth * Math.pow(s, 1.5) * antFactor * midFactor;
+      }
+      Zd[i] = p.dorsal_z * (h + 0.5 * sulcus);
+      let zv = -p.ventral_z * (h - 1.2 * sulcus);
+      if (zv > 0) zv = 0;
+      Zv[i] = zv;
+      i++;
+    }
+  }
+  return { X, Y, Zd, Zv };
+}
+
+function _morphEnvelope(aArr, bArr, nBins) {
+  // Bin by `a`, return upper/lower envelope of `b`. Output is two arrays
+  // (svgPolyA, svgPolyB) tracing a closed polygon: forward along the
+  // upper envelope, backward along the lower.
+  let aMin = Infinity, aMax = -Infinity;
+  for (let i = 0; i < aArr.length; i++) {
+    if (aArr[i] < aMin) aMin = aArr[i];
+    if (aArr[i] > aMax) aMax = aArr[i];
+  }
+  if (!(aMax > aMin)) return [[], []];
+  const upper = new Float64Array(nBins).fill(-Infinity);
+  const lower = new Float64Array(nBins).fill(Infinity);
+  for (let i = 0; i < aArr.length; i++) {
+    let idx = Math.floor((aArr[i] - aMin) / (aMax - aMin) * (nBins - 1));
+    if (idx < 0) idx = 0; else if (idx >= nBins) idx = nBins - 1;
+    if (bArr[i] > upper[idx]) upper[idx] = bArr[i];
+    if (bArr[i] < lower[idx]) lower[idx] = bArr[i];
+  }
+  const centres = [], up = [], lo = [];
+  for (let i = 0; i < nBins; i++) {
+    if (Number.isFinite(upper[i]) && Number.isFinite(lower[i])) {
+      const c = aMin + (i + 0.5) / nBins * (aMax - aMin);
+      centres.push(c);
+      up.push(upper[i]);
+      lo.push(lower[i]);
+    }
+  }
+  const polyA = centres.concat(centres.slice().reverse());
+  const polyB = up.concat(lo.slice().reverse());
+  return [polyA, polyB];
+}
+
+function _morphPolyToSvgPath(polyA, polyB, screenFn) {
+  if (!polyA.length) return "";
+  let d = "";
+  for (let i = 0; i < polyA.length; i++) {
+    const [sx, sy] = screenFn(polyA[i], polyB[i]);
+    d += (i === 0 ? "M " : " L ") + `${sx.toFixed(1)},${sy.toFixed(1)}`;
+  }
+  return d + " Z";
+}
+
+// ---------- ANALYTICAL TOP VIEW ----------
+function svgAnalyticalTop(p) {
+  const outline = _morphTopOutline(p);
+  // TOP view: anterior at bottom (Y → +0.5), umbo at top (Y → -0.5).
+  let d = "";
+  for (let i = 0; i < outline.length; i++) {
+    const [sx, sy] = _morphScreen(outline[i][0], -outline[i][1]);  // flip Y
+    d += (i === 0 ? "M " : " L ") + `${sx.toFixed(1)},${sy.toFixed(1)}`;
+  }
+  d += " Z";
+  // Umbo marker at the back-most point of the outline (smallest -Y on screen)
+  let umboY = -Infinity, umboX = 0;
+  for (const [x, y] of outline) {
+    const [sx, sy] = _morphScreen(x, -y);
+    if (sy < umboY) umboY = sy;
+  }
+  // Skip umbo marker — outline is enough at this scale
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
+    <path d="${d}" fill="#fffef7" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ---------- ANALYTICAL FRONT VIEW ----------
+// Cross-section of the surface near the anterior margin (Y > 0.25).
+function svgAnalyticalFront(p) {
+  const { X, Y, Zd, Zv } = _morphSurface(p);
+  const xs = [], zs = [];
+  for (let i = 0; i < X.length; i++) {
+    if (Y[i] > 0.25) {
+      xs.push(X[i]); zs.push(Zd[i]);
+      xs.push(X[i]); zs.push(Zv[i]);
+    }
+  }
+  // Include outline points at z=0 to extend silhouette to lateral edges
+  const outline = _morphTopOutline(p, 200);
+  for (const [x, y] of outline) {
+    if (y > 0) {
+      xs.push(x); zs.push(0);
+    }
+  }
+  const [pa, pb] = _morphEnvelope(xs, zs, 70);    // wider bins → fewer empty bins
+  // Dorsal up in plot → flip Z to screen y
+  const d = _morphPolyToSvgPath(pa, pb, (a, b) => _morphScreen(a, b));
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
+    <path d="${d}" fill="#fffef7" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
+    <line x1="${(MORPH_CX - 90).toFixed(1)}" y1="${MORPH_CY}" x2="${(MORPH_CX + 90).toFixed(1)}" y2="${MORPH_CY}" stroke="#888" stroke-width="0.8" stroke-dasharray="3,2"/>
+  </svg>`;
+}
+
+// ---------- ANALYTICAL SIDE VIEW ----------
+function svgAnalyticalSide(p) {
+  const { X, Y, Zd, Zv } = _morphSurface(p);
+  const ys = [], zs = [];
+  for (let i = 0; i < Y.length; i++) {
+    ys.push(Y[i]); zs.push(Zd[i]);
+    ys.push(Y[i]); zs.push(Zv[i]);
+  }
+  const outline = _morphTopOutline(p, 200);
+  for (const [, y] of outline) {
+    ys.push(y); zs.push(0);
+  }
+  const [pa, pb] = _morphEnvelope(ys, zs, 90);
+  // SIDE: beak/umbo on left → flip Y to map -0.5 at left, +0.5 at right
+  const d = _morphPolyToSvgPath(pa, pb, (a, b) => _morphScreen(-a, b));
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
+    <path d="${d}" fill="#fffef7" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
+    <line x1="${(MORPH_CX - 90).toFixed(1)}" y1="${MORPH_CY}" x2="${(MORPH_CX + 90).toFixed(1)}" y2="${MORPH_CY}" stroke="#888" stroke-width="0.8" stroke-dasharray="3,2"/>
+  </svg>`;
+}
+
 // Shape sliders: discrete preset stops, one choice active at a time.
 function buildShapeSliders() {
   return [
@@ -1894,6 +2131,127 @@ function viewCalibrate(sid) {
   ]);
 }
 
+// ---------- Morphospace view: analytical (fitted-from-3D) silhouettes ----------
+//
+// Every taxon with a `shape: {...}` field in the manifest carries a
+// parameter tuple fitted by data/fit_harness/fit.py against a
+// photogrammetry mesh. This view renders the analytical silhouettes
+// (TOP / FRONT / SIDE) for every such taxon, alongside the parametric
+// silhouettes from the categorical trait sliders, alongside the first
+// available real specimen photo. Useful for spotting where the analytical
+// fit improves on (or diverges from) the parametric model.
+function viewMorphospace(sid) {
+  const fauna = faunaForSite(sid);
+  // Collect all taxa with a `shape` field
+  const shaped = [];
+  for (const group of fauna) {
+    for (const sub of group.subgroups) {
+      for (const taxon of sub.taxa) {
+        if (taxon.shape) shaped.push({ group, sub, taxon });
+      }
+    }
+  }
+  if (shaped.length === 0) {
+    return el("div", { class: "view" }, [
+      topBar({ title: "Morphospace", sid }),
+      siteSubBar(sid),
+      el("main", { class: "page" }, [
+        el("h2", { class: "page-title" }, "Morphospace"),
+        el("p", {}, "No taxa at this site have fitted shape parameters yet.")
+      ])
+    ]);
+  }
+
+  // Build a parametric `answers` object from each taxon's traits so we can
+  // render the parametric view alongside the analytical one. This is a
+  // best-effort mapping — categorical traits → slider values.
+  function answersFor(taxon) {
+    const t = taxon.traits || {};
+    const ans = {};
+    if (Array.isArray(t.outline) ? t.outline.includes("wing-shaped") : t.outline === "wing-shaped") ans.outline_pick = "wing-shaped";
+    else if (t.outline === "elongate-oval") ans.outline_pick = "elongate-oval";
+    else ans.outline_pick = "subcircular";
+    if (t.profile === "concavo-convex") ans.profile_pick = "concavo-convex";
+    else if (t.profile === "plano-convex") ans.profile_pick = "plano-convex";
+    else ans.profile_pick = "biconvex";
+    if (Array.isArray(t.hinge) ? t.hinge.includes("strophic") : t.hinge === "strophic") {
+      ans.hinge_pick = t.outline === "wing-shaped" ? "wide-strophic" : "narrow-strophic";
+    } else {
+      ans.hinge_pick = "astrophic";
+    }
+    const fold = Array.isArray(t.fold_sulcus) ? t.fold_sulcus[0] : t.fold_sulcus;
+    ans.fold_pick = fold === "strong" ? "strong" : fold === "weak" ? "weak" : "none";
+    if (t.surface_ribs === "yes") { ans.surface_ribs = "yes"; ans.rib_density = "dense"; }
+    if (t.surface_frills === "yes") ans.surface_frills = "yes";
+    if (t.surface_spines === "yes") ans.surface_spines = "yes";
+    return ans;
+  }
+
+  const sections = shaped.map(({ group, sub, taxon }) => {
+    const photo = (taxon.images && taxon.images[0])
+      ? imgPath(taxon, taxon.images[0], sid) : null;
+    const ans = answersFor(taxon);
+    return el("section", { class: "calibrate-section" }, [
+      el("h2", { class: "calibrate-h" }, [
+        el("em", {}, taxon.genus), " ", taxon.species
+      ]),
+      el("p", { class: "page-blurb" },
+        `Fitted from 3-D photogrammetry. ${sub.title}.`),
+      el("h3", { class: "calibrate-row-h" }, "Analytical (fitted from 3D mesh)"),
+      el("div", { class: "build-tri-wrap" }, [
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: svgAnalyticalTop(taxon.shape) }),
+          el("figcaption", {}, "Top")
+        ]),
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: svgAnalyticalFront(taxon.shape) }),
+          el("figcaption", {}, "Front")
+        ]),
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: svgAnalyticalSide(taxon.shape) }),
+          el("figcaption", {}, "Side")
+        ])
+      ]),
+      el("h3", { class: "calibrate-row-h" }, "Parametric (categorical traits)"),
+      el("div", { class: "build-tri-wrap" }, [
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: svgTopView(ans) }),
+          el("figcaption", {}, "Top")
+        ]),
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: svgFrontView(ans) }),
+          el("figcaption", {}, "Front")
+        ]),
+        el("figure", { class: "build-tri" }, [
+          el("div", { class: "tri-svg", html: svgSideView(ans) }),
+          el("figcaption", {}, "Side")
+        ])
+      ]),
+      photo
+        ? el("div", {}, [
+            el("h3", { class: "calibrate-row-h" }, "Real specimen"),
+            el("div", { class: "calibrate-images" },
+              [el("img", { src: photo, alt: `${taxon.genus} ${taxon.species}`,
+                            loading: "lazy", class: "calibrate-photo" })])
+          ])
+        : null
+    ]);
+  });
+
+  return el("div", { class: "view" }, [
+    topBar({ title: "Morphospace", sid }),
+    siteSubBar(sid),
+    el("main", { class: "page" }, [
+      el("h2", { class: "page-title" }, "Morphospace — fitted analytical shapes"),
+      el("p", { class: "page-blurb" },
+        "Each taxon below carries a parameter tuple fitted to photogrammetry from the Digital Atlas of Ancient Life. The analytical row shows silhouettes computed from that tuple alone; the parametric row shows what the categorical-trait sliders produce; the photo is included where one exists. See data/fit_harness/README.md for the fit methodology."),
+      ...sections,
+      el("p", { class: "more-link" },
+        el("a", { href: `${siteBase(sid)}/calibrate` }, "← Calibration view"))
+    ])
+  ]);
+}
+
 function viewJump(sid) {
   const fauna = faunaForSite(sid);
   const sections = fauna.map(group =>
@@ -2031,6 +2389,7 @@ function route() {
     else if (p[2] === "filter")             view = viewFilter(sid, parseAnswers(p.__query));
     else if (p[2] === "build")              view = viewBuild(sid, parseAnswers(p.__query));
     else if (p[2] === "calibrate")          view = viewCalibrate(sid);
+    else if (p[2] === "morphospace")        view = viewMorphospace(sid);
     else if (p[2] === "all")                view = viewAll(sid);
     else                                     view = viewNotFound();
   }

@@ -91,6 +91,11 @@ const FAUNA = [
           { genus: "Cyrtospirifer", species: "whitneyi", sites: ["rockford"],
             note: "Wide-winged; deep sulcus; many fine ribs.",
             traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
+            // Fitted from Spinocyrtia iowensis photogrammetry (DAAL PRI 70766) —
+            // closely related Devonian alate spiriferid.
+            shape: { lat_half: 0.711, p_ant: 1.664, p_post: 1.500, apex_y: -0.014,
+                     dorsal_z: 0.372, ventral_z: 0.300, dome_k: 1.853,
+                     sulcus_depth: 0.000, sulcus_sigma: 0.180 },
             images: [
               { file: "whitneyi_nathan_01.jpg", src: "nathan" },
               { file: "whitneyi_dave_01.jpg",   src: "dave"   },
@@ -160,6 +165,10 @@ const FAUNA = [
           { genus: "Pseudoatrypa", species: "devoniana", sites: ["rockford"],
             note: "Subcircular, dorsibiconvex; fine tubular ribs; concentric growth frills. By far the most abundant atrypid at Rockford (Day & Copper 1998 plate from Cerro Gordo Mbr at Hackberry Grove and Rockford Quarry).",
             traits: { surface_ribs: "yes", surface_frills: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            // Fitted from Atrypa devoniana photogrammetry (DAAL PRI 70763)
+            shape: { lat_half: 0.437, p_ant: 2.276, p_post: 2.187, apex_y: -0.004,
+                     dorsal_z: 0.260, ventral_z: 0.253, dome_k: 1.690,
+                     sulcus_depth: 0.105, sulcus_sigma: 0.286 },
             images: [
               { file: "devoniana_nathan_01.jpg",    src: "nathan"    },
               { file: "devoniana_dave_01.jpg",      src: "dave"      },
@@ -323,6 +332,11 @@ const FAUNA = [
           { genus: "Gypidula", species: "cornuta", sites: ["rockford"],
             note: "Globose; strong median fold; smooth or coarsely ribbed. Frasnian-aged form within the genus range (Treatise: *Gypidula* spans Silurian Telychian–Upper Devonian Frasnian).",
             traits: { surface_ribs: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: ["ribbed", "smooth"] },
+            // Fitted from Pentamerus oblongus photogrammetry (DAAL PRI 42138) —
+            // related Silurian pentamerid; *Gypidula* form factor is similar.
+            shape: { lat_half: 0.388, p_ant: 2.211, p_post: 1.799, apex_y: -0.076,
+                     dorsal_z: 0.260, ventral_z: 0.243, dome_k: 1.500,
+                     sulcus_depth: 0.126, sulcus_sigma: 0.207 },
             images: [
               { file: "cornuta_nathan_01.jpg", src: "nathan" }
             ] },
@@ -342,6 +356,13 @@ const FAUNA = [
           { genus: "Schizophoria", species: "iowensis", sites: ["rockford", "crawford"],
             note: "Medium-sized, dorsibiconvex; transversely ovate outline; short hinge with truncated cardinal extremities; moderately to highly developed fold + sulcus; fine costae. Givetian Cedar Valley Group → Frasnian Lime Creek Fm. Two morphotypes recognized — 'A' (subcircular) and 'B' (transverse, formerly *macfarlanii*). Stigall Rode 2005 synonymises *S. macfarlanii* and *S. iowaensis* (older spelling) into *S. iowensis*. The Stigall Rode plate shows panel 3 = *iowensis* lectotype, panels 5–7 = *macfarlanii* (now *iowensis* 'B').",
             traits: { surface_ribs: "yes", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
+            // Fitted from Hebertella occidentalis photogrammetry (DAAL PRI 70759).
+            // Hebertella is an Ordovician orthid; the form factor (transversely
+            // ovate biconvex orthid with sulcus) is morphologically close to
+            // Schizophoria's 'B' morphotype.
+            shape: { lat_half: 0.711, p_ant: 2.094, p_post: 1.827, apex_y: -0.134,
+                     dorsal_z: 0.372, ventral_z: 0.300, dome_k: 1.676,
+                     sulcus_depth: 0.303, sulcus_sigma: 0.180 },
             images: [
               { file: "iowensis_nathan_01.jpg",      src: "nathan"                  },
               { file: "iowensis_dave_01.jpg",        src: "dave"                    },

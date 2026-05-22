@@ -9,6 +9,7 @@ data/visualizer_test/svgs/
 data/visualizer_test/svgs_zigzag/
 data/visualizer_test/svgs_beak/
 data/visualizer_test/svgs_growth/
+data/visualizer_test/svgs_analytical/
 data/visualizer_test/__pycache__/
 
 # Fit harness — 75 MB of GLB photogrammetry from the Digital Atlas of
