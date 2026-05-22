@@ -19,3 +19,4 @@ data/3d_models/
 data/fit_harness/__pycache__/
 data/fit_harness/_param_svgs/
 data/fit_harness/_workflow_svgs/
+data/fit_harness/_diagnostic_svgs/
