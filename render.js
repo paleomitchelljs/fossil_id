@@ -1369,12 +1369,12 @@ function frontFoldSplit(s) {
     return { outerDorsal: 0.45, outerVentral: 0.80, commissure: 0.25 };
   }
   if (s.outline === "conical") {
-    // Lower outer-dorsal contribution — the conical's dorsal valve is
-    // small/flat (most of the DV depth lives in the ventral cone), so
-    // the fold's contribution to the dorsal silhouette is modest.
-    // Outer-ventral stays high — the sulcus carves a deep V into the
-    // bottom outline of the front view.
-    return { outerDorsal: 0.30, outerVentral: 0.85, commissure: 0.15 };
+    // Dorsal: modest fold contribution (the conical's dorsal valve is
+    // small/flat — most DV depth lives in the ventral cone seen in side
+    // view). Ventral: the sulcus carves a V into the bottom outline but
+    // the absolute depth has to match the foreshortened front-view
+    // ventral body (see frontVentralY's ventralScale).
+    return { outerDorsal: 0.30, outerVentral: 0.50, commissure: 0.15 };
   }
   // Dome outlines — outer is essentially a smooth dome; the V-peak
   // commissure line carries the full fold height.
@@ -1402,7 +1402,17 @@ function frontVentralY(u, s) {
   // for triangular shells the sulcus creates a visible W-shape (central
   // V-indent flanked by lobes) on the bottom silhouette; for dome shells
   // the contribution is small and the bottom stays a smooth half-dome.
-  const body = s.ventralConv * frontBodyShape(u, s);
+  //
+  // For conical shells the side-view ventral cone is tall (ventralConv=78
+  // gives Conispirifer its tall pyramidal profile), but the FRONT-view
+  // projection of that cone is much shallower — you're looking at the
+  // cone's lateral cross-section, not its full DV depth. Without
+  // foreshortening, the lobes of the W run far too deep and the sulcus
+  // V notch becomes hyper-prominent. The 0.35 scale here keeps the side
+  // view tall while shrinking the front-view ventral lobes to a depth
+  // that matches the brach3 anterior red overlay.
+  const ventralScale = s.outline === "conical" ? 0.35 : 1.0;
+  const body = s.ventralConv * ventralScale * frontBodyShape(u, s);
   const fold = foldRiseAt(u, s) * frontFoldSplit(s).outerVentral;
   return body - fold;
 }

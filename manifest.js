@@ -373,6 +373,7 @@ const FAUNA = [
               { file: "iowensis_dave_01.jpg",        src: "dave"                    },
               { file: "iowensis_eqmn_01.png",        src: "eqmn"                    },
               { file: "iowensis_jsm_01.png",         src: "jsm"                     },
+              { file: "iowensis_jsm_02.png",         src: "jsm"                     },
               { file: "iowensis_jsm_01.png",         src: "jsm", site: "crawford"   },
               { file: "iowensis_stigallrode_01.png", src: "stigallrode"             }
             ] },
