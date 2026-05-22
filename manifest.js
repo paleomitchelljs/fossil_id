@@ -107,6 +107,7 @@ const FAUNA = [
             note: "Globose, rounded outline; subdued ribs. Spiriferid by anatomy but the hinge is short — students often perceive it as astrophic.",
             traits: { surface_ribs: "yes", profile: "biconvex", hinge: ["strophic", "astrophic"], spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
+              { file: "hungerfordi_jsm_01.png",    src: "jsm"    },
               { file: "hungerfordi_nathan_01.jpg", src: "nathan" },
               { file: "hungerfordi_dave_01.jpg",   src: "dave"   },
               { file: "hungerfordi_eqmn_01.png",   src: "eqmn"   }
