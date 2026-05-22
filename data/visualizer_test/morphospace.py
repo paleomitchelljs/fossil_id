@@ -156,27 +156,39 @@ class AnalyticShell:
         X = R * np.sin(PH) * S_x_factor
         Y = R * np.cos(PH)
 
-        # Single-point apex dome.
-        # apex_shift in [0, 1) moves the apex posteriorly (toward the
-        # umbo) so pyramidal forms get a higher back and an extended
-        # anterior taper.
-        apex_pos = 0.5 - 0.3 * self.apex_shift   # 0.5 default → midway
-        # AP profile: zero at theta=0 and theta=theta_max; peak at apex_pos
-        # Use a power of sin so we can shift the peak: sin(π·(θ/θ_max)) with
-        # exponentiation skewed toward apex_pos via remapping.
+        # Super-Gaussian dome (power-law balloon).
+        #
+        # Standard Gaussian / sin profiles drop off too fast: lateral
+        # height collapses well before the cardinals, which produces
+        # spindly wings in the front view and erases the volumetric
+        # distinction between plump round shells and wide alate ones.
+        #
+        # Super-Gaussian: Z(u) ∝ (1 - |u|^k)^(1/k). For k = 2 this is
+        # an ellipse (standard parabolic dome). For k > 2 the profile
+        # stays near 1 across most of the unit interval and drops
+        # sharply only near |u| = 1 — a flat-topped balloon that holds
+        # its volume out to the lateral edges before falling steeply at
+        # the commissure. The exponent k = dome_p is exposed per-species
+        # so Cyrtospirifer can use a high k (broad plateau across the
+        # wings) while Pseudoatrypa uses a lower k (smoother dome).
+        #
+        # apex_shift moves the AP centre posteriorly for pyramidal forms.
+        apex_pos = 0.5 - 0.3 * self.apex_shift
         t = TH / self.theta_max
-        # Skew t so the peak of sin(π·t_skewed) lies at t = apex_pos
-        t_skewed = np.where(
+        # u_ap ∈ [0, 1]: normalised distance from apex_pos along the AP
+        # axis (1 at the umbo OR the anterior margin, whichever is farther).
+        u_ap = np.where(
             t < apex_pos,
-            0.5 * t / apex_pos,
-            0.5 + 0.5 * (t - apex_pos) / (1.0 - apex_pos)
+            (apex_pos - t) / max(apex_pos, 1e-6),
+            (t - apex_pos) / max(1.0 - apex_pos, 1e-6)
         )
-        ap_profile = np.sin(np.pi * t_skewed)
-        # Lateral profile: peak at phi=0, zero at phi=±π/2.
-        # The exponent p controls how concentrated the dome is along the
-        # midline (larger p → narrower ridge along anterior axis).
-        p = self.dome_p
-        lateral_profile = np.maximum(np.cos(PH), 0) ** p
+        u_ap = np.minimum(np.abs(u_ap), 1.0)
+        # u_lat ∈ [0, 1]: normalised distance from the midline along the
+        # perimeter (0 at midline, 1 at cardinals).
+        u_lat = np.minimum(np.abs(PH) / (np.pi / 2), 1.0)
+        k = max(self.dome_p, 1.01)
+        ap_profile = np.power(np.maximum(1.0 - np.power(u_ap, k), 0.0), 1.0 / k)
+        lateral_profile = np.power(np.maximum(1.0 - np.power(u_lat, k), 0.0), 1.0 / k)
         Z = v["z_max"] * ap_profile * lateral_profile
 
         # Commissure undulation (atrypid / spiriferid convention: dorsal
@@ -376,10 +388,10 @@ SPECIES = {
         name="Pseudoatrypa devoniana",
         shell=AnalyticShell(
             # r(1) = 1.8 · exp(4.2 - 0.4) = 1.8 · 44.7 ≈ 80
-            dorsal={"r0": 1.8, "C1": 4.2, "C2": -0.40, "z_max": 50},
-            ventral={"r0": 1.8, "C1": 4.2, "C2": -0.40, "z_max": 28},
+            dorsal={"r0": 1.8, "C1": 4.2, "C2": -0.40, "z_max": 58},
+            ventral={"r0": 1.8, "C1": 4.2, "C2": -0.40, "z_max": 32},
             S_x=1.05,            # nearly circular, no hinge stretch
-            dome_p=1.8,          # mid-range bell, mild lateral taper
+            dome_p=3.0,          # mild plateau — plump round shell
             rib_count=22,
             rib_amp=2.4,
             sulcus_depth=10.0,
@@ -399,7 +411,7 @@ SPECIES = {
             dorsal={"r0": 1.7, "C1": 4.30, "C2": -0.45, "z_max": 52},
             ventral={"r0": 1.7, "C1": 4.30, "C2": -0.45, "z_max": 28},
             S_x=1.85,            # wide alate hinge
-            dome_p=0.7,          # broad plateau — wings stay inflated until tips
+            dome_p=5.0,          # strong plateau — wings stay inflated until the wingtips
             rib_count=28,
             rib_amp=1.8,
             sulcus_depth=22.0,
@@ -416,10 +428,10 @@ SPECIES = {
         name="Schizophoria iowensis",
         shell=AnalyticShell(
             # r(1) = 2.0 · exp(4.0 - 0.35) ≈ 78
-            dorsal={"r0": 2.0, "C1": 4.00, "C2": -0.35, "z_max": 44},
-            ventral={"r0": 2.0, "C1": 4.00, "C2": -0.35, "z_max": 24},
+            dorsal={"r0": 2.0, "C1": 4.00, "C2": -0.35, "z_max": 42},
+            ventral={"r0": 2.0, "C1": 4.00, "C2": -0.35, "z_max": 22},
             S_x=1.15,            # very mild hinge widening
-            dome_p=1.6,
+            dome_p=2.2,          # gentle lens, slight plateau
             rib_count=32,
             rib_amp=1.0,
             sulcus_depth=6.0,
@@ -450,9 +462,11 @@ def regen_parametric_svgs():
     )
 
 
-# Fixed canvas limits so all analytical subplots use the same scale —
-# matches the 200 px viewBox used by the parametric SVGs.
-CANVAS = 110  # px half-extent; total view spans 220 px
+# Fixed canvas limits so all analytical subplots use the same scale.
+# Wide-alate shells reach |x| ≈ R_max · S_x — Cyrtospirifer at S_x=1.85
+# touches |x| ≈ 148, so the canvas needs at least that to fit the front
+# view without clipping the wingtips.
+CANVAS = 160  # px half-extent; total view spans 320 px
 
 
 def _frame(ax, xlim=None, ylim=None):
@@ -464,19 +478,29 @@ def _frame(ax, xlim=None, ylim=None):
 
 
 def plot_analytic_top(ax, shell: AnalyticShell):
-    """Top view: closed mantle margin + concentric growth lines around the
-    umbo. Anterior at bottom, umbo at top (matches the parametric view)."""
+    """Top view: closed mantle margin + concentric growth-line arcs across
+    the anterior. Anterior at bottom, umbo at top (matches the parametric
+    view)."""
     x, y = shell.closed_outline("dorsal")
-    # Closing the path back to the first point
     x_close = np.concatenate([x, [x[0]]])
     y_close = np.concatenate([y, [y[0]]])
     ax.fill(x_close, y_close, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
-    # Concentric growth lines = mantle margins at earlier ages — scaled-down
-    # copies of the closed outline.
+    # Growth lines: only the ANTERIOR ARC of each scaled-down margin.
+    # Real top-view photos show concentric arcs across the anterior; the
+    # posterior portion of each older loop either coincides with the hinge
+    # (strophic) or merges into the dense umbo region (astrophic), so it
+    # isn't drawn — drawing it would produce visually misleading enclosed
+    # circles.
+    n_phi = 240                    # must match closed_outline's default
+    n_front = (n_phi * 2) // 3     # number of front-arc samples in closed_outline
+    x_arc = x[:n_front]
+    y_arc = y[:n_front]
+    umbo_y = float(np.min(y))      # back-most point of the outline
     for f in (0.25, 0.45, 0.65, 0.85):
-        ax.plot(x * (1 - f), y * (1 - f), color="#888", linewidth=0.7)
-    # Tiny umbo marker at the back-most point of the outline
-    umbo_y = np.min(y)
+        gx = (1 - f) * x_arc
+        gy = umbo_y + (1 - f) * (y_arc - umbo_y)
+        ax.plot(gx, gy, color="#888", linewidth=0.7)
+    # Tiny umbo marker
     ax.plot([0], [umbo_y], marker="v", markersize=6, color="black")
     _frame(ax)
     ax.invert_yaxis()  # anterior at bottom of plot
