@@ -831,13 +831,17 @@ function answersToShape(answers) {
   const k = answers.lateral_pick || "smooth";
 
   // Top-view half-dimensions, in px (viewBox 200×200).
+  // Conical specimens (Conispirifer, Cyrtina, Pyramidspirifer) are squat
+  // when viewed from the side — the cone-shaped ventral valve packs the
+  // DV depth into a short AP length, so halfLength is small relative to
+  // the DV span the interarea + ventralConv produce.
   const halfWidth  = o === "wing-shaped"   ? 90
                   : o === "elongate-oval"  ? 46
-                  : o === "conical"        ? 42
+                  : o === "conical"        ? 40
                   : 70;
   const halfLength = o === "elongate-oval" ? 86
                   : o === "wing-shaped"    ? 60
-                  : o === "conical"        ? 78
+                  : o === "conical"        ? 50
                   : 70;
 
   // Hinge fraction — what proportion of the top edge is straight.
@@ -869,11 +873,16 @@ function answersToShape(answers) {
   // Rockford specimens have substantial DV depth across all outline types
   // (the previous defaults produced front/side views that were noticeably
   // shorter than the actual shells).
+  // Conical shells (Conispirifer / Cyrtina / Pyramidspirifer) flip the
+  // biconvex norm: the ventral valve is the deep cone with the interarea,
+  // the dorsal valve is a near-flat lid. So ventralConv >> dorsalConv.
   let dorsalConv, ventralConv;
   if (p === "concavo-convex") {
     dorsalConv = -24; ventralConv = 64;
   } else if (p === "plano-convex") {
     dorsalConv = 62; ventralConv = 6;
+  } else if (o === "conical") {
+    dorsalConv = 24; ventralConv = 78;   // ventro-biconvex cone
   } else {
     dorsalConv = 62; ventralConv = 38;   // dorsibiconvex
   }
