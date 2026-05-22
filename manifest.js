@@ -90,7 +90,7 @@ const FAUNA = [
         taxa: [
           { genus: "Cyrtospirifer", species: "whitneyi", sites: ["rockford"],
             note: "Wide-winged; deep sulcus; many fine ribs.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", interarea_form: "low", size: "medium", umbones: "ribbed" },
             // Fitted from Spinocyrtia iowensis photogrammetry (DAAL PRI 70766) —
             // closely related Devonian alate spiriferid.
             shape: { lat_half: 0.711, p_ant: 1.664, p_post: 1.500, apex_y: -0.014,
@@ -113,33 +113,34 @@ const FAUNA = [
             ] },
           { genus: "Platyrachella", species: "macbridei", sites: ["rockford"],
             note: "Wide hinge; sharp ribs; flatter ventral valve. Sometimes placed in Spinocyrtia.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "medium", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", interarea_form: "low", size: "medium", umbones: "ribbed" },
             images: [
               { file: "macbridei_nathan_01.jpg", src: "nathan" },
               { file: "macbridei_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Tenticospirifer", species: "sp.", sites: ["rockford"],
             note: "Tall, pyramidal ventral valve.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "conical", interarea_form: "pyramidal", size: "small", umbones: "ribbed" },
             images: [
               { file: "sp_dave_01.jpg", src: "dave" }
             ] },
           { genus: "Pyramidspirifer", species: "sp.", sites: ["rockford"],
             note: "Steep, pyramid-form spiriferid.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "conical", interarea_form: "pyramidal", size: "small", umbones: "ribbed" },
             images: [
               { file: "sp_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Conispirifer", species: "cyrtinaeformis", sites: ["rockford"],
             note: "Narrow, cone-shaped; coarse ribs. Often listed in PBDB as Tenticospirifer cyrtinaeformis.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "conical", interarea_form: "pyramidal", size: "small", umbones: "ribbed" },
             images: [
+              { file: "cyrtinaeformis_jsm_01.png",    src: "jsm"    },
               { file: "cyrtinaeformis_nathan_01.jpg", src: "nathan" },
               { file: "cyrtinaeformis_dave_01.jpg",   src: "dave"   }
             ] },
           { genus: "Cyrtina", species: "iowaensis", sites: ["rockford"],
             note: "Small, sharply pyramidal; punctate shell.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "conical", interarea_form: "pyramidal", size: "small", umbones: "ribbed" },
             images: [
               { file: "iowaensis_nathan_01.jpg", src: "nathan" },
               { file: "iowaensis_dave_01.jpg",   src: "dave"   }
@@ -150,11 +151,11 @@ const FAUNA = [
             images: [] },
           { genus: "Tylothyris", species: "sulcocostata", sites: ["rockford"],
             note: "Small spiriferid; sulcate fold with strong costae. PBDB: 3 records.",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "conical", interarea_form: "low", size: "small", umbones: "ribbed" },
             images: [] },
           { genus: "Tecnocyrtina", species: "johnsoni", sites: ["crawford"],
             note: "Late Givetian Cedar Valley spiriferid (Johnson, 1990). Small-to-medium; clear fold/sulcus; fine ribs. Associated with the Allanella allani Zone (D&C fig. 2).",
-            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", size: "small", umbones: "ribbed" },
+            traits: { surface_ribs: "yes", profile: "biconvex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "wing-shaped", interarea_form: "low", size: "small", umbones: "ribbed" },
             images: [] }
         ]
       },
@@ -767,6 +768,7 @@ const TRAITS = {
   spines:         { label: "Spines (productid)" },
   fold_sulcus:    { label: "Fold + sulcus" },
   outline:        { label: "Outline shape" },
+  interarea_form: { label: "Interarea form" },
   size:           { label: "Size" },
   umbones:        { label: "Umbones" },
   // Side-view traits — features that are essentially invisible from the
@@ -887,12 +889,15 @@ const QUESTIONS = [
   { id: "outline_pick", trait: "outline", core: true,
     text: "Which outline looks closest to your shell (top-down view, with the hinge at the back)?",
     figure: "ukyOutlines",
-    hint: "Pointed 'wings' to the sides → spiriferid. Tall and narrow → terebratulid. Round/squat → most other brachiopods.",
+    hint: "Pointed 'wings' to the sides → wide spiriferid. Narrow cone/pyramid → cone-spiriferid (Cyrtina, Conispirifer). Round/squat → most other brachiopods.",
     optionsLayout: "visual",
     options: [
       { value: "wing-shaped", setsTraitTo: "wing-shaped",
         label: "Winged (alate) — pointed extensions to the sides",
         svg: '<svg viewBox="0 0 130 80" xmlns="http://www.w3.org/2000/svg"><path d="M 65,8 L 73,18 L 128,12 L 105,50 L 65,72 L 25,50 L 2,12 L 57,18 Z" fill="white" stroke="black" stroke-width="2.5" stroke-linejoin="round"/></svg>' },
+      { value: "conical", setsTraitTo: "conical",
+        label: "Cone-shaped — narrow body, tall pyramidal back wall",
+        svg: '<svg viewBox="0 0 80 100" xmlns="http://www.w3.org/2000/svg"><path d="M 40,8 L 70,16 L 56,90 L 40,95 L 24,90 L 10,16 Z" fill="white" stroke="black" stroke-width="2.5" stroke-linejoin="round"/></svg>' },
       { value: "subcircular", setsTraitTo: "subcircular",
         label: "Round — about as wide as tall",
         svg: '<svg viewBox="0 0 100 80" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="40" rx="38" ry="32" fill="white" stroke="black" stroke-width="2.5"/></svg>' },

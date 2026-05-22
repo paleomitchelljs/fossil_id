@@ -833,17 +833,19 @@ function answersToShape(answers) {
   // Top-view half-dimensions, in px (viewBox 200×200).
   const halfWidth  = o === "wing-shaped"   ? 90
                   : o === "elongate-oval"  ? 46
+                  : o === "conical"        ? 42
                   : 70;
   const halfLength = o === "elongate-oval" ? 86
                   : o === "wing-shaped"    ? 60
+                  : o === "conical"        ? 78
                   : 70;
 
   // Hinge fraction — what proportion of the top edge is straight.
-  // For wing-shaped shells, the hinge IS the cardinal axis (the wing tips
-  // are the lateral extremes), so hingeFrac matches the full lateral
-  // extent. For subcircular strophic shells, the hinge truncates the
-  // upper portion of an otherwise round outline → hingeFrac < 1.
-  const hingeFrac  = h === "wide-strophic"   ? (o === "wing-shaped" ? 1.00 : 0.95)
+  // For wing-shaped / conical shells, the hinge IS the cardinal axis (the
+  // wing tips or interarea base mark the lateral extremes), so hingeFrac
+  // matches the full lateral extent. For subcircular strophic shells, the
+  // hinge truncates the upper portion of an otherwise round outline → hingeFrac < 1.
+  const hingeFrac  = h === "wide-strophic"   ? ((o === "wing-shaped" || o === "conical") ? 1.00 : 0.95)
                   : h === "narrow-strophic" ? 0.55
                   : 0;
   const beakPreset = BEAK_SETTINGS[b] || BEAK_SETTINGS.moderate;
@@ -960,6 +962,25 @@ function unitOutline(theta, s) {
     return [nx, ny];
   }
   if (s.outline === "elongate-oval") return [st, -ct];
+  if (s.outline === "conical") {
+    // Cone-spiriferid plan view — the hinge IS the cardinal axis but the
+    // body is narrow (the interarea wall takes up most of the apparent
+    // length when viewed from the front). Upper half: vertical sides at
+    // full lateral extent like wing-shaped, but the lateral extent is
+    // already narrow (halfWidth 42 vs wing-shaped 90). Lower half:
+    // strong taper to a sharply pointed anterior — gives the pyramid-like
+    // teardrop of Conispirifer / Cyrtina / Pyramidspirifer.
+    let nx, ny;
+    if (ct >= 0) {
+      nx = Math.sign(st || 1);
+      ny = -ct;
+    } else {
+      const w = Math.pow(Math.max(0, 1 - Math.abs(ct)), 1.1);
+      nx = Math.sign(st || 1) * w;
+      ny = -ct;
+    }
+    return [nx, ny];
+  }
   if (s.outline === "pentagonal") {
     // Pentagonal / subtriangular — narrow toward the beak, broadest at the
     // anterior-flanks, with straight-ish sides. Common in rhynchonellids
@@ -1230,6 +1251,70 @@ function svgTopView(answers) {
 //     plate B5 of Pseudoatrypa.
 //   * The commissure becomes uniplicate (peaks at center).
 
+// ============================================================
+// Front-view silhouette templates (per outline archetype)
+// ============================================================
+// The front view's silhouette is built as the sum of two contributions:
+//   - a valve "body" envelope that depends on the outline archetype
+//   - the fold (or sulcus, on the ventral side) that creates the central
+//     commissure peak
+//
+// Earlier the renderer had only one body model — a parabolic dome
+// `valveConv * (1 - u²)` — which works for atrypid/orthid subcircular
+// shells where the body IS a low dome and the fold is a mild rise on
+// top. But for alate spiriferids (Cyrtospirifer-style) and conical
+// spirifers (Conispirifer / Cyrtina / Pyramidspirifer) the body is
+// fundamentally triangular — wings sweep DOWN from a central peak with
+// no underlying dome. Applying the dome formula there produces the
+// wrong silhouette: a wide low arch with a narrow cone glued on top.
+//
+// `frontBodyShape(u, s)` returns a unit-amplitude shape factor (0..1)
+// for the body at lateral position u ∈ [-1, 1]:
+//   - subcircular / pentagonal / elongate-oval → parabolic dome (1 - u²)
+//   - wing-shaped → linear triangle (1 - |u|), wings descend to wingtips
+//   - conical → narrow triangle, shape drops faster than linear
+//
+// The valve convexity (px) then scales this shape, and the fold is
+// added on top with full weight (the fold's own narrow rise creates
+// the central peak).
+
+function frontBodyShape(u, s) {
+  const au = Math.abs(u);
+  if (s.outline === "wing-shaped") {
+    // Linear taper — triangular wings. Slightly convex (0.95 exponent)
+    // so the wings have a faint curve rather than being pure straight
+    // lines, which reads better as a real shell.
+    return Math.max(0, 1 - Math.pow(au, 0.95));
+  }
+  if (s.outline === "conical") {
+    // Narrower than wing-shaped (the body itself is narrow) and the
+    // taper is sharper, so most of the silhouette rises into the
+    // central pyramidal peak. The halfWidth is also smaller, so this
+    // shape factor controls only the relative curvature.
+    return Math.max(0, 1 - Math.pow(au, 1.3));
+  }
+  // Dome model — subcircular / pentagonal / elongate-oval
+  return Math.max(0, 1 - au * au);
+}
+
+function frontDorsalY(u, s) {
+  // Signed height of the dorsal valve silhouette above the equator
+  // (positive = above, toward smaller y in SVG space). Negative valveConv
+  // means a concave dorsal (concavo-convex profile) — handled by sign.
+  const body = s.dorsalConv * frontBodyShape(u, s);
+  const fold = foldRiseAt(u, s) * 0.95;
+  return body + fold;
+}
+
+function frontVentralY(u, s) {
+  // Signed depth of the ventral valve silhouette below the equator.
+  // The fold creates a sulcus on the ventral side (depression rising
+  // INTO the shell), so the fold's rise subtracts from the depth.
+  const body = s.ventralConv * frontBodyShape(u, s);
+  const fold = foldRiseAt(u, s) * 0.9;
+  return body - fold;
+}
+
 function frontDorsalCurve(s) {
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
@@ -1238,12 +1323,7 @@ function frontDorsalCurve(s) {
   for (let i = 0; i <= N; i++) {
     const u = (i / N - 0.5) * 2;          // -1..1
     const x = cx + u * halfW;
-    let y = cy - s.dorsalConv * (1 - u * u);
-    // Dorsal FOLD lifts the apex sharply above the dome at the midline.
-    // For Cyrtospirifer-style deep folds, the central peak is dramatically
-    // taller than the lateral dome — so the fold contribution is the major
-    // driver of midline height, not a tiny add-on.
-    y -= foldRiseAt(u, s) * 0.95;
+    let y = cy - frontDorsalY(u, s);
     if (s.ribCount > 0) {
       const ribness = Math.cos(u * Math.PI / 2) ** 2;
       const phase = (u + 1) * Math.PI * s.ribCount / 2;
@@ -1262,11 +1342,7 @@ function frontVentralCurve(s) {
   for (let i = 0; i <= N; i++) {
     const u = (i / N - 0.5) * 2;
     const x = cx + u * halfW;
-    let y = cy + s.ventralConv * (1 - u * u);
-    // Half-rectangle sulcus on the ventral valve — the lower outline lifts
-    // UP at center (depression cuts into the shell). Takes the bulk of the
-    // commissure rise.
-    y -= foldRiseAt(u, s) * 0.9;
+    let y = cy + frontVentralY(u, s);
     if (s.ribCount > 0) {
       const ribness = Math.cos(u * Math.PI / 2) ** 2;
       const phase = (u + 1) * Math.PI * s.ribCount / 2;
@@ -1310,18 +1386,11 @@ function frontGrowthArcs(s) {
   // when seen end-on). Each line is a scaled-down copy of the dorsal valve
   // outline, contracted toward the apex point. Older growth lines are
   // narrower AND sit higher — they don't touch the lateral commissure.
-  //
-  // Geometric model: scale the dorsal silhouette toward the apex (0, cy −
-  // dorsalApex − foldApex). At scale (1−f), each point lies at
-  //   p_apex + (1−f) · (p_silhouette − p_apex)
-  // f=0 reproduces the silhouette (we skip it — it IS the outline); higher
-  // f yields tighter, higher arcs.
   const cx = 100, cy = 100;
   const halfW = s.halfWidth;
   const N = 64;
-  const dorsalApex = Math.max(0, s.dorsalConv);
-  const foldApex = foldRiseAt(0, s) * 0.62;
-  const y_apex = cy - dorsalApex - foldApex;
+  const dorsalApex = Math.max(0, s.dorsalConv) + foldRiseAt(0, s) * 0.95;
+  const y_apex = cy - dorsalApex;
   const K = 5;
   const arcs = [];
   for (let k = 1; k <= K; k++) {
@@ -1329,7 +1398,7 @@ function frontGrowthArcs(s) {
     let d = "";
     for (let i = 0; i <= N; i++) {
       const u = (i / N - 0.5) * 2;
-      const y_silhouette = cy - dorsalApex * (1 - u * u) - foldRiseAt(u, s) * 0.62;
+      const y_silhouette = cy - frontDorsalY(u, s);
       const x = cx + (1 - f) * u * halfW;
       const y = y_apex + (1 - f) * (y_silhouette - y_apex);
       d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
@@ -1353,10 +1422,11 @@ function frontFrills(s) {
     let d = "";
     for (let i = 0; i <= N; i++) {
       const u = (i / N - 0.5) * 2;
+      const shape = frontBodyShape(u, s);
       const x = cx + u * halfW * (1 - 0.12 * f);
-      let y = cy + sign * Math.abs(conv) * (1 - u * u) * (1 - f);
-      if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * (1 - u * u) * (1 - f);
-      if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * (1 - u * u) * (1 - f);
+      let y = cy + sign * Math.abs(conv) * shape * (1 - f);
+      if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * shape * (1 - f);
+      if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * shape * (1 - f);
       const riseScale = sign === -1 ? 0.95 : 0.9;
       y -= foldRiseAt(u, s) * riseScale * (1 - f);
       d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
@@ -1933,6 +2003,7 @@ function buildShapeSliders() {
     { qid: "outline_pick", label: "Outline",
       stops: [
         { value: "wing-shaped",   short: "Winged" },
+        { value: "conical",       short: "Cone" },
         { value: "subcircular",   short: "Round" },
         { value: "pentagonal",    short: "Pentag" },
         { value: "elongate-oval", short: "Elongate" }
@@ -2209,18 +2280,24 @@ function viewMorphospace(sid) {
     const t = taxon.traits || {};
     const ans = {};
     if (Array.isArray(t.outline) ? t.outline.includes("wing-shaped") : t.outline === "wing-shaped") ans.outline_pick = "wing-shaped";
+    else if (t.outline === "conical") ans.outline_pick = "conical";
+    else if (t.outline === "pentagonal") ans.outline_pick = "pentagonal";
     else if (t.outline === "elongate-oval") ans.outline_pick = "elongate-oval";
     else ans.outline_pick = "subcircular";
     if (t.profile === "concavo-convex") ans.profile_pick = "concavo-convex";
     else if (t.profile === "plano-convex") ans.profile_pick = "plano-convex";
     else ans.profile_pick = "biconvex";
     if (Array.isArray(t.hinge) ? t.hinge.includes("strophic") : t.hinge === "strophic") {
-      ans.hinge_pick = t.outline === "wing-shaped" ? "wide-strophic" : "narrow-strophic";
+      ans.hinge_pick = (t.outline === "wing-shaped" || t.outline === "conical") ? "wide-strophic" : "narrow-strophic";
     } else {
       ans.hinge_pick = "astrophic";
     }
     const fold = Array.isArray(t.fold_sulcus) ? t.fold_sulcus[0] : t.fold_sulcus;
     ans.fold_pick = fold === "strong" ? "strong" : fold === "weak" ? "weak" : "none";
+    // interarea_form drives beak_pick — pyramidal interarea = tall back wall
+    if (t.interarea_form === "pyramidal") ans.beak_pick = "pyramidal";
+    else if (t.interarea_form === "low") ans.beak_pick = "moderate";
+    else if (t.interarea_form === "absent") ans.beak_pick = "moderate";
     if (t.surface_ribs === "yes") { ans.surface_ribs = "yes"; ans.rib_density = "dense"; }
     if (t.surface_frills === "yes") ans.surface_frills = "yes";
     if (t.surface_spines === "yes") ans.surface_spines = "yes";

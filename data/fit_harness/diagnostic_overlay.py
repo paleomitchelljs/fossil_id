@@ -65,11 +65,11 @@ SPECIMENS = [
              hinge    =(880,   0, 1380, 400),
              anterior =(880, 400, 1380, 818),
          ),
-         best_guess="Cyrtospirifer whitneyi (alate spiriferid)",
-         answers=dict(outline_pick="wing-shaped", profile_pick="biconvex",
+         best_guess="Conispirifer cyrtinaeformis (cone-shaped spiriferid)",
+         answers=dict(outline_pick="conical", profile_pick="biconvex",
                        hinge_pick="wide-strophic", surface_ribs="yes",
                        rib_density="dense", fold_pick="strong",
-                       beak_pick="prominent", lateral_pick="smooth")),
+                       beak_pick="pyramidal", lateral_pick="smooth")),
 ]
 
 
