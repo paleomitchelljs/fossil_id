@@ -773,8 +773,12 @@ const RIB_SETTINGS = {
 // fold — a broader, lower bulge.
 const FOLD_SETTINGS = {
   none:   { rise: 0,  shoulderU: 0,    halfU: 0    },
-  weak:   { rise: 10, shoulderU: 0.20, halfU: 0.05 },
-  strong: { rise: 32, shoulderU: 0.16, halfU: 0.14 }
+  weak:   { rise: 9,  shoulderU: 0.20, halfU: 0.05 },
+  // Re-calibrated against the 3D meshes (Spinocyrtia, Mediospirifer,
+  // Megakozlowskiella, Mucrospirifer): typical spiriferid folds show
+  // moderate rises, not the half-shell-height extremes the older value
+  // produced.
+  strong: { rise: 22, shoulderU: 0.18, halfU: 0.12 }
 };
 
 // Beak/umbo prominence presets — drive the side view's posterior shape.
@@ -834,7 +838,11 @@ function answersToShape(answers) {
                   : 70;
 
   // Hinge fraction — what proportion of the top edge is straight.
-  const hingeFrac  = h === "wide-strophic"   ? 0.95
+  // For wing-shaped shells, the hinge IS the cardinal axis (the wing tips
+  // are the lateral extremes), so hingeFrac matches the full lateral
+  // extent. For subcircular strophic shells, the hinge truncates the
+  // upper portion of an otherwise round outline → hingeFrac < 1.
+  const hingeFrac  = h === "wide-strophic"   ? (o === "wing-shaped" ? 1.00 : 0.95)
                   : h === "narrow-strophic" ? 0.55
                   : 0;
   const beakPreset = BEAK_SETTINGS[b] || BEAK_SETTINGS.moderate;
@@ -854,12 +862,21 @@ function answersToShape(answers) {
   const apexShift = beakPreset.apexShift;
 
   // Valve convexity (px) — DORSI-biconvex by default (atrypid/spiriferid norm).
-  // Negative = concave valve. Values are tuned so a 200×200 viewBox shows a
-  // shell that fills most of the vertical extent in front view.
+  // Negative = concave valve. Wing-shaped (alate) shells are systematically
+  // flatter than subcircular ones in the meshes, so we use lower defaults
+  // for them.
   let dorsalConv, ventralConv;
-  if (p === "concavo-convex")    { dorsalConv = -22; ventralConv = 58; }
-  else if (p === "plano-convex") { dorsalConv =  54; ventralConv =  6; }
-  else                           { dorsalConv =  52; ventralConv = 30; }   // dorsibiconvex
+  if (p === "concavo-convex") {
+    dorsalConv = -22; ventralConv = 58;
+  } else if (p === "plano-convex") {
+    dorsalConv = 54; ventralConv = 6;
+  } else if (o === "wing-shaped") {
+    // Alate shells are typically low-profile; the meshes show ~60% of
+    // subcircular dorsibiconvex depth.
+    dorsalConv = 36; ventralConv = 22;
+  } else {
+    dorsalConv = 52; ventralConv = 30;   // dorsibiconvex
+  }
 
   const foldPreset = FOLD_SETTINGS[f] || FOLD_SETTINGS.none;
   const lateralPreset = LATERAL_PROFILE_SETTINGS[k] || LATERAL_PROFILE_SETTINGS.smooth;
@@ -925,34 +942,39 @@ function unitOutline(theta, s) {
   // theta = 0 at beak, π at anterior commissure; CW (right at π/2).
   const ct = Math.cos(theta), st = Math.sin(theta);
   if (s.outline === "wing-shaped") {
-    // Alate (winged) outline. The hinge line is straight across the top
-    // (added separately by applyHingeStraightening + topHingeLine). The
-    // body tapers smoothly from the wingtips (at the hinge line) down to
-    // a rounded anterior point. We design this as:
-    //   * Upper outline (ct ≥ 0): rises near-vertically from each wingtip to
-    //     just below the hinge line, then runs nearly horizontal across the
-    //     hinge. This gets cleanly flattened by applyHingeStraightening.
-    //   * Lower outline: kite-like taper to an anterior commissure that is
-    //     broader than a point (ny=-ct hits -1 at the anterior).
-    const yAbs = Math.abs(ct);
+    // Alate (winged) outline — the hinge IS the cardinal axis. The base
+    // outline is rectangular on the upper half (vertical sides at the
+    // full lateral extent, from the equator up to the hinge line) and
+    // tapers anteriorly on the lower half. applyHingeStraightening then
+    // pulls the top of the rectangle onto the flat hinge line.
     let nx, ny;
     if (ct >= 0) {
-      // Upper outline: superellipse with n=3 — wide upper band that curves
-      // into the wingtips. Subsequent hinge straightening pulls the top
-      // 25% onto the flat hinge line so the wingtip transitions stay smooth.
-      const n = 3;
-      const w = Math.pow(Math.max(0, 1 - Math.pow(yAbs, n)), 1 / n);
-      nx = Math.sign(st || 1) * w;
+      // Upper / hinge zone: vertical sides at x = ±1 from the equator
+      // (ct = 0, ny = 0) up to the beak (ct = 1, ny = -1).
+      nx = Math.sign(st || 1);
       ny = -ct;
     } else {
-      // Lower outline: kite-like taper. Power 0.7 keeps the anterior rounded.
-      const w = Math.pow(Math.max(0, 1 - yAbs), 0.7);
+      // Lower / anterior zone: kite-like taper to the anterior point.
+      const w = Math.pow(Math.max(0, 1 - Math.abs(ct)), 0.7);
       nx = Math.sign(st || 1) * w;
       ny = -ct;
     }
     return [nx, ny];
   }
   if (s.outline === "elongate-oval") return [st, -ct];
+  if (s.outline === "pentagonal") {
+    // Pentagonal / subtriangular — narrow toward the beak, broadest at the
+    // anterior-flanks, with straight-ish sides. Common in rhynchonellids
+    // (Trichorhynchia) and some atrypids. Modeled as a superellipse with
+    // n=1.4 (between diamond at n=1 and ellipse at n=2), shifted so the
+    // widest point sits at y ≈ +0.3.
+    const n = 1.4;
+    const y_shift = 0.30;
+    const yc = -ct - y_shift;            // shift the centre of the shape
+    const yAbs = Math.min(Math.abs(yc), 1);
+    const xFrac = Math.pow(Math.max(0, 1 - Math.pow(yAbs, n)), 1 / n);
+    return [Math.sign(st || 1) * xFrac, -ct];
+  }
   // subcircular — slightly narrower toward the beak; matches the gently
   // pentagonal real outline of Pseudoatrypa / Schizophoria.
   const r = 0.94 + 0.06 * ((1 - ct) / 2);
@@ -1617,20 +1639,38 @@ function svgSideView(answers) {
   }
 
   // ---- Beak / interarea overlay ----
+  //
+  // The back interarea has to read as distinctly different from the
+  // anterior commissure (which may have rib-zigzag teeth that look like
+  // a similar trapezoidal protrusion). We do three things to disambiguate:
+  //   - the interarea is drawn DARKER and with PARALLEL HATCH LINES
+  //     (interareas in real shells are striated)
+  //   - the interarea extends FURTHER posteriorly than the rib teeth
+  //     extend anteriorly
+  //   - a small "← P" posterior label sits just behind the interarea
   let overlay = "";
   if (s.interareaH > 0) {
-    // Interarea: the flat triangular back wall. We render it as a small
-    // trapezoid sitting on the posterior end so it reads as a real wall,
-    // not just a vertical line. The wall slopes back slightly (its top
-    // tilts a few px posteriorly to suggest its real-life angle).
-    const tilt = 6;
+    // Larger tilt — the interarea looks like a real flat wall, deeper than
+    // any rib-zigzag teeth at the anterior.
+    const tilt = 10;
     const x0 = beakX, y0a = interareaTop, y0b = interareaBot;
     const x1 = beakX - tilt;
-    overlay += `<path d="M ${x0.toFixed(1)},${y0a.toFixed(1)} L ${x1.toFixed(1)},${(y0a - 1).toFixed(1)} L ${x1.toFixed(1)},${(y0b + 1).toFixed(1)} L ${x0.toFixed(1)},${y0b.toFixed(1)} Z" fill="#e8e3d4" stroke="${SK.hingeCol}" stroke-width="1.4"/>`;
-    // Delthyrium triangle on the interarea
+    // Wall fill (paler than shell so it reads as a separate surface)
+    overlay += `<path d="M ${x0.toFixed(1)},${y0a.toFixed(1)} L ${x1.toFixed(1)},${(y0a - 1).toFixed(1)} L ${x1.toFixed(1)},${(y0b + 1).toFixed(1)} L ${x0.toFixed(1)},${y0b.toFixed(1)} Z" fill="#cdc6b1" stroke="${SK.hingeCol}" stroke-width="1.6"/>`;
+    // Vertical hatching lines on the interarea — real interareas are
+    // striated by growth lines perpendicular to the hinge.
+    const nHatch = 5;
+    for (let i = 1; i < nHatch; i++) {
+      const hx = x0 + (x1 - x0) * (i / nHatch);
+      overlay += `<line x1="${hx.toFixed(1)}" y1="${(y0a + 1).toFixed(1)}" x2="${hx.toFixed(1)}" y2="${(y0b - 1).toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="0.6" opacity="0.55"/>`;
+    }
+    // Delthyrium triangle (dark notch in the middle of the interarea)
     const mid = (interareaTop + interareaBot) / 2;
-    const trW = 6;
-    overlay += `<path d="M ${(x0 - tilt * 0.4).toFixed(1)},${(mid - trW * 0.6).toFixed(1)} L ${(x1 + tilt * 0.2).toFixed(1)},${mid.toFixed(1)} L ${(x0 - tilt * 0.4).toFixed(1)},${(mid + trW * 0.6).toFixed(1)} Z" fill="#1a1a1a" opacity="0.65"/>`;
+    const trW = 7;
+    overlay += `<path d="M ${(x0 - tilt * 0.35).toFixed(1)},${(mid - trW * 0.6).toFixed(1)} L ${(x1 + tilt * 0.15).toFixed(1)},${mid.toFixed(1)} L ${(x0 - tilt * 0.35).toFixed(1)},${(mid + trW * 0.6).toFixed(1)} Z" fill="#1a1a1a" opacity="0.7"/>`;
+    // Tiny posterior-direction tick mark
+    overlay += `<line x1="${(x1 - 4).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(x1 - 1).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="1.4"/>`;
+    overlay += `<path d="M ${(x1 - 4).toFixed(1)},${cy.toFixed(1)} L ${(x1 - 1).toFixed(1)},${(cy - 2).toFixed(1)} L ${(x1 - 1).toFixed(1)},${(cy + 2).toFixed(1)} Z" fill="${SK.hingeCol}"/>`;
   } else if (s.beakProm > 0) {
     // Astrophic curved beak — small protruding tip at posterior.
     const beakTipX = beakX - 5;
@@ -1895,6 +1935,7 @@ function buildShapeSliders() {
       stops: [
         { value: "wing-shaped",   short: "Winged" },
         { value: "subcircular",   short: "Round" },
+        { value: "pentagonal",    short: "Pentag" },
         { value: "elongate-oval", short: "Elongate" }
       ] },
     { qid: "profile_pick", label: "Profile",

@@ -17,3 +17,4 @@ data/visualizer_test/__pycache__/
 # need to download into data/3d_models/ themselves.
 data/3d_models/
 data/fit_harness/__pycache__/
+data/fit_harness/_param_svgs/
