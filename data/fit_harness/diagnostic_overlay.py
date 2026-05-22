@@ -104,6 +104,23 @@ SPECIMENS = [
                        rib_density="sparse", surface_frills="yes",
                        fold_pick="weak",
                        beak_pick="moderate", lateral_pick="smooth")),
+    # brach6 — Theodossia hungerfordi: globose subcircular biconvex
+    # spiriferid with prominent uniplicate fold, subdued ribs, and a
+    # hooked umbo that students perceive as astrophic.
+    dict(name="brach6",
+         photo="images/unknown_misc/rockford/brach6.png",
+         tiles=dict(
+             dorsal   =(40,   10,  490, 430),
+             ventral  =(40,  430,  490, 850),
+             side     =(430, 290,  900, 600),
+             anterior =(820, 100, 1260, 380),
+             hinge    =(840, 510, 1260, 800),
+         ),
+         best_guess="Theodossia hungerfordi (globose spiriferid)",
+         answers=dict(outline_pick="subcircular", profile_pick="biconvex",
+                       hinge_pick="astrophic", surface_ribs="yes",
+                       rib_density="medium", fold_pick="strong",
+                       beak_pick="prominent", lateral_pick="smooth")),
 ]
 
 
