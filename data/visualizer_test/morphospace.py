@@ -154,25 +154,57 @@ class AnalyticShell:
     # Margin curve (theta=theta_max) — useful for the TOP outline -----------
 
     def margin(self, valve: str, n_phi: int = 240):
+        """Return the FRONT arc of the mantle margin: phi in [-pi/2, pi/2]."""
         v = self.dorsal if valve == "dorsal" else self.ventral
         phi = np.linspace(-np.pi / 2, np.pi / 2, n_phi)
         r = v["r0"] * np.exp(v["C1"] * self.theta_max + v["C2"] * self.theta_max ** 2)
         S_x_factor = 1.0 + (self.S_x - 1.0) * np.abs(np.sin(phi))
         x = r * np.sin(phi) * S_x_factor
         y = r * np.cos(phi)
-        # z at the margin = 0 baseline + sculpting
         z = np.zeros_like(phi)
-        # Sulcus pulls z DOWN at midline on dorsal (it's a depression in
-        # the dorsal exterior, visible as a notch in the anterior commissure)
-        sulcus_strength = 1.0  # we're at theta_max
         sulcus_pattern = np.exp(-phi ** 2 / (2 * self.sulcus_sigma ** 2))
         if valve == "dorsal":
-            z = z - self.sulcus_depth * sulcus_strength * sulcus_pattern
-        # Ribs perturb the margin in z (creating the commissure zigzag)
+            z = z - self.sulcus_depth * sulcus_pattern
         if self.rib_count > 0 and self.rib_amp > 0:
             sign = 1 if valve == "dorsal" else -1
             z = z + sign * self.rib_amp * np.cos(self.rib_count * phi) * 0.5
         return x, y, z
+
+    def is_strophic(self) -> bool:
+        return self.S_x > 1.20
+
+    def closed_outline(self, valve: str = "dorsal", n_phi: int = 240):
+        """Return the full closed mantle outline (x, y) in the commissure plane.
+
+        Anterior arc spans phi in [-pi/2, pi/2]; the posterior is closed
+        through the umbo. For strophic shells the back is a near-straight
+        hinge line with a small umbonal bump; for astrophic shells the back
+        curves smoothly to a deeper umbo extension.
+        """
+        v = self.dorsal if valve == "dorsal" else self.ventral
+        r = v["r0"] * np.exp(v["C1"] * self.theta_max + v["C2"] * self.theta_max ** 2)
+        # Anterior arc
+        n_front = (n_phi * 2) // 3
+        phi_f = np.linspace(-np.pi / 2, np.pi / 2, n_front)
+        S_x_f = 1.0 + (self.S_x - 1.0) * np.abs(np.sin(phi_f))
+        x_f = r * np.sin(phi_f) * S_x_f
+        y_f = r * np.cos(phi_f)
+        # Posterior arc
+        n_back = n_phi - n_front
+        phi_b = np.linspace(0, np.pi, n_back)
+        if self.is_strophic():
+            # Strophic: near-flat hinge line with a small umbo bump
+            back_extent = 0.06 * r
+        else:
+            # Astrophic: smooth curve that swings well behind the cardinals
+            back_extent = 0.30 * r
+        S_x_b = 1.0 + (self.S_x - 1.0) * np.abs(np.cos(phi_b))
+        x_b = r * np.cos(phi_b) * S_x_b
+        # y stays in the -y half-plane (behind the cardinals at y=0)
+        y_b = -back_extent * np.sin(phi_b)
+        x = np.concatenate([x_f, x_b])
+        y = np.concatenate([y_f, y_b])
+        return x, y
 
 
 # --------------------------------------------------------------------
@@ -316,51 +348,52 @@ def regen_parametric_svgs():
     )
 
 
+# Fixed canvas limits so all analytical subplots use the same scale —
+# matches the 200 px viewBox used by the parametric SVGs.
+CANVAS = 110  # px half-extent; total view spans 220 px
+
+
+def _frame(ax, xlim=None, ylim=None):
+    ax.set_aspect("equal")
+    ax.set_xlim(xlim if xlim else (-CANVAS, CANVAS))
+    ax.set_ylim(ylim if ylim else (-CANVAS, CANVAS))
+    ax.set_xticks([]); ax.set_yticks([])
+    for s in ax.spines.values(): s.set_visible(False)
+
+
 def plot_analytic_top(ax, shell: AnalyticShell):
-    # Mantle margin curve at theta_max (front arc from cardinal to cardinal)
-    x, y, _ = shell.margin("dorsal")
-    # Close with the hinge segment (straight line connecting the two cardinals)
+    """Top view: closed mantle margin + concentric growth lines around the
+    umbo. Anterior at bottom, umbo at top (matches the parametric view)."""
+    x, y = shell.closed_outline("dorsal")
+    # Closing the path back to the first point
     x_close = np.concatenate([x, [x[0]]])
     y_close = np.concatenate([y, [y[0]]])
     ax.fill(x_close, y_close, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
-    # Concentric growth lines = mantle margin at earlier ages (smaller theta).
-    # In the McGhee model, earlier margin curves are r(theta_old) at the same
-    # phi sweep. We sample a few ages and plot each as a concentric arc.
-    for theta in [0.25, 0.45, 0.65, 0.85]:
-        phi = np.linspace(-np.pi / 2, np.pi / 2, 200)
-        r = shell.r_at(theta, "dorsal")
-        S_x_factor = 1.0 + (shell.S_x - 1.0) * np.abs(np.sin(phi))
-        xs = r * np.sin(phi) * S_x_factor
-        ys = r * np.cos(phi)
-        ax.plot(xs, ys, color="#888", linewidth=0.7)
-    ax.set_aspect("equal")
-    ax.invert_yaxis()  # so the anterior (high +y in data) ends up at the bottom
-    ax.set_xticks([]); ax.set_yticks([])
-    for s in ax.spines.values(): s.set_visible(False)
+    # Concentric growth lines = mantle margins at earlier ages — scaled-down
+    # copies of the closed outline.
+    for f in (0.25, 0.45, 0.65, 0.85):
+        ax.plot(x * (1 - f), y * (1 - f), color="#888", linewidth=0.7)
+    # Tiny umbo marker at the back-most point of the outline
+    umbo_y = np.min(y)
+    ax.plot([0], [umbo_y], marker="v", markersize=6, color="black")
+    _frame(ax)
+    ax.invert_yaxis()  # anterior at bottom of plot
 
 
 def plot_analytic_front(ax, shell: AnalyticShell):
-    # Project the surface to (x, z). Dorsal (positive z) is naturally at the
-    # top of the plot — no axis inversion. The sulcus notch on the ventral
-    # valve appears as an upward indent of the lower outline at midline.
+    """Front view: (x, z) silhouette. Dorsal up, ventral down."""
     a, b = silhouette_envelope(shell, "xz")
     ax.fill(a, b, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
-    # Draw the commissure line for reference
-    a_range = (a.min(), a.max())
-    ax.plot(list(a_range), [0, 0], color="#666", linewidth=0.8, linestyle="--")
-    ax.set_aspect("equal")
-    ax.set_xticks([]); ax.set_yticks([])
-    for s in ax.spines.values(): s.set_visible(False)
+    # Commissure line for reference
+    ax.plot([-CANVAS, CANVAS], [0, 0], color="#666", linewidth=0.8, linestyle="--")
+    _frame(ax)
 
 
 def plot_analytic_side(ax, shell: AnalyticShell):
-    # Project the surface to (y, z). Anterior (positive y) at the right;
-    # dorsal (positive z) at the top — no inversion.
+    """Side view: (y, z) silhouette. Beak at left, anterior at right."""
     a, b = silhouette_envelope(shell, "yz")
     ax.fill(a, b, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
-    ax.set_aspect("equal")
-    ax.set_xticks([]); ax.set_yticks([])
-    for s in ax.spines.values(): s.set_visible(False)
+    _frame(ax)
 
 
 def plot_photo(ax, photo_relpath):
