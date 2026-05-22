@@ -805,11 +805,12 @@ function resolveFoldParams(f, o) {
   }
 
   // Subcircular / pentagonal / elongate-oval — the body itself is the
-  // dome, the fold adds a broad smooth midline rise.
-  // Strong: a Gypidula-style pronounced hump, NOT a spike.
-  // Weak: an atrypid-style subtle midline lift.
-  if (f === "strong") return { rise: 22, shoulderU: 0.55, halfU: 0.18 };
-  return { rise: 9, shoulderU: 0.42, halfU: 0.10 };
+  // dome, the fold adds a broad smooth midline rise. The inner V-peak
+  // commissure picks up the full rise * 1.8 coefficient (frontFoldSplit),
+  // so these values are scaled to give the commissure a pronounced flex
+  // even though the OUTER silhouette barely deforms.
+  if (f === "strong") return { rise: 30, shoulderU: 0.55, halfU: 0.18 };
+  return { rise: 14, shoulderU: 0.42, halfU: 0.10 };
 }
 
 // Beak/umbo prominence presets — drive the side view's posterior shape.
@@ -1382,8 +1383,11 @@ function frontFoldSplit(s) {
     return { outerDorsal: 0.30, outerVentral: 0.50, commissure: 0.15 };
   }
   // Dome outlines — outer is essentially a smooth dome; the V-peak
-  // commissure line carries the full fold height.
-  return { outerDorsal: 0.05, outerVentral: 0.05, commissure: 1.20 };
+  // commissure line carries MORE than the full fold rise so the inner
+  // peak reads as a pronounced arch (brach1/brach2 photos confirm the
+  // interior commissure on atrypids/orthids flexes well above the fold's
+  // nominal amplitude).
+  return { outerDorsal: 0.05, outerVentral: 0.05, commissure: 1.80 };
 }
 
 // frontValveScale — front-view foreshortening per outline. The side
@@ -1699,23 +1703,31 @@ function sideValveClosedPath(s, isDorsal) {
   // BACK and slightly TOWARD the commissure (the coil direction).
   if (s.beak !== "subdued") {
     const isWingShaped = s.outline === "wing-shaped";
+    const isConical = s.outline === "conical";
     // Dorsal carries the more prominent coil; ventral coil is smaller.
-    // For astrophic shells both coils are noticeable since there's no
-    // interarea to hide them.
+    // Triangular outlines (wing-shaped, conical) need substantially bigger
+    // beaks because the photo specimens show prominent curving umbos.
     const baseFrac = isDorsal
-      ? (isWingShaped ? 0.28 : 0.16)
-      : (isWingShaped ? 0.16 : 0.10);
-    const astroBoost = s.interareaH === 0 ? 1.4 : 1.0;
+      ? (isWingShaped ? 0.40 : isConical ? 0.30 : 0.18)
+      : (isWingShaped ? 0.26 : isConical ? 0.20 : 0.12);
+    // Astrophic shells (no interarea) lean their full beak prominence
+    // into the visible curl since there's no interarea to share with.
+    const astroBoost = s.interareaH === 0 ? 1.5 : 1.0;
     const hookExt = halfL * baseFrac * astroBoost;
     const ax = beakX, ay = backAnchorY;
-    // Tip extends BACK and toward the commissure
+    // Tip extends BACK and farther toward the commissure (creates a
+    // tighter coil — the umbo curves back and DOWN toward the hinge
+    // line on the dorsal side, BACK and UP on the ventral side).
     const tipX = ax - hookExt;
-    const tipY = ay - sign * hookExt * 0.22;
-    // Outer curve bulges AWAY from commissure
-    const oC1x = ax - hookExt * 0.10, oC1y = ay + sign * hookExt * 0.55;
-    const oC2x = ax - hookExt * 0.95, oC2y = ay + sign * hookExt * 0.25;
-    // Inner curve returns toward the commissure
-    const iCx = ax - hookExt * 0.42, iCy = ay - sign * hookExt * 0.05;
+    const tipY = ay - sign * hookExt * 0.55;
+    // Outer curve bulges substantially AWAY from commissure so the curl
+    // shape reads as a proper comma rather than a small bump.
+    const oC1x = ax + hookExt * 0.10, oC1y = ay + sign * hookExt * 0.85;
+    const oC2x = ax - hookExt * 1.10, oC2y = ay + sign * hookExt * 0.55;
+    // Inner curve returns past the commissure plane (the curl tip points
+    // back toward the body and the inner edge wraps tightly back to the
+    // anchor — this is what produces the "coil" appearance).
+    const iCx = ax - hookExt * 0.55, iCy = ay - sign * hookExt * 0.30;
     d += ` C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)}`;
     d += ` Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)}`;
   }
