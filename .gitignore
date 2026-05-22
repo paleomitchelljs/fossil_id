@@ -10,3 +10,9 @@ data/visualizer_test/svgs_zigzag/
 data/visualizer_test/svgs_beak/
 data/visualizer_test/svgs_growth/
 data/visualizer_test/__pycache__/
+
+# Fit harness — 75 MB of GLB photogrammetry from the Digital Atlas of
+# Ancient Life (digitalatlasofancientlife.org). Not stored in git; users
+# need to download into data/3d_models/ themselves.
+data/3d_models/
+data/fit_harness/__pycache__/

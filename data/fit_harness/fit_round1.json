@@ -1,0 +1,77 @@
+[
+  {
+    "name": "Atrypa devoniana",
+    "loss": 0.5221441441156419,
+    "params": {
+      "lat_half": 0.46476142663753994,
+      "dorsal_z": 0.2646361819891785,
+      "ventral_z": 0.23293820975989618,
+      "dome_k": 3.061032601566424,
+      "apex_shift": -0.1,
+      "sulcus_depth": 0.15838011601070795,
+      "sulcus_sigma": 0.4456924558882449,
+      "back_extent": 0.45,
+      "back_strophic": false
+    }
+  },
+  {
+    "name": "Spinocyrtia iowensis",
+    "loss": 0.5417961342713536,
+    "params": {
+      "lat_half": 0.7546276549305122,
+      "dorsal_z": 0.3570301677542389,
+      "ventral_z": 0.3,
+      "dome_k": 2.0202771115288822,
+      "apex_shift": 0.03979933198290099,
+      "sulcus_depth": 0.0,
+      "sulcus_sigma": 0.40798130900892493,
+      "back_extent": 0.3086552607598992,
+      "back_strophic": false
+    }
+  },
+  {
+    "name": "Pentamerus oblongus",
+    "loss": 0.2977607136664929,
+    "params": {
+      "lat_half": 0.455887903201728,
+      "dorsal_z": 0.2444535726109078,
+      "ventral_z": 0.25306336882162506,
+      "dome_k": 1.9814556612397825,
+      "apex_shift": 0.22747111671657877,
+      "sulcus_depth": 0.29693663471137133,
+      "sulcus_sigma": 0.3982023006671413,
+      "back_extent": 0.05802444943068833,
+      "back_strophic": true
+    }
+  },
+  {
+    "name": "Mucrospirifer arkonensis",
+    "loss": 0.7644206792637672,
+    "params": {
+      "lat_half": 1.0,
+      "dorsal_z": 0.27736107960410084,
+      "ventral_z": 0.26939066245571275,
+      "dome_k": 4.163018957213999,
+      "apex_shift": -0.1,
+      "sulcus_depth": 0.18425648704843584,
+      "sulcus_sigma": 0.2238387782315222,
+      "back_extent": 0.027504625920617993,
+      "back_strophic": true
+    }
+  },
+  {
+    "name": "Hebertella occidentalis",
+    "loss": 0.41400031190763,
+    "params": {
+      "lat_half": 0.704778973401636,
+      "dorsal_z": 0.34506694288571327,
+      "ventral_z": 0.28886293638675065,
+      "dome_k": 2.168745598652374,
+      "apex_shift": 0.21630146843752607,
+      "sulcus_depth": 0.1577363702602904,
+      "sulcus_sigma": 0.3304657685599733,
+      "back_extent": 0.06548557717629884,
+      "back_strophic": true
+    }
+  }
+]
