@@ -70,6 +70,22 @@ SPECIMENS = [
                        hinge_pick="wide-strophic", surface_ribs="yes",
                        rib_density="dense", fold_pick="strong",
                        beak_pick="pyramidal", lateral_pick="smooth")),
+    # brach4 — non-standard 5-view layout: dorsal+ventral on left,
+    # side in center, hinge top-right, anterior bottom-right.
+    dict(name="brach4",
+         photo="images/unknown_misc/rockford/brach4.png",
+         tiles=dict(
+             dorsal   =(40,   20,  570, 380),
+             ventral  =(40,  380,  570, 760),
+             side     =(450, 270,  900, 670),
+             hinge    =(820,  20, 1380, 370),
+             anterior =(900, 440, 1310, 780),
+         ),
+         best_guess="Cyrtospirifer whitneyi (alate spiriferid)",
+         answers=dict(outline_pick="wing-shaped", profile_pick="biconvex",
+                       hinge_pick="wide-strophic", surface_ribs="yes",
+                       rib_density="dense", fold_pick="strong",
+                       beak_pick="moderate", lateral_pick="smooth")),
 ]
 
 
