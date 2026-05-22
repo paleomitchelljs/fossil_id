@@ -86,6 +86,24 @@ SPECIMENS = [
                        hinge_pick="wide-strophic", surface_ribs="yes",
                        rib_density="dense", fold_pick="strong",
                        beak_pick="moderate", lateral_pick="smooth")),
+    # brach5 — same 5-view layout as brach4. Subcircular astrophic with
+    # prominent growth-lamellae frills and weak fold. Could be an atrypid
+    # (Pseudoatrypa) or a smooth-looking spiriferid (Theodossia).
+    dict(name="brach5",
+         photo="images/unknown_misc/rockford/brach5.png",
+         tiles=dict(
+             dorsal   =(40,   20,  500, 410),
+             ventral  =(40,  420,  500, 800),
+             side     =(380, 280,  920, 660),
+             hinge    =(920,   60, 1290, 320),
+             anterior =(940, 420, 1290, 720),
+         ),
+         best_guess="Pseudoatrypa devoniana (atrypid w/ frills)",
+         answers=dict(outline_pick="subcircular", profile_pick="biconvex",
+                       hinge_pick="astrophic", surface_ribs="yes",
+                       rib_density="sparse", surface_frills="yes",
+                       fold_pick="weak",
+                       beak_pick="moderate", lateral_pick="smooth")),
 ]
 
 
