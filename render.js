@@ -906,23 +906,40 @@ function answersToShape(answers) {
   let apexShift = beakPreset.apexShift;
   if (o === "conical") apexShift = Math.max(apexShift, 0.92);
 
-  // Valve convexity (px) — DORSI-biconvex by default (atrypid/spiriferid norm).
-  // Negative = concave valve. Tuned against the brach1/2/3 photos —
-  // Rockford specimens have substantial DV depth across all outline types
-  // (the previous defaults produced front/side views that were noticeably
-  // shorter than the actual shells).
-  // Conical shells (Conispirifer / Cyrtina / Pyramidspirifer) flip the
-  // biconvex norm: the ventral valve is the deep cone with the interarea,
-  // the dorsal valve is a near-flat lid. So ventralConv >> dorsalConv.
+  // Valve convexity (px) — controls the side-view inflation of each
+  // valve above/below the commissure plane. Real Iowa Devonian
+  // specimens are STRONGLY inequivalve; the user's brach photos show
+  // dorsal valves dramatically more inflated than ventral on most
+  // taxa. The defaults below bias toward pronounced dorsibiconvexity
+  // (2-3:1 ratio) instead of the near-symmetric 62/38 that produced
+  // generic "lens" silhouettes in earlier renders.
+  //
+  // Per-outline ratios:
+  //   subcircular / pentagonal / elongate-oval — strongly
+  //     dorsibiconvex (atrypids, orthids, terebratulids, pentameroids,
+  //     Theodossia). Dorsal apex sits ~3× the depth of the ventral.
+  //   wing-shaped — moderate (alate spiriferids like Cyrtospirifer
+  //     are closer to equivalve, just slightly dorsibiconvex)
+  //   conical — ventro-biconvex (cone IS the ventral valve)
+  //
+  // surface_frills boosts dorsibiconvexity further (atrypids/spinatrypids
+  // have notably inflated dorsal valves carrying the lamellae stack).
   let dorsalConv, ventralConv;
   if (p === "concavo-convex") {
     dorsalConv = -24; ventralConv = 64;
   } else if (p === "plano-convex") {
-    dorsalConv = 62; ventralConv = 6;
+    dorsalConv = 70; ventralConv = 6;
   } else if (o === "conical") {
     dorsalConv = 24; ventralConv = 78;   // ventro-biconvex cone
+  } else if (o === "wing-shaped") {
+    dorsalConv = 56; ventralConv = 40;   // near-equivalve alate
   } else {
-    dorsalConv = 62; ventralConv = 38;   // dorsibiconvex
+    // Subcircular / pentagonal / elongate-oval — strong dorsibiconvex
+    dorsalConv = 72; ventralConv = 25;
+    if (features.frills) {
+      // Atrypids and spinatrypids — even more pronounced
+      dorsalConv = 80; ventralConv = 22;
+    }
   }
 
   const foldPreset = resolveFoldParams(f, o);
@@ -1695,58 +1712,59 @@ function sideValveClosedPath(s, isDorsal) {
     sil.push([x, y]);
   }
 
-  // === Beak curl Bezier (extends FROM the back anchor) ===
-  // Builds a comma-shaped coil. The tip extends BACK and AWAY from the
-  // commissure plane (not toward it) — this is the key H3 fix. The old
-  // formula tucked the tip toward cy, which works for strophic shells
-  // (anchor offset from cy by interareaH/2 so the tip lands between
-  // anchor and cy) but breaks for astrophic shells (anchor IS cy so the
-  // tip ended up crossing into the opposite valve's hemisphere).
-  let curlStr = "";
+  // === Beak coil — SEPARATE closed path, overlaps body interior ===
+  // The coil is its own filled/stroked shape drawn ON TOP of the body
+  // fill. Its inner return curve sweeps PAST the anchor into the body
+  // interior, producing the tight "hooked beak tucks into the body"
+  // geometry that the user critique flagged as missing. The body's own
+  // outline (`stroke` below) terminates at the anchor and doesn't
+  // include the coil, so the visible curl reads as a distinct hook
+  // overlapping the body — exactly like brach6 (Theodossia)'s photo.
+  let coil = "";
   if (s.beak !== "subdued") {
     const isWingShaped = s.outline === "wing-shaped";
     const isConical = s.outline === "conical";
     const baseFrac = isDorsal
-      ? (isWingShaped ? 0.42 : isConical ? 0.30 : 0.24)
-      : (isWingShaped ? 0.28 : isConical ? 0.20 : 0.16);
-    const astroBoost = s.interareaH === 0 ? 1.6 : 1.0;
+      ? (isWingShaped ? 0.42 : isConical ? 0.30 : 0.28)
+      : (isWingShaped ? 0.28 : isConical ? 0.20 : 0.18);
+    const astroBoost = s.interareaH === 0 ? 1.7 : 1.0;
     const hookExt = halfL * baseFrac * astroBoost;
     const ax = beakX, ay = backAnchorY;
-    // Tip lands BACK (x = ax - hookExt) and AWAY from cy
+    // Tip extends BACK and AWAY from cy
     const tipX = ax - hookExt;
     const tipY = ay + sign * hookExt * 0.55;
-    // Outer bezier: from anchor, bulging FURTHER away from cy (the upper
-    // part of the comma curl) then sweeping down/around to the tip
-    const oC1x = ax + hookExt * 0.05, oC1y = ay + sign * hookExt * 1.05;
-    const oC2x = ax - hookExt * 1.05, oC2y = ay + sign * hookExt * 1.00;
-    // Inner return: from tip back toward anchor, sweeping inward past it
-    // (creates the curled-under appearance — the inner edge of the comma)
-    const iCx = ax - hookExt * 0.50, iCy = ay - sign * hookExt * 0.20;
-    curlStr = ` C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)}` +
-              ` Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)}`;
+    // Outer Bezier: anchor → tip via control points that bulge AWAY
+    // from cy first (the outer rim of the hook arcs up/down past the
+    // body), then sweep around to the tip.
+    const oC1x = ax + hookExt * 0.10, oC1y = ay + sign * hookExt * 1.25;
+    const oC2x = ax - hookExt * 1.15, oC2y = ay + sign * hookExt * 0.85;
+    // Inner return Bezier: tip → anchor via control points that sweep
+    // TOWARD cy and FORWARD (positive x past the anchor into the body
+    // interior). This is the "tucking" motion that produces visible
+    // overlap with the body fill — a real coiled hook, not a stuck-on
+    // protrusion.
+    const iC1x = ax - hookExt * 0.55, iC1y = ay - sign * hookExt * 0.05;
+    const iC2x = ax + hookExt * 0.20, iC2y = ay - sign * hookExt * 0.15;
+    coil = `M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
+           `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
+           `C ${iC1x.toFixed(1)},${iC1y.toFixed(1)} ${iC2x.toFixed(1)},${iC2y.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z`;
   }
 
-  // === Build the STROKE path (open, no commissure horizontal) ===
-  // Anterior tip → outer silhouette back to anchor → beak curl. The
-  // anterior commissure step (if any) is drawn separately as an overlay.
+  // === Body STROKE (open, silhouette + interarea face only) ===
   let stroke = `M ${frontX.toFixed(1)},${frontTipY.toFixed(1)}`;
   for (let i = sil.length - 1; i >= 0; i--) {
     stroke += ` L ${sil[i][0].toFixed(1)},${sil[i][1].toFixed(1)}`;
   }
-  stroke += curlStr;
-  // For strophic shells, also stroke the interarea face (the vertical
-  // edge from back-anchor down to the hinge point). This IS a real
-  // outer edge of the valve.
   if (s.interareaH > 0) {
     stroke += ` L ${beakX.toFixed(1)},${cy.toFixed(1)}`;
   }
 
-  // === Build the FILL path (closed, includes commissure back to start) ===
+  // === Body FILL (closed, doesn't include the coil) ===
   let fill = stroke;
   fill += ` L ${frontX.toFixed(1)},${cy.toFixed(1)}`;
   fill += ` L ${frontX.toFixed(1)},${frontTipY.toFixed(1)} Z`;
 
-  return { fill, stroke };
+  return { fill, stroke, coil };
 }
 
 function svgSideView(answers) {
@@ -1970,21 +1988,28 @@ function svgSideView(answers) {
     overlay += `<line x1="${frontX.toFixed(1)}" y1="${(cy - anteriorHalf).toFixed(1)}" x2="${frontX.toFixed(1)}" y2="${(cy + anteriorHalf).toFixed(1)}" stroke="#444" stroke-width="0.9" stroke-dasharray="3,2"/>`;
   }
 
-  // Two-valve render. Order:
-  //   1. Fill both valves (no stroke) so the body color fills correctly
-  //   2. Draw stroke paths (open — no commissure horizontal) for the
-  //      visible outline
-  //   3. Interior decoration clipped to union of fills
-  //   4. Interarea overlay (between the two valves at the back)
-  //   5. Beak curl strokes again ON TOP of the interarea overlay so
-  //      the curls aren't hidden by the hatch
+  // Two-valve render order:
+  //   1. Fill both valve bodies (no stroke)
+  //   2. Decoration clipped to body fills
+  //   3. Interarea overlay between the valves at the back
+  //   4. Beak coils — drawn ON TOP, with fill (so the inner-arc
+  //      sweeps past the anchor and visually overlaps the body) and
+  //      stroke (the visible hook outline)
+  //   5. Body silhouette stroke (outer edges of each valve)
+  //   6. Anterior commissure zigzag (if ribs)
   const unionFill = dorsal.fill + " " + ventral.fill;
+  const ventralCoilSvg = ventral.coil
+    ? `<path d="${ventral.coil}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>` : "";
+  const dorsalCoilSvg = dorsal.coil
+    ? `<path d="${dorsal.coil}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>` : "";
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
     <defs><clipPath id="${clipId}"><path d="${unionFill}"/></clipPath></defs>
     <path d="${ventral.fill}" fill="#fffef7" stroke="none"/>
     <path d="${dorsal.fill}" fill="#fffef7" stroke="none"/>
     <g clip-path="url(#${clipId})">${inner}</g>
     ${overlay}
+    ${ventralCoilSvg}
+    ${dorsalCoilSvg}
     <path d="${ventral.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
     <path d="${dorsal.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
     ${zigzagPath}
