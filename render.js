@@ -1382,12 +1382,14 @@ function frontFoldSplit(s) {
     // ventral body (see frontVentralY's ventralScale).
     return { outerDorsal: 0.30, outerVentral: 0.50, commissure: 0.15 };
   }
-  // Dome outlines — outer is essentially a smooth dome; the V-peak
-  // commissure line carries MORE than the full fold rise so the inner
-  // peak reads as a pronounced arch (brach1/brach2 photos confirm the
-  // interior commissure on atrypids/orthids flexes well above the fold's
-  // nominal amplitude).
-  return { outerDorsal: 0.05, outerVentral: 0.05, commissure: 1.80 };
+  // Dome outlines — atrypids, orthids, pentameroids, terebratulids.
+  // The user's brach1/brach6 critique notes that real specimens have
+  // a deep U/V deflection of the anterior margin — the outer silhouette
+  // genuinely deforms, it isn't just a smooth dome with an interior V.
+  // Outer contributions raised so the front view shows real margin
+  // deflection; commissure line still arches higher than the outer
+  // because the dorsal-meets-ventral seam runs through the fold's apex.
+  return { outerDorsal: 0.45, outerVentral: 0.40, commissure: 1.40 };
 }
 
 // frontValveScale — front-view foreshortening per outline. The side
@@ -1628,6 +1630,12 @@ function svgFrontView(answers) {
 // so the iconic brachiopod beak-coiling reads natively in side view
 // instead of being a stuck-on overlay.
 
+// Returns { fill, stroke }: a closed path for fill (with the commissure
+// closure included) and an OPEN path for the stroke (silhouette + beak
+// curl + optional interarea face only — no horizontal commissure line).
+// Splitting these is what removes the "T-bar through the middle"
+// artifact: the commissure isn't a true outer edge, so it shouldn't be
+// stroked even though the closed fill needs it.
 function sideValveClosedPath(s, isDorsal) {
   const cx = 100, cy = 100;
   const halfL = s.halfLength;
@@ -1637,18 +1645,15 @@ function sideValveClosedPath(s, isDorsal) {
   const conv = isDorsal ? s.dorsalConv : s.ventralConv;
   const peakU = -s.apexShift;
 
-  // Outer-silhouette y at AP position u ∈ [-1, +1]. The sign carries the
-  // valve direction so dorsal rises above cy, ventral falls below.
   function valveY(u) {
     let y;
     if (u <= peakU) {
-      const t = (u - (-1)) / (peakU - (-1));   // 0 at beak, 1 at apex
+      const t = (u - (-1)) / (peakU - (-1));
       y = cy + sign * conv * (1 - (1 - t) ** 2) * 0.95;
     } else {
-      const t = (u - peakU) / (1 - peakU);     // 0 at apex, 1 at anterior
+      const t = (u - peakU) / (1 - peakU);
       y = cy + sign * conv * (1 - t ** 2) * 0.95;
     }
-    // Lateral kinks — geniculate (ventral only) and resupinate (anterior inverts)
     if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
       const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
       const flipped = cy - sign * (cy - y > 0 ? cy - y : y - cy) * 0.6;
@@ -1663,28 +1668,26 @@ function sideValveClosedPath(s, isDorsal) {
     return y;
   }
 
-  // Posterior anchor: where this valve's outline meets the hinge line.
-  // For strophic shells the interarea separates the valves at the back;
-  // for astrophic both anchors coincide at (beakX, cy).
+  // Posterior anchor — where this valve's outline meets the hinge.
   const backAnchorY = s.interareaH > 0 ? cy + sign * s.interareaH * 0.5 : cy;
-  const anteriorHalf = 5 + s.foldStr * 9;
+  // Anterior commissure offset — scaled by fold strength only (no constant
+  // term so weak/no-fold shells taper to a SHARP point, not a blunt step).
+  const anteriorHalf = s.foldStr * 11;
   const frontTipY = cy + sign * anteriorHalf;
 
   // Sample the outer silhouette from beak to anterior.
   const N = 96;
-  const cutoffT = 0.96;
+  const cutoffT = 0.97;
   const sil = [];
   for (let i = 0; i <= N; i++) {
     const t = (i / N) * cutoffT;
     const u = t * 2 - 1;
     const x = beakX + t * 2 * halfL;
     let y = valveY(u);
-    // Blend into back-anchor over the posterior 10% (smooth landing on interarea)
     if (s.interareaH > 0 && t < 0.10) {
       const k = t / 0.10;
       y = backAnchorY * (1 - k) + y * k;
     }
-    // Glide toward the anterior commissure offset over the last 12%
     if (t > 0.84) {
       const k = (t - 0.84) / (cutoffT - 0.84);
       y = y * (1 - k) + frontTipY * k;
@@ -1692,53 +1695,58 @@ function sideValveClosedPath(s, isDorsal) {
     sil.push([x, y]);
   }
 
-  // Build the closed path. Direction: anterior tip → outer silhouette →
-  // back anchor → beak curl → down interarea (strophic) → back along
-  // commissure (cy) → up to anterior tip.
-  let d = `M ${frontX.toFixed(1)},${frontTipY.toFixed(1)}`;
-  for (let i = sil.length - 1; i >= 0; i--) {
-    d += ` L ${sil[i][0].toFixed(1)},${sil[i][1].toFixed(1)}`;
-  }
-  // We're now at (beakX, backAnchorY). Add the beak curl, which extends
-  // BACK and slightly TOWARD the commissure (the coil direction).
+  // === Beak curl Bezier (extends FROM the back anchor) ===
+  // Builds a comma-shaped coil. The tip extends BACK and AWAY from the
+  // commissure plane (not toward it) — this is the key H3 fix. The old
+  // formula tucked the tip toward cy, which works for strophic shells
+  // (anchor offset from cy by interareaH/2 so the tip lands between
+  // anchor and cy) but breaks for astrophic shells (anchor IS cy so the
+  // tip ended up crossing into the opposite valve's hemisphere).
+  let curlStr = "";
   if (s.beak !== "subdued") {
     const isWingShaped = s.outline === "wing-shaped";
     const isConical = s.outline === "conical";
-    // Dorsal carries the more prominent coil; ventral coil is smaller.
-    // Triangular outlines (wing-shaped, conical) need substantially bigger
-    // beaks because the photo specimens show prominent curving umbos.
     const baseFrac = isDorsal
-      ? (isWingShaped ? 0.40 : isConical ? 0.30 : 0.18)
-      : (isWingShaped ? 0.26 : isConical ? 0.20 : 0.12);
-    // Astrophic shells (no interarea) lean their full beak prominence
-    // into the visible curl since there's no interarea to share with.
-    const astroBoost = s.interareaH === 0 ? 1.5 : 1.0;
+      ? (isWingShaped ? 0.42 : isConical ? 0.30 : 0.24)
+      : (isWingShaped ? 0.28 : isConical ? 0.20 : 0.16);
+    const astroBoost = s.interareaH === 0 ? 1.6 : 1.0;
     const hookExt = halfL * baseFrac * astroBoost;
     const ax = beakX, ay = backAnchorY;
-    // Tip extends BACK and farther toward the commissure (creates a
-    // tighter coil — the umbo curves back and DOWN toward the hinge
-    // line on the dorsal side, BACK and UP on the ventral side).
+    // Tip lands BACK (x = ax - hookExt) and AWAY from cy
     const tipX = ax - hookExt;
-    const tipY = ay - sign * hookExt * 0.55;
-    // Outer curve bulges substantially AWAY from commissure so the curl
-    // shape reads as a proper comma rather than a small bump.
-    const oC1x = ax + hookExt * 0.10, oC1y = ay + sign * hookExt * 0.85;
-    const oC2x = ax - hookExt * 1.10, oC2y = ay + sign * hookExt * 0.55;
-    // Inner curve returns past the commissure plane (the curl tip points
-    // back toward the body and the inner edge wraps tightly back to the
-    // anchor — this is what produces the "coil" appearance).
-    const iCx = ax - hookExt * 0.55, iCy = ay - sign * hookExt * 0.30;
-    d += ` C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)}`;
-    d += ` Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)}`;
+    const tipY = ay + sign * hookExt * 0.55;
+    // Outer bezier: from anchor, bulging FURTHER away from cy (the upper
+    // part of the comma curl) then sweeping down/around to the tip
+    const oC1x = ax + hookExt * 0.05, oC1y = ay + sign * hookExt * 1.05;
+    const oC2x = ax - hookExt * 1.05, oC2y = ay + sign * hookExt * 1.00;
+    // Inner return: from tip back toward anchor, sweeping inward past it
+    // (creates the curled-under appearance — the inner edge of the comma)
+    const iCx = ax - hookExt * 0.50, iCy = ay - sign * hookExt * 0.20;
+    curlStr = ` C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)}` +
+              ` Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)}`;
   }
-  // Down the interarea face (strophic only — bridges back-anchor to commissure)
+
+  // === Build the STROKE path (open, no commissure horizontal) ===
+  // Anterior tip → outer silhouette back to anchor → beak curl. The
+  // anterior commissure step (if any) is drawn separately as an overlay.
+  let stroke = `M ${frontX.toFixed(1)},${frontTipY.toFixed(1)}`;
+  for (let i = sil.length - 1; i >= 0; i--) {
+    stroke += ` L ${sil[i][0].toFixed(1)},${sil[i][1].toFixed(1)}`;
+  }
+  stroke += curlStr;
+  // For strophic shells, also stroke the interarea face (the vertical
+  // edge from back-anchor down to the hinge point). This IS a real
+  // outer edge of the valve.
   if (s.interareaH > 0) {
-    d += ` L ${beakX.toFixed(1)},${cy.toFixed(1)}`;
+    stroke += ` L ${beakX.toFixed(1)},${cy.toFixed(1)}`;
   }
-  // Back along the commissure plane to the anterior, then up to the tip
-  d += ` L ${frontX.toFixed(1)},${cy.toFixed(1)}`;
-  d += ` L ${frontX.toFixed(1)},${frontTipY.toFixed(1)} Z`;
-  return d;
+
+  // === Build the FILL path (closed, includes commissure back to start) ===
+  let fill = stroke;
+  fill += ` L ${frontX.toFixed(1)},${cy.toFixed(1)}`;
+  fill += ` L ${frontX.toFixed(1)},${frontTipY.toFixed(1)} Z`;
+
+  return { fill, stroke };
 }
 
 function svgSideView(answers) {
@@ -1748,9 +1756,13 @@ function svgSideView(answers) {
   const beakX = cx - halfL;
   const frontX = cx + halfL;
 
-  // Per-valve closed paths (each carries its own beak curl natively)
-  const dorsalPath = sideValveClosedPath(s, true);
-  const ventralPath = sideValveClosedPath(s, false);
+  // Per-valve paths — each returns { fill, stroke }. fill is a closed
+  // path (includes commissure closure) used for the body color; stroke
+  // is an open path (silhouette + curl + optional interarea face) for
+  // the visible outline. Keeping these separate hides the commissure
+  // line at cy that would otherwise stroke through the middle.
+  const dorsal = sideValveClosedPath(s, true);
+  const ventral = sideValveClosedPath(s, false);
 
   // Legacy dorsalY / ventralY for decoration helpers (ribs, spines).
   // Kept as smooth-parabola functions of x; not used for outline drawing.
@@ -1958,17 +1970,24 @@ function svgSideView(answers) {
     overlay += `<line x1="${frontX.toFixed(1)}" y1="${(cy - anteriorHalf).toFixed(1)}" x2="${frontX.toFixed(1)}" y2="${(cy + anteriorHalf).toFixed(1)}" stroke="#444" stroke-width="0.9" stroke-dasharray="3,2"/>`;
   }
 
-  // Two-valve render: ventral first (so dorsal sits on top where they
-  // overlap at the commissure plane). Decoration is clipped to the union
-  // of the two valves via a combined clip-path.
-  const unionPath = dorsalPath + " " + ventralPath;
+  // Two-valve render. Order:
+  //   1. Fill both valves (no stroke) so the body color fills correctly
+  //   2. Draw stroke paths (open — no commissure horizontal) for the
+  //      visible outline
+  //   3. Interior decoration clipped to union of fills
+  //   4. Interarea overlay (between the two valves at the back)
+  //   5. Beak curl strokes again ON TOP of the interarea overlay so
+  //      the curls aren't hidden by the hatch
+  const unionFill = dorsal.fill + " " + ventral.fill;
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
-    <defs><clipPath id="${clipId}"><path d="${unionPath}"/></clipPath></defs>
-    <path d="${ventralPath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
-    <path d="${dorsalPath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
+    <defs><clipPath id="${clipId}"><path d="${unionFill}"/></clipPath></defs>
+    <path d="${ventral.fill}" fill="#fffef7" stroke="none"/>
+    <path d="${dorsal.fill}" fill="#fffef7" stroke="none"/>
     <g clip-path="url(#${clipId})">${inner}</g>
-    ${zigzagPath}
     ${overlay}
+    <path d="${ventral.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="${dorsal.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
+    ${zigzagPath}
   </svg>`;
 }
 
