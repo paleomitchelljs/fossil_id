@@ -1460,16 +1460,32 @@ function frontFoldSplit(s) {
   return { outerDorsal: 0.45, outerVentral: 0.40, commissure: 1.40 };
 }
 
-// frontValveScale — front-view foreshortening per outline. The side
-// view shows full DV depth (dorsalConv, ventralConv). The front view
-// shows the valve viewed end-on, which is geometrically foreshortened:
-// a tall cone or a wide-winged dome doesn't project its full DV span
-// when seen anteriorly. Without per-outline scaling, the side view's
-// generous convexity bleeds straight through into a front view that
-// looks too tall and produces over-pronounced lobes/W-cuts.
+// frontValveScale — front-view foreshortening.
+//
+// The side view shows full DV depth; the front view's anterior
+// projection captures only a fraction of that depth depending on
+// HOW FORESHORTENED the cone is. apexShift modulation applies
+// PRIMARILY to outlines where the body genuinely tapers along AP
+// (conical, wing-shaped). For dome outlines (subcircular, etc.) the
+// body is centered regardless of beak prominence — globose shells
+// stay tall in front view, which is what the user critique flagged.
 function frontValveScale(s) {
-  if (s.outline === "conical") return { dorsal: 1.0, ventral: 0.35 };
-  if (s.outline === "wing-shaped") return { dorsal: 0.60, ventral: 0.55 };
+  if (s.outline === "conical") {
+    // Conical — ventral cone is heavily foreshortened. Higher apexShift
+    // (more pyramidal) pushes the apex even further back, so the
+    // anterior projection captures less of the cone depth → flatter.
+    const apexCentered = 1.0 - Math.min(1.0, s.apexShift / 0.6);
+    const factor = 0.55 + 0.45 * apexCentered;
+    return { dorsal: factor, ventral: 0.35 * factor };
+  }
+  if (s.outline === "wing-shaped") {
+    // Wing-shaped — moderate foreshortening from the lateral extent;
+    // less sensitive to apexShift since wings are at full lateral.
+    return { dorsal: 0.60, ventral: 0.55 };
+  }
+  // Dome outlines — front view shows the full body cross-section, no
+  // foreshortening. Globose specimens (Pseudoatrypa, Theodossia) read
+  // as tall in front view, matching the photo's apparent volume.
   return { dorsal: 1.0, ventral: 1.0 };
 }
 
@@ -1698,6 +1714,32 @@ function svgFrontView(answers) {
 // so the iconic brachiopod beak-coiling reads natively in side view
 // instead of being a stuck-on overlay.
 
+// commissureY(u, s) — the y-coordinate of the commissure plane as a
+// FUNCTION OF AP position u ∈ [-1, +1]. For most shells this is just
+// cy (flat plane). But strophomenids with geniculate trails curl the
+// commissure downward at the anterior; resupinate forms swing it
+// upward. Treating the commissure as a renderable curve (not a flat
+// datum) lets the side view handle concavo-convex/geniculate shells
+// without the two-halves-around-cy straightjacket that was glitching
+// brach7. Both valves close along this curve.
+function commissureY(u, s) {
+  const cy = 100;
+  if (s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
+    const kinkU = 2 * s.lateralKinkAt - 1;
+    const t = (u - kinkU) / (1 - kinkU);
+    // Commissure follows ~60% of the ventral trail drop — the dorsal
+    // partially follows the ventral down, so the meeting plane drops
+    // less than the ventral trail itself
+    return cy + s.lateralDropPx * Math.pow(t, 1.25) * 0.60;
+  }
+  if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
+    const kinkU = 2 * s.lateralKinkAt - 1;
+    const t = (u - kinkU) / (1 - kinkU);
+    return cy - 10 * Math.pow(t, 1.2);   // commissure rises at anterior
+  }
+  return cy;
+}
+
 // Returns { fill, stroke }: a closed path for fill (with the commissure
 // closure included) and an OPEN path for the stroke (silhouette + beak
 // curl + optional interarea face only — no horizontal commissure line).
@@ -1757,11 +1799,17 @@ function sideValveClosedPath(s, isDorsal) {
   }
 
   // Posterior anchor — where this valve's outline meets the hinge.
+  // Note: backAnchor sits relative to commissureY(-1), but at u=-1 the
+  // commissure is at cy by construction (geniculate kicks in after
+  // kinkU which is always > -1), so commissureY(-1) = cy.
   const backAnchorY = s.interareaH > 0 ? cy + sign * s.interareaH * 0.5 : cy;
-  // Anterior commissure offset — scaled by fold strength only (no constant
-  // term so weak/no-fold shells taper to a SHARP point, not a blunt step).
+  // Anterior tip — offset above/below the COMMISSURE at u=1 (not at
+  // a fixed cy). For geniculate shells the commissure has dropped by
+  // the time it reaches the anterior, so the two valves still meet at
+  // the (now lower) anterior commissure.
   const anteriorHalf = s.foldStr * 11;
-  const frontTipY = cy + sign * anteriorHalf;
+  const commAtFront = commissureY(1, s);
+  const frontTipY = commAtFront + sign * anteriorHalf;
 
   // Sample the outer silhouette from beak to anterior.
   const N = 96;
@@ -1776,9 +1824,12 @@ function sideValveClosedPath(s, isDorsal) {
       const k = t / 0.10;
       y = backAnchorY * (1 - k) + y * k;
     }
+    // Glide toward the anterior tip over the last segment, computed
+    // relative to commissureY(u) so geniculate/resupinate carry through
     if (t > 0.84) {
       const k = (t - 0.84) / (cutoffT - 0.84);
-      y = y * (1 - k) + frontTipY * k;
+      const localTipY = commissureY(u, s) + sign * anteriorHalf;
+      y = y * (1 - k) + localTipY * k;
     }
     sil.push([x, y]);
   }
@@ -1831,8 +1882,19 @@ function sideValveClosedPath(s, isDorsal) {
   }
 
   // === Body FILL (closed, doesn't include the coil) ===
+  // Closure goes from the back-anchor → hinge point (beakX, cy) →
+  // along the COMMISSURE CURVE back to the anterior. For flat
+  // commissure shells this is just a horizontal line at cy; for
+  // geniculate/resupinate shells it follows the actual commissureY(u).
   let fill = stroke;
-  fill += ` L ${frontX.toFixed(1)},${cy.toFixed(1)}`;
+  // Sample the commissure from the hinge (u=-1) forward to anterior (u=1)
+  const M = 40;
+  for (let i = 1; i <= M; i++) {
+    const u = -1 + (2 * i / M);
+    const x = beakX + ((u + 1) / 2) * 2 * halfL;
+    const y = commissureY(u, s);
+    fill += ` L ${x.toFixed(1)},${y.toFixed(1)}`;
+  }
   fill += ` L ${frontX.toFixed(1)},${frontTipY.toFixed(1)} Z`;
 
   return { fill, stroke, coil };
