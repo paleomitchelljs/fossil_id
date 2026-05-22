@@ -60,8 +60,10 @@ SPECIMENS = [
              dorsal   =(20,   0,   460, 380),
              ventral  =(20, 400,   460, 800),
              side     =(450, 200,  900, 600),
-             anterior =(880,   0, 1380, 400),
-             hinge    =(880, 400, 1380, 818),
+             # top-right = HINGE view (pyramidal interarea + umbo)
+             # bottom-right = ANTERIOR view (with fold)
+             hinge    =(880,   0, 1380, 400),
+             anterior =(880, 400, 1380, 818),
          ),
          best_guess="Cyrtospirifer whitneyi (alate spiriferid)",
          answers=dict(outline_pick="wing-shaped", profile_pick="biconvex",

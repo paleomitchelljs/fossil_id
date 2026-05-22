@@ -773,12 +773,13 @@ const RIB_SETTINGS = {
 // fold — a broader, lower bulge.
 const FOLD_SETTINGS = {
   none:   { rise: 0,  shoulderU: 0,    halfU: 0    },
-  weak:   { rise: 9,  shoulderU: 0.20, halfU: 0.05 },
-  // Re-calibrated against the 3D meshes (Spinocyrtia, Mediospirifer,
-  // Megakozlowskiella, Mucrospirifer): typical spiriferid folds show
-  // moderate rises, not the half-shell-height extremes the older value
-  // produced.
-  strong: { rise: 22, shoulderU: 0.18, halfU: 0.12 }
+  // Atrypid weak fold — gentle bulge with a small plateau.
+  weak:   { rise: 14, shoulderU: 0.22, halfU: 0.06 },
+  // Cyrtospirifer-style deep fold: tall sharp central peak, narrow
+  // plateau. The dorsal valve picks up nearly the full rise so the
+  // anterior view shows the dramatic central commissure peak the
+  // brach3 photo confirms is the real morphology.
+  strong: { rise: 50, shoulderU: 0.20, halfU: 0.05 }
 };
 
 // Beak/umbo prominence presets — drive the side view's posterior shape.
@@ -862,20 +863,17 @@ function answersToShape(answers) {
   const apexShift = beakPreset.apexShift;
 
   // Valve convexity (px) — DORSI-biconvex by default (atrypid/spiriferid norm).
-  // Negative = concave valve. Wing-shaped (alate) shells are systematically
-  // flatter than subcircular ones in the meshes, so we use lower defaults
-  // for them.
+  // Negative = concave valve. Tuned against the brach1/2/3 photos —
+  // Rockford specimens have substantial DV depth across all outline types
+  // (the previous defaults produced front/side views that were noticeably
+  // shorter than the actual shells).
   let dorsalConv, ventralConv;
   if (p === "concavo-convex") {
-    dorsalConv = -22; ventralConv = 58;
+    dorsalConv = -24; ventralConv = 64;
   } else if (p === "plano-convex") {
-    dorsalConv = 54; ventralConv = 6;
-  } else if (o === "wing-shaped") {
-    // Alate shells are typically low-profile; the meshes show ~60% of
-    // subcircular dorsibiconvex depth.
-    dorsalConv = 36; ventralConv = 22;
+    dorsalConv = 62; ventralConv = 6;
   } else {
-    dorsalConv = 52; ventralConv = 30;   // dorsibiconvex
+    dorsalConv = 62; ventralConv = 38;   // dorsibiconvex
   }
 
   const foldPreset = FOLD_SETTINGS[f] || FOLD_SETTINGS.none;
@@ -1241,10 +1239,11 @@ function frontDorsalCurve(s) {
     const u = (i / N - 0.5) * 2;          // -1..1
     const x = cx + u * halfW;
     let y = cy - s.dorsalConv * (1 - u * u);
-    // Half-rectangle fold ridge on the dorsal valve (smaller share of total
-    // rise — the dorsal ridge is a modest peak above the otherwise-domed
-    // valve).
-    y -= foldRiseAt(u, s) * 0.35;
+    // Dorsal FOLD lifts the apex sharply above the dome at the midline.
+    // For Cyrtospirifer-style deep folds, the central peak is dramatically
+    // taller than the lateral dome — so the fold contribution is the major
+    // driver of midline height, not a tiny add-on.
+    y -= foldRiseAt(u, s) * 0.95;
     if (s.ribCount > 0) {
       const ribness = Math.cos(u * Math.PI / 2) ** 2;
       const phase = (u + 1) * Math.PI * s.ribCount / 2;
@@ -1358,7 +1357,7 @@ function frontFrills(s) {
       let y = cy + sign * Math.abs(conv) * (1 - u * u) * (1 - f);
       if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * (1 - u * u) * (1 - f);
       if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * (1 - u * u) * (1 - f);
-      const riseScale = sign === -1 ? 0.35 : 0.9;
+      const riseScale = sign === -1 ? 0.95 : 0.9;
       y -= foldRiseAt(u, s) * riseScale * (1 - f);
       d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
     }
