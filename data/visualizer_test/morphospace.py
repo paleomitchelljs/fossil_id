@@ -381,18 +381,42 @@ def plot_analytic_top(ax, shell: AnalyticShell):
 
 
 def plot_analytic_front(ax, shell: AnalyticShell):
-    """Front view: (x, z) silhouette. Dorsal up, ventral down."""
+    """Front view: (x, z) silhouette. Dorsal up, ventral down.
+
+    Growth lines = silhouette scaled isotropically toward the umbo point,
+    which in front view is at (x=0, z=z_dorsal_max) — the top of the dorsal
+    apex. This is the "radial expansion from the beak" model the prototype
+    documents.
+    """
     a, b = silhouette_envelope(shell, "xz")
     ax.fill(a, b, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
     # Commissure line for reference
     ax.plot([-CANVAS, CANVAS], [0, 0], color="#666", linewidth=0.8, linestyle="--")
+    # Growth lines: scale the silhouette toward the umbo position. In the
+    # xz projection the umbo sits at (0, z_max_dorsal) — the top of the dome.
+    umbo = (0.0, shell.dorsal["z_max"])
+    for f in (0.25, 0.45, 0.65, 0.85):
+        gx = umbo[0] + (1 - f) * (a - umbo[0])
+        gz = umbo[1] + (1 - f) * (b - umbo[1])
+        ax.plot(gx, gz, color="#888", linewidth=0.7)
     _frame(ax)
 
 
 def plot_analytic_side(ax, shell: AnalyticShell):
-    """Side view: (y, z) silhouette. Beak at left, anterior at right."""
+    """Side view: (y, z) silhouette. Beak at left, anterior at right.
+
+    Growth lines = silhouette scaled isotropically toward the umbo point,
+    which in side view is at (y=0, z=z_dorsal_max) — the top-back corner
+    of the dome. Each growth line is a 3D radial-expansion isoline projected
+    into the (y, z) plane; no flat vertical slices.
+    """
     a, b = silhouette_envelope(shell, "yz")
     ax.fill(a, b, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
+    umbo = (0.0, shell.dorsal["z_max"])
+    for f in (0.25, 0.45, 0.65, 0.85):
+        gy = umbo[0] + (1 - f) * (a - umbo[0])
+        gz = umbo[1] + (1 - f) * (b - umbo[1])
+        ax.plot(gy, gz, color="#888", linewidth=0.7)
     _frame(ax)
 
 
