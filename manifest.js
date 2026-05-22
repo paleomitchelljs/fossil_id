@@ -270,6 +270,7 @@ const FAUNA = [
             note: "Concavo-convex; geniculate margin; fine ribs.",
             traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "absent", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
+              { file: "arcuata_jsm_01.png",    src: "jsm"    },
               { file: "arcuata_nathan_01.jpg", src: "nathan" }
             ] },
           { genus: "Strophodonta", species: "sp.", sites: ["rockford"],
