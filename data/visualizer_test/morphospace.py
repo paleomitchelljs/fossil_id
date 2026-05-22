@@ -507,18 +507,13 @@ def plot_analytic_front(ax, shell: AnalyticShell):
 def plot_analytic_side(ax, shell: AnalyticShell):
     """Side view: (y, z) silhouette. Beak at left, anterior at right.
 
-    Growth lines = silhouette scaled isotropically toward the umbo point,
-    which in side view is at (y=0, z=z_dorsal_max) — the top-back corner
-    of the dome. Each growth line is a 3D radial-expansion isoline projected
-    into the (y, z) plane; no flat vertical slices.
+    No growth lines drawn — they're 3D concentric loops on the dorsal
+    surface around the umbo, and their projection to a strict lateral
+    plane is a fan from a single point (not nested arcs), which is
+    visually misleading rather than informative.
     """
     a, b = silhouette_envelope(shell, "yz")
     ax.fill(a, b, facecolor="#fffef7", edgecolor="black", linewidth=2.0)
-    umbo = (0.0, shell.dorsal["z_max"])
-    for f in (0.25, 0.45, 0.65, 0.85):
-        gy = umbo[0] + (1 - f) * (a - umbo[0])
-        gz = umbo[1] + (1 - f) * (b - umbo[1])
-        ax.plot(gy, gz, color="#888", linewidth=0.7)
     _frame(ax)
 
 

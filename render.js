@@ -1537,63 +1537,61 @@ function svgSideView(answers) {
 
   let inner = "";
 
-  // ---- Growth lines (concentric arcs around the umbo) ----
+  // ---- Growth lines / frills ----
   //
-  // Each growth line is the silhouette outline scaled toward the umbo
-  // position (beakX, cy). Scaling by (1−f) gives nested C-curves opening
-  // toward the anterior — the same geometric model as the TOP view (where
-  // growth lines are concentric arcs centered on the beak).
-  //
-  // The newest growth line (k=1, smallest f) is closest to the silhouette
-  // outline; the oldest (k=K, largest f) is a tiny C around the umbo.
-  if (s.hasGrowthLines && !s.hasFrills) {
-    const umboX = beakX, umboY = cy;
-    const K = 6;
-    // Pre-build the silhouette as a list of (x, y) points so we can scale
-    // it directly toward the umbo, just like topGrowthArcs does it.
-    // We sample the dorsal/ventral curves and skip the rear interarea
-    // sliver so growth lines don't double up on the back wall.
-    for (let k = 1; k <= K; k++) {
-      const f = k / (K + 1);
-      let d = "";
-      // Traverse outline from a point past the interarea, around the
-      // anterior, and back. Use the top and bot arrays sampled earlier.
-      const samples = [];
-      // Forward along dorsal (skip the first few interarea-blend points)
-      for (let i = Math.round(top.length * 0.15); i < top.length; i++) samples.push(top[i]);
-      // Anterior commissure points (frontX with zigzag/straight edge)
-      if (zigzag.length) for (const p of zigzag) samples.push(p);
-      // Back along ventral
-      for (let i = bot.length - 1; i >= Math.round(bot.length * 0.15); i--) samples.push(bot[i]);
-      for (let i = 0; i < samples.length; i++) {
-        const [px, py] = samples[i];
-        const sx = umboX + (1 - f) * (px - umboX);
-        const sy = umboY + (1 - f) * (py - umboY);
-        d += (i === 0 ? "M " : " L ") + `${sx.toFixed(1)},${sy.toFixed(1)}`;
-      }
-      inner += `<path d="${d}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`;
-    }
-  }
+  // Dropped from the side view. Growth lines on a 3D shell are concentric
+  // loops on the dorsal (or ventral) surface around the umbo. Projected to
+  // a strict lateral plane (y, z), each loop's two halves collapse onto a
+  // single curve that emanates from the umbo point — a fan, not nested
+  // concentric arcs. Frills have the same projection problem. Rather than
+  // ship a stylization that misrepresents the geometry, the side view now
+  // omits both. The diagnostic rib info still shows up in the anterior
+  // commissure zigzag and the longitudinal rib traces below.
 
-  // ---- Frills (bolder transverse arcs with a slight ripple) ----
-  if (s.hasFrills) {
-    for (let k = 1; k <= 5; k++) {
-      const xL = frontX - k * (halfL * 0.14);
-      if (xL < beakX + halfL * 0.20) continue;
-      const dY = dorsalY(xL) + 2;
-      const vY = ventralY(xL) - 2;
-      const bowX = xL + 4 + (5 - k) * 0.9;
-      let d = `M ${xL.toFixed(1)},${dY.toFixed(1)}`;
-      const segs = 14;
-      for (let i = 1; i <= segs; i++) {
-        const u = i / segs;
-        const y = dY + (vY - dY) * u;
-        const wave = Math.sin(u * 7) * 1.1;
-        const xMid = xL + (bowX - xL) * Math.sin(u * Math.PI);
-        d += ` L ${(xMid + wave).toFixed(1)},${y.toFixed(1)}`;
+  // ---- Longitudinal rib traces on dorsal/ventral surfaces ----
+  //
+  // Ribs run from the beak area to the anterior commissure along each
+  // valve's surface. The visible ribs in a lateral view are those whose
+  // lateral position (around the perimeter) puts them on the near side of
+  // the shell. We stack a few fine traces between the dorsal apex curve
+  // and the commissure level (and the same on the ventral side), each
+  // representing a rib at a different lateral position.
+  if (s.ribCount > 0 && s.ribAmp > 0) {
+    const visibleRibs = Math.min(10, Math.max(4, Math.round(s.ribCount * 0.45)));
+    const steps = 36;
+    // Dorsal-surface ribs
+    for (let r = 0; r < visibleRibs; r++) {
+      const depthFrac = (r + 0.5) / visibleRibs;     // 0 = apex, 1 = commissure
+      let d = "";
+      for (let j = 0; j <= steps; j++) {
+        const u = j / steps;
+        const x = beakX + u * 2 * halfL;
+        const dY = dorsalY(x);
+        const valveDepth = Math.max(0, cy - dY);
+        // Each rib trace sits at a fixed depth fraction below the dorsal
+        // apex curve, so the family of traces parallels the dorsal profile
+        // (concentric stripes are visually distinct from growth lines now
+        // that those have been removed).
+        const y = dY + depthFrac * valveDepth;
+        d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
       }
-      d += ` L ${xL.toFixed(1)},${vY.toFixed(1)}`;
-      inner += `<path d="${d}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW * 0.8}" opacity="0.9"/>`;
+      inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.85}"/>`;
+    }
+    // Ventral-surface ribs (only if the ventral valve is meaningfully convex)
+    if (s.ventralConv > 8) {
+      for (let r = 0; r < visibleRibs; r++) {
+        const depthFrac = (r + 0.5) / visibleRibs;
+        let d = "";
+        for (let j = 0; j <= steps; j++) {
+          const u = j / steps;
+          const x = beakX + u * 2 * halfL;
+          const vY = ventralY(x);
+          const valveDepth = Math.max(0, vY - cy);
+          const y = vY - depthFrac * valveDepth;
+          d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+        }
+        inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.85}"/>`;
+      }
     }
   }
 
