@@ -1753,83 +1753,104 @@ function sideValveClosedPath(s, isDorsal) {
   const frontX = cx + halfL;
   const sign = isDorsal ? -1 : 1;
   const conv = isDorsal ? s.dorsalConv : s.ventralConv;
-  const peakU = -s.apexShift;
 
-  function valveY(u) {
-    let y;
-    if (u <= peakU) {
-      const t = (u - (-1)) / (peakU - (-1));
-      y = cy + sign * conv * (1 - (1 - t) ** 2) * 0.95;
-    } else {
-      const t = (u - peakU) / (1 - peakU);
-      y = cy + sign * conv * (1 - t ** 2) * 0.95;
-    }
-    if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
-      const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
-      const flipped = cy - sign * (cy - y > 0 ? cy - y : y - cy) * 0.6;
-      y = y * (1 - t) + flipped * t;
-    }
-    if (!isDorsal && s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
-      // Geniculate ventral — a sharp ANGULAR bend, not a smooth curve.
-      // Pre-kink: the natural parabolic silhouette (use y as already
-      // computed). At and after kinkU: a straight ramp DOWN AND BACK
-      // from the kink point. The ramp is at a steep but finite angle
-      // (not vertical) so the anterior trail still extends forward
-      // visibly. Earlier code anchored the kink at a fixed offset
-      // (cy + 55% of ventralConv) which produced inconsistent kink
-      // start points across taxa — now we anchor at the actual
-      // smoothParabola(kinkU) so the bend reads as continuous with
-      // the pre-kink curve.
-      const kinkU = 2 * s.lateralKinkAt - 1;
-      // Recompute the natural y AT the kink point so the geniculate
-      // segment starts smoothly from where the parabola was heading
-      const kt = kinkU <= peakU
-        ? (kinkU + 1) / (peakU + 1)
-        : (kinkU - peakU) / (1 - peakU);
-      const baseAtKink = kinkU <= peakU
-        ? cy + sign * conv * (1 - (1 - kt) ** 2) * 0.95
-        : cy + sign * conv * (1 - kt ** 2) * 0.95;
-      const t = (u - kinkU) / (1 - kinkU);
-      // Slight super-linear easing — the bend starts gradually then
-      // drops more steeply, reading as a sharp angular trail
-      const ease = Math.pow(t, 1.25);
-      y = baseAtKink + s.lateralDropPx * ease;
-    }
-    return y;
+  // === Cubic Bezier silhouette ===
+  // Each valve's outer outline is now TWO cubic-Bezier segments
+  // (back-anchor → apex, apex → anterior tip) instead of joined
+  // half-parabolas. Bezier handles give organic control over taper
+  // sharpness, flat regions near the apex, and asymmetric front/back
+  // shaping that parabolas couldn't express.
+  //
+  // C¹ continuity at the apex is enforced by placing both control
+  // points adjacent to the apex on the SAME horizontal line (y = apexY)
+  // — so the tangent at the apex is horizontal on both sides.
+  // Similarly the back-anchor and anterior-tip endpoints get
+  // horizontal-tangent control points for smooth attachment to the
+  // closure path.
+
+  // Apex position
+  const apexU = -s.apexShift;
+  const apexX = beakX + (1 + apexU) / 2 * 2 * halfL;
+  const apexY = cy + sign * conv * 0.95;
+
+  // Anchors
+  const backAnchorY = s.interareaH > 0 ? cy + sign * s.interareaH * 0.5 : cy;
+  const anteriorHalf = s.foldStr * 11;
+  const frontTipY = commissureY(1, s) + sign * anteriorHalf;
+
+  // Handle lengths per outline — different shells have different
+  // natural curvature profiles. backH = at back-anchor; apexBackH /
+  // apexFrontH = at the apex (both sides); frontH = at anterior tip.
+  // Larger handle = flatter / more drawn-out curve; smaller = sharper.
+  let backH, apexBackH, apexFrontH, frontH;
+  if (s.outline === "conical") {
+    // Conical (Conispirifer) — sharp posterior (interarea wall is the
+    // back), long gradual taper to anterior point
+    backH = halfL * 0.10;
+    apexBackH = halfL * 0.25;
+    apexFrontH = halfL * 0.55;
+    frontH = halfL * 0.20;
+  } else if (s.outline === "wing-shaped") {
+    // Wing-shaped (Cyrtospirifer) — modest back, balanced front
+    backH = halfL * 0.18;
+    apexBackH = halfL * 0.32;
+    apexFrontH = halfL * 0.42;
+    frontH = halfL * 0.35;
+  } else {
+    // Dome outlines — globose biconvex. Long handles around the apex
+    // produce a flat-topped/curving body (not parabolic balloon),
+    // shorter handles at the endpoints give natural taper to the
+    // commissure/hinge.
+    backH = halfL * 0.22;
+    apexBackH = halfL * 0.50;
+    apexFrontH = halfL * 0.50;
+    frontH = halfL * 0.25;
   }
 
-  // Posterior anchor — where this valve's outline meets the hinge.
-  // Note: backAnchor sits relative to commissureY(-1), but at u=-1 the
-  // commissure is at cy by construction (geniculate kicks in after
-  // kinkU which is always > -1), so commissureY(-1) = cy.
-  const backAnchorY = s.interareaH > 0 ? cy + sign * s.interareaH * 0.5 : cy;
-  // Anterior tip — offset above/below the COMMISSURE at u=1 (not at
-  // a fixed cy). For geniculate shells the commissure has dropped by
-  // the time it reaches the anterior, so the two valves still meet at
-  // the (now lower) anterior commissure.
-  const anteriorHalf = s.foldStr * 11;
-  const commAtFront = commissureY(1, s);
-  const frontTipY = commAtFront + sign * anteriorHalf;
+  // Clamp handles so they don't exceed segment distance
+  const backDist = Math.max(1, apexX - beakX);
+  const frontDist = Math.max(1, frontX - apexX);
+  backH = Math.min(backH, backDist * 0.45);
+  apexBackH = Math.min(apexBackH, backDist * 0.65);
+  apexFrontH = Math.min(apexFrontH, frontDist * 0.65);
+  frontH = Math.min(frontH, frontDist * 0.45);
 
-  // Sample the outer silhouette from beak to anterior.
-  const N = 96;
-  const cutoffT = 0.97;
+  // Sample the silhouette by Bezier parameter t (not by uniform x)
+  function bz(t, p0, p1, p2, p3) {
+    const omt = 1 - t;
+    return omt*omt*omt*p0 + 3*omt*omt*t*p1 + 3*omt*t*t*p2 + t*t*t*p3;
+  }
+  const N_BACK = 36;
+  const N_FRONT = 48;
   const sil = [];
-  for (let i = 0; i <= N; i++) {
-    const t = (i / N) * cutoffT;
-    const u = t * 2 - 1;
-    const x = beakX + t * 2 * halfL;
-    let y = valveY(u);
-    if (s.interareaH > 0 && t < 0.10) {
-      const k = t / 0.10;
-      y = backAnchorY * (1 - k) + y * k;
+
+  // Back segment: beak/back-anchor → apex
+  for (let i = 0; i <= N_BACK; i++) {
+    const t = i / N_BACK;
+    const x = bz(t, beakX, beakX + backH, apexX - apexBackH, apexX);
+    const y = bz(t, backAnchorY, backAnchorY, apexY, apexY);
+    sil.push([x, y]);
+  }
+  // Front segment: apex → anterior tip (skip first to avoid duplicate)
+  for (let i = 1; i <= N_FRONT; i++) {
+    const t = i / N_FRONT;
+    const x = bz(t, apexX, apexX + apexFrontH, frontX - frontH, frontX);
+    let y = bz(t, apexY, apexY, frontTipY, frontTipY);
+
+    // Lateral kinks applied as Y-perturbation in the front segment
+    const u = (x - cx) / halfL;
+    if (!isDorsal && s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
+      const kinkU = 2 * s.lateralKinkAt - 1;
+      const tt = (u - kinkU) / (1 - kinkU);
+      const ease = Math.pow(tt, 1.25);
+      y += s.lateralDropPx * ease;
     }
-    // Glide toward the anterior tip over the last segment, computed
-    // relative to commissureY(u) so geniculate/resupinate carry through
-    if (t > 0.84) {
-      const k = (t - 0.84) / (cutoffT - 0.84);
-      const localTipY = commissureY(u, s) + sign * anteriorHalf;
-      y = y * (1 - k) + localTipY * k;
+    if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
+      const kinkU = 2 * s.lateralKinkAt - 1;
+      const tt = (u - kinkU) / (1 - kinkU);
+      // Smoothly mirror the offset-from-cy across cy (the valve flips)
+      const offset = y - cy;
+      y = y * (1 - tt) + (cy - offset * 0.6) * tt;
     }
     sil.push([x, y]);
   }
