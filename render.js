@@ -1609,6 +1609,126 @@ function svgFrontView(answers) {
 // dense ribs make fine teeth; sparse ribs make coarse crenulations. This is
 // a diagnostic field-ID cue.
 
+// ============================================================
+// Side view — two-valve model
+// ============================================================
+//
+// Each valve is drawn as its own closed shape. The dorsal valve sits
+// above the commissure plane (cy), the ventral valve below. They meet
+// at the anterior commissure (frontX) and, for strophic shells, at the
+// hinge point (beakX, cy) with an interarea face on each valve. For
+// astrophic shells the two beaks meet directly at (beakX, cy) and coil
+// opposite directions.
+//
+// Each valve's outline includes its OWN beak curl as part of the path,
+// so the iconic brachiopod beak-coiling reads natively in side view
+// instead of being a stuck-on overlay.
+
+function sideValveClosedPath(s, isDorsal) {
+  const cx = 100, cy = 100;
+  const halfL = s.halfLength;
+  const beakX = cx - halfL;
+  const frontX = cx + halfL;
+  const sign = isDorsal ? -1 : 1;
+  const conv = isDorsal ? s.dorsalConv : s.ventralConv;
+  const peakU = -s.apexShift;
+
+  // Outer-silhouette y at AP position u ∈ [-1, +1]. The sign carries the
+  // valve direction so dorsal rises above cy, ventral falls below.
+  function valveY(u) {
+    let y;
+    if (u <= peakU) {
+      const t = (u - (-1)) / (peakU - (-1));   // 0 at beak, 1 at apex
+      y = cy + sign * conv * (1 - (1 - t) ** 2) * 0.95;
+    } else {
+      const t = (u - peakU) / (1 - peakU);     // 0 at apex, 1 at anterior
+      y = cy + sign * conv * (1 - t ** 2) * 0.95;
+    }
+    // Lateral kinks — geniculate (ventral only) and resupinate (anterior inverts)
+    if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
+      const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
+      const flipped = cy - sign * (cy - y > 0 ? cy - y : y - cy) * 0.6;
+      y = y * (1 - t) + flipped * t;
+    }
+    if (!isDorsal && s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
+      const kinkU = 2 * s.lateralKinkAt - 1;
+      const kinkY = cy + Math.max(0, s.ventralConv) * 0.55;
+      const t = (u - kinkU) / (1 - kinkU);
+      y = kinkY + s.lateralDropPx * t;
+    }
+    return y;
+  }
+
+  // Posterior anchor: where this valve's outline meets the hinge line.
+  // For strophic shells the interarea separates the valves at the back;
+  // for astrophic both anchors coincide at (beakX, cy).
+  const backAnchorY = s.interareaH > 0 ? cy + sign * s.interareaH * 0.5 : cy;
+  const anteriorHalf = 5 + s.foldStr * 9;
+  const frontTipY = cy + sign * anteriorHalf;
+
+  // Sample the outer silhouette from beak to anterior.
+  const N = 96;
+  const cutoffT = 0.96;
+  const sil = [];
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * cutoffT;
+    const u = t * 2 - 1;
+    const x = beakX + t * 2 * halfL;
+    let y = valveY(u);
+    // Blend into back-anchor over the posterior 10% (smooth landing on interarea)
+    if (s.interareaH > 0 && t < 0.10) {
+      const k = t / 0.10;
+      y = backAnchorY * (1 - k) + y * k;
+    }
+    // Glide toward the anterior commissure offset over the last 12%
+    if (t > 0.84) {
+      const k = (t - 0.84) / (cutoffT - 0.84);
+      y = y * (1 - k) + frontTipY * k;
+    }
+    sil.push([x, y]);
+  }
+
+  // Build the closed path. Direction: anterior tip → outer silhouette →
+  // back anchor → beak curl → down interarea (strophic) → back along
+  // commissure (cy) → up to anterior tip.
+  let d = `M ${frontX.toFixed(1)},${frontTipY.toFixed(1)}`;
+  for (let i = sil.length - 1; i >= 0; i--) {
+    d += ` L ${sil[i][0].toFixed(1)},${sil[i][1].toFixed(1)}`;
+  }
+  // We're now at (beakX, backAnchorY). Add the beak curl, which extends
+  // BACK and slightly TOWARD the commissure (the coil direction).
+  if (s.beak !== "subdued") {
+    const isWingShaped = s.outline === "wing-shaped";
+    // Dorsal carries the more prominent coil; ventral coil is smaller.
+    // For astrophic shells both coils are noticeable since there's no
+    // interarea to hide them.
+    const baseFrac = isDorsal
+      ? (isWingShaped ? 0.28 : 0.16)
+      : (isWingShaped ? 0.16 : 0.10);
+    const astroBoost = s.interareaH === 0 ? 1.4 : 1.0;
+    const hookExt = halfL * baseFrac * astroBoost;
+    const ax = beakX, ay = backAnchorY;
+    // Tip extends BACK and toward the commissure
+    const tipX = ax - hookExt;
+    const tipY = ay - sign * hookExt * 0.22;
+    // Outer curve bulges AWAY from commissure
+    const oC1x = ax - hookExt * 0.10, oC1y = ay + sign * hookExt * 0.55;
+    const oC2x = ax - hookExt * 0.95, oC2y = ay + sign * hookExt * 0.25;
+    // Inner curve returns toward the commissure
+    const iCx = ax - hookExt * 0.42, iCy = ay - sign * hookExt * 0.05;
+    d += ` C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)}`;
+    d += ` Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)}`;
+  }
+  // Down the interarea face (strophic only — bridges back-anchor to commissure)
+  if (s.interareaH > 0) {
+    d += ` L ${beakX.toFixed(1)},${cy.toFixed(1)}`;
+  }
+  // Back along the commissure plane to the anterior, then up to the tip
+  d += ` L ${frontX.toFixed(1)},${cy.toFixed(1)}`;
+  d += ` L ${frontX.toFixed(1)},${frontTipY.toFixed(1)} Z`;
+  return d;
+}
+
 function svgSideView(answers) {
   const s = answersToShape(answers);
   const cx = 100, cy = 100;
@@ -1616,25 +1736,19 @@ function svgSideView(answers) {
   const beakX = cx - halfL;
   const frontX = cx + halfL;
 
-  // ---- Dorsal/ventral curves ----
-  //
-  // Asymmetric parabolas with the apex shifted posteriorly by `apexShift`.
-  // u in [-1, +1] is the AP coordinate (-1 = beak, +1 = anterior).
-  // peakU is where the curve hits its maximum/minimum (apex of the valve).
-  // For subdued beaks, peakU≈0 (symmetric lemon); for pyramidal forms,
-  // peakU ≪ 0 (apex sits well back, anterior is a long taper — a triangle).
-  //
-  // Lateral kinks (geniculate / resupinate) reshape the curves piecewise,
-  // overriding the smooth parabola in specific AP regions.
-  const peakU = -s.apexShift;
+  // Per-valve closed paths (each carries its own beak curl natively)
+  const dorsalPath = sideValveClosedPath(s, true);
+  const ventralPath = sideValveClosedPath(s, false);
 
+  // Legacy dorsalY / ventralY for decoration helpers (ribs, spines).
+  // Kept as smooth-parabola functions of x; not used for outline drawing.
+  const peakU = -s.apexShift;
   function smoothParabola(u, conv) {
-    // Two half-parabolas joined at peakU, each going from valve apex to cy.
     if (u <= peakU) {
-      const t = (u - (-1)) / (peakU - (-1));   // 0 at beak, 1 at apex
+      const t = (u - (-1)) / (peakU - (-1));
       return cy - conv * (1 - (1 - t) ** 2) * 0.95;
     }
-    const t = (u - peakU) / (1 - peakU);       // 0 at apex, 1 at anterior
+    const t = (u - peakU) / (1 - peakU);
     return cy - conv * (1 - t ** 2) * 0.95;
   }
 
@@ -1674,68 +1788,34 @@ function svgSideView(answers) {
     return y;
   };
 
-  // Interarea-induced offset at the back: for strophic shells the dorsal and
-  // ventral curves start at separated heights (interareaH apart).
+  // Interarea-induced offset at the back (used by overlay decoration).
   const interareaTop = cy - s.interareaH * 0.5;
   const interareaBot = cy + s.interareaH * 0.5;
-
-  // Anterior commissure half-height. Strong fold pushes the two curves apart
-  // at the front. We hold a minimum half-height so the commissure edge is
-  // always visible.
   const anteriorHalf = 5 + s.foldStr * 9;
 
-  // Build dorsal (top) and ventral (bot) curves from beak to just before
-  // the anterior commissure. We'll then weld a rib zigzag onto the front edge.
-  const N = 96;
-  const cutoffT = 0.96;   // dorsal/ventral curves end here; zigzag fills 0.96..1.0
-  const top = [], bot = [];
-  for (let i = 0; i <= N; i++) {
-    const t = (i / N) * cutoffT;
-    const x = beakX + t * 2 * halfL;
-    let dy = dorsalY(x), vy = ventralY(x);
-    if (s.interareaH > 0 && t < 0.10) {
-      const k = t / 0.10;
-      dy = interareaTop * (1 - k) + dy * k;
-      vy = interareaBot * (1 - k) + vy * k;
-    }
-    // Glide toward the anterior commissure edge over the last few percent.
-    if (t > 0.84) {
-      const k = (t - 0.84) / (cutoffT - 0.84);
-      dy = dy * (1 - k) + (cy - anteriorHalf) * k;
-      vy = vy * (1 - k) + (cy + anteriorHalf) * k;
-    }
-    top.push([x, dy]);
-    bot.push([x, vy]);
-  }
-
-  // Anterior commissure: rib zigzag from (frontX_inner, cy-anteriorHalf) down
-  // to (frontX_inner, cy+anteriorHalf), with teeth pointing right toward
-  // frontX. Number of teeth = visible rib count (capped so dense ribs stay
-  // legible). Smooth shells fall through to a straight vertical edge.
-  const commXInner = cx + halfL * cutoffT;
+  // Anterior commissure zigzag — drawn as a separate overlay between the
+  // two valves' anterior tips so the rib teeth pattern reads on the front
+  // edge of the shell.
+  const commXInner = cx + halfL * 0.96;
   const commXOuter = frontX;
-  const zigzag = [];
+  let zigzagPath = "";
   if (s.ribCount > 0 && s.ribAmp > 0) {
     const visibleTeeth = Math.max(4, Math.min(16, Math.round(s.ribCount * 0.6)));
-    // Each tooth = two points: tip (out) and root (in). Build top→bottom.
     const yStart = cy - anteriorHalf;
     const yEnd   = cy + anteriorHalf;
     const totalSteps = visibleTeeth * 2 + 1;
     const amp = Math.min(s.ribAmp, halfL * 0.10);
+    let zd = `M ${commXOuter.toFixed(1)},${yStart.toFixed(1)}`;
     for (let i = 1; i < totalSteps; i++) {
       const u = i / totalSteps;
       const y = yStart + (yEnd - yStart) * u;
-      // Teeth alternate: odd i = tip (out), even i = root (in)
       const x = (i % 2 === 1) ? commXOuter + amp * 0.4 : commXInner;
-      zigzag.push([x, y]);
+      zd += ` L ${x.toFixed(1)},${y.toFixed(1)}`;
     }
-  } else {
-    // Smooth commissure: a straight vertical line from top to bot endpoints.
-    // (Built by the path closure between top[N] and bot[N], no extra points.)
+    zd += ` L ${commXOuter.toFixed(1)},${yEnd.toFixed(1)}`;
+    zigzagPath = `<path d="${zd}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>`;
   }
 
-  const outline = top.concat(zigzag, bot.reverse());
-  const outlinePath = pointsToPath(outline);
   const clipId = "brachSideClip_" + Math.floor(Math.random() * 1e6);
 
   let inner = "";
@@ -1830,37 +1910,8 @@ function svgSideView(answers) {
   //     extend anteriorly
   //   - a small "← P" posterior label sits just behind the interarea
   let overlay = "";
-  // ---- Umbo curl (dorsal beak hooking back over the interarea) ----
-  //
-  // brach3 (Conispirifer) and brach4 (Cyrtospirifer) side photos show
-  // the dorsal beak/umbo curling BACK over the top of the interarea
-  // wall — a small comma-shaped hook protruding from the upper-back of
-  // the shell. Cyrtospirifer's hook is large and prominent; the cone
-  // spiriferids' hook is smaller because the tall interarea already
-  // accommodates the umbo. Both need this curl in side view to read
-  // as actual brachiopod beaks rather than flat-backed rectangles.
-  if (s.interareaH > 0 && s.beak !== "subdued") {
-    // Wing-shaped spirifers (Cyrtospirifer-style) have a prominent umbo
-    // curl that protrudes substantially. Conical/cone forms have a tall
-    // interarea wall already, so the curl on top of it is proportionally
-    // smaller.
-    const hookFrac = s.outline === "wing-shaped" ? 0.28 : 0.16;
-    const hookExt = halfL * hookFrac;
-    // Anchor at upper-back corner of body (top of interarea wall).
-    const ax = beakX, ay = interareaTop;
-    // Tip extends BACK and slightly DOWN
-    const tipX = ax - hookExt;
-    const tipY = ay + hookExt * 0.22;
-    // Outer curve: bulges UP and back
-    const oC1x = ax - hookExt * 0.10, oC1y = ay - hookExt * 0.55;
-    const oC2x = ax - hookExt * 0.95, oC2y = ay - hookExt * 0.25;
-    // Inner curve: returns inward toward the body
-    const iCx = ax - hookExt * 0.42, iCy = ay + hookExt * 0.05;
-    overlay += `<path d="M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
-      `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
-      `Q ${iCx.toFixed(1)},${iCy.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z" ` +
-      `fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>`;
-  }
+  // Each valve's beak curl is now drawn by sideValveClosedPath itself —
+  // no separate hook overlay needed.
   if (s.interareaH > 0) {
     // Larger tilt — the interarea looks like a real flat wall, deeper than
     // any rib-zigzag teeth at the anterior.
@@ -1895,10 +1946,16 @@ function svgSideView(answers) {
     overlay += `<line x1="${frontX.toFixed(1)}" y1="${(cy - anteriorHalf).toFixed(1)}" x2="${frontX.toFixed(1)}" y2="${(cy + anteriorHalf).toFixed(1)}" stroke="#444" stroke-width="0.9" stroke-dasharray="3,2"/>`;
   }
 
+  // Two-valve render: ventral first (so dorsal sits on top where they
+  // overlap at the commissure plane). Decoration is clipped to the union
+  // of the two valves via a combined clip-path.
+  const unionPath = dorsalPath + " " + ventralPath;
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
-    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
-    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
+    <defs><clipPath id="${clipId}"><path d="${unionPath}"/></clipPath></defs>
+    <path d="${ventralPath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
+    <path d="${dorsalPath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
     <g clip-path="url(#${clipId})">${inner}</g>
+    ${zigzagPath}
     ${overlay}
   </svg>`;
 }
