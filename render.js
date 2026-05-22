@@ -933,7 +933,17 @@ function answersToShape(answers) {
   // have notably inflated dorsal valves carrying the lamellae stack).
   let dorsalConv, ventralConv;
   if (p === "concavo-convex") {
-    dorsalConv = -24; ventralConv = 64;
+    // Strophomenids and productids — overall FLAT shell. The previous
+    // 24/64 split made the silhouette a deep U-pouch which doesn't
+    // match the brach7 (Douvillina) photo where the side view is a
+    // thin strip with a small anterior bend (the geniculate).
+    // Dorsal is essentially flat / slightly concave (small positive
+    // value, rather than negative — the side-view silhouette can't
+    // dip below cy without self-crossing the commissure-plane closure).
+    // Productids with spines get a deeper ventral cone via the spines
+    // boost below.
+    dorsalConv = 6;
+    ventralConv = features.spines ? 38 : 22;
   } else if (p === "plano-convex") {
     dorsalConv = 70; ventralConv = 6;
   } else if (o === "conical") {
@@ -1718,10 +1728,30 @@ function sideValveClosedPath(s, isDorsal) {
       y = y * (1 - t) + flipped * t;
     }
     if (!isDorsal && s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
+      // Geniculate ventral — a sharp ANGULAR bend, not a smooth curve.
+      // Pre-kink: the natural parabolic silhouette (use y as already
+      // computed). At and after kinkU: a straight ramp DOWN AND BACK
+      // from the kink point. The ramp is at a steep but finite angle
+      // (not vertical) so the anterior trail still extends forward
+      // visibly. Earlier code anchored the kink at a fixed offset
+      // (cy + 55% of ventralConv) which produced inconsistent kink
+      // start points across taxa — now we anchor at the actual
+      // smoothParabola(kinkU) so the bend reads as continuous with
+      // the pre-kink curve.
       const kinkU = 2 * s.lateralKinkAt - 1;
-      const kinkY = cy + Math.max(0, s.ventralConv) * 0.55;
+      // Recompute the natural y AT the kink point so the geniculate
+      // segment starts smoothly from where the parabola was heading
+      const kt = kinkU <= peakU
+        ? (kinkU + 1) / (peakU + 1)
+        : (kinkU - peakU) / (1 - peakU);
+      const baseAtKink = kinkU <= peakU
+        ? cy + sign * conv * (1 - (1 - kt) ** 2) * 0.95
+        : cy + sign * conv * (1 - kt ** 2) * 0.95;
       const t = (u - kinkU) / (1 - kinkU);
-      y = kinkY + s.lateralDropPx * t;
+      // Slight super-linear easing — the bend starts gradually then
+      // drops more steeply, reading as a sharp angular trail
+      const ease = Math.pow(t, 1.25);
+      y = baseAtKink + s.lateralDropPx * ease;
     }
     return y;
   }
