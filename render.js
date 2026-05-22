@@ -2197,21 +2197,20 @@ function viewMorphospace(sid) {
       ]),
       el("p", { class: "page-blurb" },
         `Fitted from 3-D photogrammetry. ${sub.title}.`),
-      el("h3", { class: "calibrate-row-h" }, "Analytical (fitted from 3D mesh)"),
-      el("div", { class: "build-tri-wrap" }, [
-        el("figure", { class: "build-tri" }, [
-          el("div", { class: "tri-svg", html: svgAnalyticalTop(taxon.shape) }),
-          el("figcaption", {}, "Top")
-        ]),
-        el("figure", { class: "build-tri" }, [
-          el("div", { class: "tri-svg", html: svgAnalyticalFront(taxon.shape) }),
-          el("figcaption", {}, "Front")
-        ]),
-        el("figure", { class: "build-tri" }, [
-          el("div", { class: "tri-svg", html: svgAnalyticalSide(taxon.shape) }),
-          el("figcaption", {}, "Side")
-        ])
-      ]),
+      // MESH OVERLAY — the primary diagnostic. Mesh silhouette is the
+      // filled gray polygon; the analytical model fit is the red dashed
+      // outline overlaid on top. Where the red leaves the gray, the
+      // model fails to capture the actual shape.
+      taxon.shape && taxon.shape.overlay
+        ? el("div", {}, [
+            el("h3", { class: "calibrate-row-h" },
+              "Model vs 3-D mesh (red dashed = analytical model; gray = mesh)"),
+            el("img", { src: taxon.shape.overlay,
+                         alt: `${taxon.genus} ${taxon.species} model overlay`,
+                         loading: "lazy",
+                         style: "width:100%; max-width:780px; display:block; margin: 0 auto;" })
+          ])
+        : null,
       el("h3", { class: "calibrate-row-h" }, "Parametric (categorical traits)"),
       el("div", { class: "build-tri-wrap" }, [
         el("figure", { class: "build-tri" }, [
@@ -2244,7 +2243,7 @@ function viewMorphospace(sid) {
     el("main", { class: "page" }, [
       el("h2", { class: "page-title" }, "Morphospace — fitted analytical shapes"),
       el("p", { class: "page-blurb" },
-        "Each taxon below carries a parameter tuple fitted to photogrammetry from the Digital Atlas of Ancient Life. The analytical row shows silhouettes computed from that tuple alone; the parametric row shows what the categorical-trait sliders produce; the photo is included where one exists. See data/fit_harness/README.md for the fit methodology."),
+        "Each taxon below has a parameter tuple fitted to a 3-D photogrammetric mesh from the Digital Atlas of Ancient Life. The model-vs-mesh overlay is the diagnostic: gray fill = actual mesh silhouette, red dashed outline = analytical model fit. Wherever the red dashed line leaves the gray area, the analytical model fails to capture that part of the real shell. The parametric row below shows what the categorical-trait sliders produce for the same taxon. See data/fit_harness/README.md for the fit methodology."),
       ...sections,
       el("p", { class: "more-link" },
         el("a", { href: `${siteBase(sid)}/calibrate` }, "← Calibration view"))

@@ -95,7 +95,8 @@ const FAUNA = [
             // closely related Devonian alate spiriferid.
             shape: { lat_half: 0.711, p_ant: 1.664, p_post: 1.500, apex_y: -0.014,
                      dorsal_z: 0.372, ventral_z: 0.300, dome_k: 1.853,
-                     sulcus_depth: 0.000, sulcus_sigma: 0.180 },
+                     sulcus_depth: 0.000, sulcus_sigma: 0.180,
+                     overlay: "images/morphospace/spinocyrtia_iowensis_overlay.png" },
             images: [
               { file: "whitneyi_nathan_01.jpg", src: "nathan" },
               { file: "whitneyi_dave_01.jpg",   src: "dave"   },
@@ -168,7 +169,8 @@ const FAUNA = [
             // Fitted from Atrypa devoniana photogrammetry (DAAL PRI 70763)
             shape: { lat_half: 0.437, p_ant: 2.276, p_post: 2.187, apex_y: -0.004,
                      dorsal_z: 0.260, ventral_z: 0.253, dome_k: 1.690,
-                     sulcus_depth: 0.105, sulcus_sigma: 0.286 },
+                     sulcus_depth: 0.105, sulcus_sigma: 0.286,
+                     overlay: "images/morphospace/atrypa_devoniana_overlay.png" },
             images: [
               { file: "devoniana_nathan_01.jpg",    src: "nathan"    },
               { file: "devoniana_dave_01.jpg",      src: "dave"      },
@@ -336,7 +338,8 @@ const FAUNA = [
             // related Silurian pentamerid; *Gypidula* form factor is similar.
             shape: { lat_half: 0.388, p_ant: 2.211, p_post: 1.799, apex_y: -0.076,
                      dorsal_z: 0.260, ventral_z: 0.243, dome_k: 1.500,
-                     sulcus_depth: 0.126, sulcus_sigma: 0.207 },
+                     sulcus_depth: 0.126, sulcus_sigma: 0.207,
+                     overlay: "images/morphospace/pentamerus_oblongus_overlay.png" },
             images: [
               { file: "cornuta_nathan_01.jpg", src: "nathan" }
             ] },
@@ -362,7 +365,8 @@ const FAUNA = [
             // Schizophoria's 'B' morphotype.
             shape: { lat_half: 0.711, p_ant: 2.094, p_post: 1.827, apex_y: -0.134,
                      dorsal_z: 0.372, ventral_z: 0.300, dome_k: 1.676,
-                     sulcus_depth: 0.303, sulcus_sigma: 0.180 },
+                     sulcus_depth: 0.303, sulcus_sigma: 0.180,
+                     overlay: "images/morphospace/hebertella_occidentalis_overlay.png" },
             images: [
               { file: "iowensis_nathan_01.jpg",      src: "nathan"                  },
               { file: "iowensis_dave_01.jpg",        src: "dave"                    },
