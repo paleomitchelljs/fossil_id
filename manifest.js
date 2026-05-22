@@ -98,6 +98,7 @@ const FAUNA = [
                      sulcus_depth: 0.000, sulcus_sigma: 0.180,
                      overlay: "images/morphospace/spinocyrtia_iowensis_overlay.png" },
             images: [
+              { file: "whitneyi_jsm_02.png",    src: "jsm"    },
               { file: "whitneyi_nathan_01.jpg", src: "nathan" },
               { file: "whitneyi_dave_01.jpg",   src: "dave"   },
               { file: "whitneyi_dave_02.jpg",   src: "dave"   },
@@ -174,6 +175,7 @@ const FAUNA = [
                      sulcus_depth: 0.105, sulcus_sigma: 0.286,
                      overlay: "images/morphospace/atrypa_devoniana_overlay.png" },
             images: [
+              { file: "devoniana_jsm_02.png",       src: "jsm"       },
               { file: "devoniana_nathan_01.jpg",    src: "nathan"    },
               { file: "devoniana_dave_01.jpg",      src: "dave"      },
               { file: "devoniana_eqmn_01.png",      src: "eqmn"      },
@@ -196,6 +198,7 @@ const FAUNA = [
             note: "Medium-to-large; biconvex to dorsibiconvex; wider than long with rounded outline; coarse undulating ribs (4–7/10 mm); spinose lamellae. Holotype from Rockford Quarry (Day & Copper 1998).",
             traits: { surface_ribs: "yes", surface_frills: "yes", surface_spines: "yes", profile: "biconvex", hinge: "astrophic", spines: "absent", fold_sulcus: "weak", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
+              { file: "rockfordensis_jsm_01.png",       src: "jsm"       },
               { file: "rockfordensis_nathan_01.jpg",    src: "nathan"    },
               { file: "rockfordensis_unk_01.webp",      src: "unk"       },
               { file: "rockfordensis_daycopper_01.png", src: "daycopper" }
