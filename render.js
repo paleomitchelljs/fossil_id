@@ -1884,19 +1884,29 @@ function sideValveClosedPath(s, isDorsal) {
     if (hookExt < 5) { coil = ""; }
     else {
       const ax = beakX, ay = backAnchorY;
-      // Tip at BACK-AND-AWAY from cy
-      const tipX = ax - hookExt;
-      const tipY = ay + sign * hookExt * 0.60;
-      // Outer Bezier — anchor → tip, bulging FAR from cy. Larger
-      // multipliers than the previous comma version so the umbo's
-      // outer arc reads as a real hook.
-      const oC1x = ax + hookExt * 0.18, oC1y = ay + sign * hookExt * 1.35;
-      const oC2x = ax - hookExt * 1.25, oC2y = ay + sign * hookExt * 0.95;
-      // Inner return — tip → anchor sweeping FORWARD into the body
-      // and PAST cy. iC2 sits well forward of the anchor AND across cy
-      // on the opposite hemisphere — creates the wraparound coil look.
-      const iC1x = ax - hookExt * 0.45, iC1y = ay - sign * hookExt * 0.05;
-      const iC2x = ax + hookExt * 0.50, iC2y = ay - sign * hookExt * 0.45;
+      // The umbo coil traces clockwise (for dorsal): anchor → up-back
+      // (outer arc) → tip → down-forward into the body interior
+      // (inner arc returns to anchor). Both arcs are cubic Beziers
+      // whose control points are placed to produce a tight spiral
+      // shape rather than a wide-open comma.
+      //
+      // Tip sits BACK and FURTHER from cy than the anchor — this is
+      // the "back-most" point of the coil.
+      const tipX = ax - hookExt * 0.95;
+      const tipY = ay + sign * hookExt * 0.70;
+      // Outer arc: from anchor → tip. Control points bulge HARD away
+      // from cy at first (rising over the top of the shell) then
+      // approach the tip from above. This is the "back-up" portion
+      // of the coil.
+      const oC1x = ax + hookExt * 0.30, oC1y = ay + sign * hookExt * 1.50;
+      const oC2x = ax - hookExt * 1.30, oC2y = ay + sign * hookExt * 1.20;
+      // Inner arc: from tip → anchor. Sweeps FORWARD past the anchor
+      // AND across cy into the opposite hemisphere — this is what
+      // makes the inner edge of the coil pass THROUGH the body region.
+      // The result reads as a small spiral with its tip pointing back
+      // into the shell interior, not a comma stuck to the back.
+      const iC1x = ax - hookExt * 0.20, iC1y = ay - sign * hookExt * 0.35;
+      const iC2x = ax + hookExt * 0.70, iC2y = ay - sign * hookExt * 0.80;
       coil = `M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
              `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
              `C ${iC1x.toFixed(1)},${iC1y.toFixed(1)} ${iC2x.toFixed(1)},${iC2y.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z`;
@@ -2152,14 +2162,15 @@ function svgSideView(answers) {
     overlay += `<line x1="${frontX.toFixed(1)}" y1="${(cy - anteriorHalf).toFixed(1)}" x2="${frontX.toFixed(1)}" y2="${(cy + anteriorHalf).toFixed(1)}" stroke="#444" stroke-width="0.9" stroke-dasharray="3,2"/>`;
   }
 
-  // Two-valve render order:
-  //   1. Fill both valve bodies (no stroke)
+  // Two-valve render order — COILS ON TOP of body strokes:
+  //   1. Body fills (no stroke)
   //   2. Decoration clipped to body fills
   //   3. Interarea overlay between the valves at the back
-  //   4. Beak coils — drawn ON TOP, with fill (so the inner-arc
-  //      sweeps past the anchor and visually overlaps the body) and
-  //      stroke (the visible hook outline)
-  //   5. Body silhouette stroke (outer edges of each valve)
+  //   4. Body silhouette strokes (visible outer edge of the body)
+  //   5. Beak coils (fill + stroke) — drawn LAST so the coil's outline
+  //      sits on top of the body stroke at the overlap. This makes the
+  //      umbo read as a coiled feature visually IN FRONT OF the body,
+  //      rather than a separate shape glued to the back.
   //   6. Anterior commissure zigzag (if ribs)
   const unionFill = dorsal.fill + " " + ventral.fill;
   const ventralCoilSvg = ventral.coil
@@ -2172,10 +2183,10 @@ function svgSideView(answers) {
     <path d="${dorsal.fill}" fill="#fffef7" stroke="none"/>
     <g clip-path="url(#${clipId})">${inner}</g>
     ${overlay}
-    ${ventralCoilSvg}
-    ${dorsalCoilSvg}
     <path d="${ventral.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
     <path d="${dorsal.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
+    ${ventralCoilSvg}
+    ${dorsalCoilSvg}
     ${zigzagPath}
   </svg>`;
 }
