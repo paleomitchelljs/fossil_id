@@ -1778,33 +1778,30 @@ function sideValveClosedPath(s, isDorsal) {
   const anteriorHalf = s.foldStr * 11;
   const frontTipY = commissureY(1, s) + sign * anteriorHalf;
 
-  // Handle lengths per outline — different shells have different
-  // natural curvature profiles. backH = at back-anchor; apexBackH /
-  // apexFrontH = at the apex (both sides); frontH = at anterior tip.
-  // Larger handle = flatter / more drawn-out curve; smaller = sharper.
+  // Handle lengths per outline — DIRECTIONALLY ASYMMETRIC. Real shells
+  // have a fat posterior (where the umbo sits) and a tapered anterior:
+  //   * Short apexBackH → curve drops steeply from apex toward umbo
+  //   * Long apexFrontH → gradual glide from apex to anterior tip
+  // This is what produces a "shell-like" silhouette instead of a
+  // symmetric lens. The previous symmetric handles produced renders
+  // that looked like geometric primitives, not specimens.
   let backH, apexBackH, apexFrontH, frontH;
   if (s.outline === "conical") {
-    // Conical (Conispirifer) — sharp posterior (interarea wall is the
-    // back), long gradual taper to anterior point
-    backH = halfL * 0.10;
-    apexBackH = halfL * 0.25;
+    backH = halfL * 0.08;
+    apexBackH = halfL * 0.18;
     apexFrontH = halfL * 0.55;
     frontH = halfL * 0.20;
   } else if (s.outline === "wing-shaped") {
-    // Wing-shaped (Cyrtospirifer) — modest back, balanced front
-    backH = halfL * 0.18;
-    apexBackH = halfL * 0.32;
-    apexFrontH = halfL * 0.42;
-    frontH = halfL * 0.35;
-  } else {
-    // Dome outlines — globose biconvex. Long handles around the apex
-    // produce a flat-topped/curving body (not parabolic balloon),
-    // shorter handles at the endpoints give natural taper to the
-    // commissure/hinge.
-    backH = halfL * 0.22;
-    apexBackH = halfL * 0.50;
+    backH = halfL * 0.12;
+    apexBackH = halfL * 0.22;
     apexFrontH = halfL * 0.50;
-    frontH = halfL * 0.25;
+    frontH = halfL * 0.32;
+  } else {
+    // Dome outlines — asymmetric: posterior bulk, anterior taper
+    backH = halfL * 0.18;
+    apexBackH = halfL * 0.28;
+    apexFrontH = halfL * 0.60;
+    frontH = halfL * 0.22;
   }
 
   // Clamp handles so they don't exceed segment distance
@@ -1855,42 +1852,55 @@ function sideValveClosedPath(s, isDorsal) {
     sil.push([x, y]);
   }
 
-  // === Beak coil — SEPARATE closed path, overlaps body interior ===
-  // The coil is its own filled/stroked shape drawn ON TOP of the body
-  // fill. Its inner return curve sweeps PAST the anchor into the body
-  // interior, producing the tight "hooked beak tucks into the body"
-  // geometry that the user critique flagged as missing. The body's own
-  // outline (`stroke` below) terminates at the anchor and doesn't
-  // include the coil, so the visible curl reads as a distinct hook
-  // overlapping the body — exactly like brach6 (Theodossia)'s photo.
+  // === Umbo — sized as a DOMINANT body feature, not a decorative tick ===
+  //
+  // The umbo is the diagnostic feature a student's eye locks onto in
+  // the photos. Sizing it at ~20% of halfL (the previous default)
+  // produced renders that looked like generic lenses with optional
+  // commas. The new sizing makes the umbo a major visible region of
+  // the side view — biologically appropriate for the shells where the
+  // umbo IS the defining feature (Theodossia, Cyrtospirifer,
+  // Pseudoatrypa). Subdued/pyramidal beaks get smaller umbos.
+  //
+  // The inner-arc Bezier control points now swing forward past the
+  // anchor AND well past cy, producing the wraparound coil geometry
+  // a real hooked umbo shows — the inner edge of the coil passes
+  // through the body interior, creating visible self-intersection
+  // that SVG nonzero winding renders as a credible hooked beak.
   let coil = "";
   if (s.beak !== "subdued") {
     const isWingShaped = s.outline === "wing-shaped";
     const isConical = s.outline === "conical";
-    const baseFrac = isDorsal
-      ? (isWingShaped ? 0.42 : isConical ? 0.30 : 0.28)
-      : (isWingShaped ? 0.28 : isConical ? 0.20 : 0.18);
-    const astroBoost = s.interareaH === 0 ? 1.7 : 1.0;
-    const hookExt = halfL * baseFrac * astroBoost;
-    const ax = beakX, ay = backAnchorY;
-    // Tip extends BACK and AWAY from cy
-    const tipX = ax - hookExt;
-    const tipY = ay + sign * hookExt * 0.55;
-    // Outer Bezier: anchor → tip via control points that bulge AWAY
-    // from cy first (the outer rim of the hook arcs up/down past the
-    // body), then sweep around to the tip.
-    const oC1x = ax + hookExt * 0.10, oC1y = ay + sign * hookExt * 1.25;
-    const oC2x = ax - hookExt * 1.15, oC2y = ay + sign * hookExt * 0.85;
-    // Inner return Bezier: tip → anchor via control points that sweep
-    // TOWARD cy and FORWARD (positive x past the anchor into the body
-    // interior). This is the "tucking" motion that produces visible
-    // overlap with the body fill — a real coiled hook, not a stuck-on
-    // protrusion.
-    const iC1x = ax - hookExt * 0.55, iC1y = ay - sign * hookExt * 0.05;
-    const iC2x = ax + hookExt * 0.20, iC2y = ay - sign * hookExt * 0.15;
-    coil = `M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
-           `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
-           `C ${iC1x.toFixed(1)},${iC1y.toFixed(1)} ${iC2x.toFixed(1)},${iC2y.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z`;
+    // Beak prominence multiplier on the umbo size
+    const beakMul = ({ moderate: 0.85, prominent: 1.15, pyramidal: 1.0 })[s.beak] || 0.85;
+    const baseFracDorsal = isWingShaped ? 0.65 : isConical ? 0.25 : 0.50;
+    const baseFracVentral = isWingShaped ? 0.42 : isConical ? 0.18 : 0.32;
+    const baseFrac = (isDorsal ? baseFracDorsal : baseFracVentral) * beakMul;
+    const astroBoost = s.interareaH === 0 ? 1.40 : 1.0;
+    let hookExt = halfL * baseFrac * astroBoost;
+    // Clamp so the umbo doesn't extend past the canvas (beakX is ~30
+    // for dome outlines, ~50 for wing-shaped — keep at least 4px margin)
+    hookExt = Math.min(hookExt, beakX - 4);
+    if (hookExt < 5) { coil = ""; }
+    else {
+      const ax = beakX, ay = backAnchorY;
+      // Tip at BACK-AND-AWAY from cy
+      const tipX = ax - hookExt;
+      const tipY = ay + sign * hookExt * 0.60;
+      // Outer Bezier — anchor → tip, bulging FAR from cy. Larger
+      // multipliers than the previous comma version so the umbo's
+      // outer arc reads as a real hook.
+      const oC1x = ax + hookExt * 0.18, oC1y = ay + sign * hookExt * 1.35;
+      const oC2x = ax - hookExt * 1.25, oC2y = ay + sign * hookExt * 0.95;
+      // Inner return — tip → anchor sweeping FORWARD into the body
+      // and PAST cy. iC2 sits well forward of the anchor AND across cy
+      // on the opposite hemisphere — creates the wraparound coil look.
+      const iC1x = ax - hookExt * 0.45, iC1y = ay - sign * hookExt * 0.05;
+      const iC2x = ax + hookExt * 0.50, iC2y = ay - sign * hookExt * 0.45;
+      coil = `M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
+             `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
+             `C ${iC1x.toFixed(1)},${iC1y.toFixed(1)} ${iC2x.toFixed(1)},${iC2y.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z`;
+    }
   }
 
   // === Body STROKE (open, silhouette + interarea face only) ===
