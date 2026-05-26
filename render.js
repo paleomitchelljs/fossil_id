@@ -213,7 +213,7 @@ function siteSubBar(sid) {
   const s = getSite(sid);
   return el("div", { class: "sitebar" }, [
     el("span", { class: "sitebar-label" }, s ? s.title : sid),
-    el("a", { class: "sitebar-switch", href: "#/" }, "Change site →")
+    el("a", { class: "sitebar-switch", href: siteBase(sid) }, "Switch site →")
   ]);
 }
 
@@ -277,65 +277,72 @@ function groupCard(group, sid) {
 
 // ---------- Views ----------
 function viewSitePicker() {
-  // If only one site, redirect there.
-  if (SITES.length === 1) {
-    location.hash = siteBase(SITES[0].id);
-    return el("div");
-  }
-  return el("div", { class: "view view-landing" }, [
-    el("header", { class: "hero" }, [
-      el("h1", {}, "Field Fossil Guide"),
-      el("p", { class: "hero-sub" }, "Choose a locality to begin.")
-    ]),
-    el("nav", { class: "landing-actions" },
-      SITES.map(s => el("a", { class: "big-action", href: siteBase(s.id) }, [
-        el("span", { class: "ba-title" }, s.title),
-        el("span", { class: "ba-sub" }, [s.subtitle, " — ", s.formation].filter(Boolean).join(""))
-      ]))
-    ),
-    el("nav", { class: "landing-actions secondary" }, [
-      el("a", { class: "big-action", href: "#/references" }, [
-        el("span", { class: "ba-title" }, "Reference figures"),
-        el("span", { class: "ba-sub" }, "Site-independent diagrams of symmetry, hinge types, shell convexity, group overviews.")
-      ])
-    ])
+  // The landing defaults to Rockford; the site dropdown there handles
+  // switching, so the bare "#/" route just redirects to the default site.
+  const def = SITES.find(s => s.id === "rockford") || SITES[0];
+  location.hash = siteBase(def.id);
+  return el("div");
+}
+
+function siteDropdown(sid) {
+  // A <select> of all sites; defaults to the current one. Changing it
+  // navigates to that site's landing.
+  return el("label", { class: "site-picker" }, [
+    el("span", { class: "site-picker-label" }, "Site"),
+    el("select", { class: "site-select", "aria-label": "Choose a site",
+        on: { change: (e) => { location.hash = siteBase(e.target.value); } } },
+      SITES.map(s => el("option",
+        { value: s.id, selected: s.id === sid ? "selected" : null },
+        s.title.split(" (")[0])))
   ]);
 }
 
 function viewSiteLanding(sid) {
   const site = getSite(sid);
   if (!site) return viewNotFound();
+  const siteName = site.title.split(" (")[0];
   return el("div", { class: "view view-landing" }, [
     el("header", { class: "hero" }, [
-      el("h1", {}, `Guide to ${site.title.split(" (")[0]} Fossils`),
-      el("p", { class: "hero-sub" },
-        [site.subtitle, site.formation || site.location].filter(Boolean).join(" — ")),
-      site.blurb ? el("p", { class: "hero-blurb" }, site.blurb) : null,
-      SITES.length > 1
-        ? el("p", { class: "hero-change" }, el("a", { href: "#/" }, "Change site →"))
-        : null
+      el("h1", {}, "Iowa Fossil ID"),
+      siteDropdown(sid)
     ]),
     el("nav", { class: "landing-actions" }, [
-      el("a", { class: "big-action primary", href: `${siteBase(sid)}/key` }, [
-        el("span", { class: "ba-title" }, "Help me ID it"),
-        el("span", { class: "ba-sub" }, "Step through short yes/no questions to narrow down what you found.")
+      el("a", { class: "big-action primary", href: `${siteBase(sid)}/build` }, [
+        el("span", { class: "ba-title" }, "ID Brachiopod"),
+        el("span", { class: "ba-sub" }, "Shape a specimen's outline, profile, hinge, and surface in the visualizer and watch the matching species narrow down.")
       ]),
-      el("a", { class: "big-action", href: `${siteBase(sid)}/build` }, [
-        el("span", { class: "ba-title" }, "Build a brachiopod"),
-        el("span", { class: "ba-sub" }, "Tweak outline, profile, hinge, fold, and surface features and watch the matching-species count update. Brachiopods only.")
+      el("a", { class: "big-action", href: `${siteBase(sid)}/key` }, [
+        el("span", { class: "ba-title" }, "ID Fossil (Unknown)"),
+        el("span", { class: "ba-sub" }, "Not sure what it is? Step through short yes/no questions to narrow down what you found.")
       ]),
-      el("a", { class: "big-action", href: `${siteBase(sid)}/browse` }, [
-        el("span", { class: "ba-title" }, "Browse by group"),
-        el("span", { class: "ba-sub" }, "Walk through brachiopods, corals, mollusks, and the other groups at this site.")
-      ]),
-      el("a", { class: "big-action", href: "#/references" }, [
-        el("span", { class: "ba-title" }, "Reference figures"),
-        el("span", { class: "ba-sub" }, "Diagrams of symmetry, hinge types, shell convexity, and group overviews.")
-      ]),
-      el("a", { class: "big-action", href: `${siteBase(sid)}/all` }, [
-        el("span", { class: "ba-title" }, "Full guide (printable)"),
-        el("span", { class: "ba-sub" }, "Everything on one page — best for Print → Save as PDF.")
+      el("a", { class: "big-action", href: `${siteBase(sid)}/atlas` }, [
+        el("span", { class: "ba-title" }, "Site Atlas"),
+        el("span", { class: "ba-sub" }, `Photos of every specimen known from ${siteName}.`)
       ])
+    ])
+  ]);
+}
+
+function viewAtlas(sid) {
+  const site = getSite(sid);
+  if (!site) return viewNotFound();
+  const siteName = site.title.split(" (")[0];
+  const taxa = [];
+  for (const g of faunaForSite(sid))
+    for (const s of g.subgroups)
+      for (const t of s.taxa)
+        if (t.images && t.images.length) taxa.push(t);
+  return el("div", { class: "view" }, [
+    topBar({ title: "Site Atlas", sid }),
+    siteSubBar(sid),
+    el("main", { class: "page" }, [
+      el("h2", { class: "page-title" }, `${siteName} — specimen atlas`),
+      pageBlurb(taxa.length
+        ? "Every photographed specimen from this site. Tap one for detail."
+        : "No specimen photos are available for this site yet."),
+      taxa.length
+        ? el("div", { class: "taxa-grid" }, taxa.map(t => taxonThumb(t, sid)))
+        : null
     ])
   ]);
 }
@@ -2330,6 +2337,7 @@ function route() {
     const sid = p[1];
     if (!getSite(sid))                      view = viewNotFound();
     else if (p.length === 2)                view = viewSiteLanding(sid);
+    else if (p[2] === "atlas")              view = viewAtlas(sid);
     else if (p[2] === "browse")             view = viewBrowse(sid);
     else if (p[2] === "group")              view = viewGroup(sid, p[3]);
     else if (p[2] === "sub")                view = viewSubgroup(sid, p[3], p[4]);
