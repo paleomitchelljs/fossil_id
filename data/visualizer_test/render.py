@@ -28,9 +28,10 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 
 
 def parse_path_d(d):
-    """Parse a path's d='...' attribute into a list of (verb, params)."""
+    """Parse a path's d='...' attribute into a list of (verb, params).
+    Supports M, L, Q, C, Z commands."""
     cmds = []
-    pat = re.compile(r"([MLQZ])\s*([^MLQZ]*)", re.IGNORECASE)
+    pat = re.compile(r"([MLQCZ])\s*([^MLQCZ]*)", re.IGNORECASE)
     for m in pat.finditer(d):
         verb = m.group(1).upper()
         rest = m.group(2).strip()
@@ -75,6 +76,18 @@ def path_to_polylines(d):
                     t = j / 16.0
                     bx = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t * t * x
                     by = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy + t * t * y
+                    polyline.append((bx, by))
+                cur = (x, y)
+        elif verb == "C":
+            # C c1x c1y c2x c2y x y — cubic bezier, sampled at 24 pts
+            for i in range(0, len(nums), 6):
+                c1x, c1y, c2x, c2y, x, y = nums[i:i + 6]
+                x0, y0 = cur
+                for j in range(1, 25):
+                    t = j / 24.0
+                    omt = 1 - t
+                    bx = omt**3 * x0 + 3*omt**2 * t * c1x + 3*omt * t**2 * c2x + t**3 * x
+                    by = omt**3 * y0 + 3*omt**2 * t * c1y + 3*omt * t**2 * c2y + t**3 * y
                     polyline.append((bx, by))
                 cur = (x, y)
         elif verb == "Z":
@@ -171,6 +184,78 @@ def draw_svg(ax, svg_path):
                     kwargs["edgecolor"] = "none"
                 circ = mpatches.Circle((cx, cy), r, alpha=opacity, zorder=4, **kwargs)
                 ax.add_patch(circ)
+
+    walk(root)
+
+
+def draw_svg_overlay(ax, svg_path, color="#e63946", lw=2.0, alpha=0.95,
+                      target_w=None, target_h=None):
+    """Overlay SVG strokes — recolored, no fills — onto the current axes.
+
+    Use when you've already drawn a photo via ax.imshow() and want the
+    parametric outline rendered ON TOP for direct comparison. Skips
+    fills, hatching lines, dashed commissure lines, spine circles —
+    only the main outline strokes get plotted. The SVG's viewBox is
+    scaled to (target_w, target_h); if those are None, uses the
+    current axes limits (typically set by imshow).
+    """
+    tree = ET.parse(svg_path)
+    root = tree.getroot()
+    viewBox = root.get("viewBox", "0 0 200 200").split()
+    vbx, vby, vbw, vbh = [float(x) for x in viewBox]
+
+    if target_w is None or target_h is None:
+        x_lim = ax.get_xlim()
+        y_lim = ax.get_ylim()
+        target_w = abs(x_lim[1] - x_lim[0])
+        target_h = abs(y_lim[1] - y_lim[0])
+        x0 = min(x_lim)
+        y0 = min(y_lim)
+    else:
+        x0, y0 = 0, 0
+
+    sx = target_w / vbw
+    sy = target_h / vbh
+
+    def transform_pts(pts):
+        return [(x0 + (px - vbx) * sx, y0 + (py - vby) * sy) for px, py in pts]
+
+    def walk(elem):
+        if elem.tag.endswith("defs"):
+            return
+        for child in elem:
+            tag = child.tag.replace(NS, "")
+            if tag == "g":
+                walk(child)
+            elif tag == "path":
+                d = child.get("d", "")
+                if not d:
+                    continue
+                stroke = child.get("stroke", "none")
+                # Overlay: only render strokes (drop fills, hatches, etc.)
+                if stroke in ("none", "transparent", ""):
+                    continue
+                # Skip very thin / dashed strokes — those are typically
+                # hatching, internal commissure markers, or rib lines.
+                # The main body outline is stroked at SK.outlineW=2.2;
+                # the internal commissure (frontCommissureLine for strong
+                # fold) is sw=1.6 — bump threshold to >=2.0 so the
+                # commissure stays out of the overlay (it adds visual
+                # noise on top of the main silhouette).
+                sw = float(child.get("stroke-width", "1"))
+                if sw < 2.0:
+                    continue
+                if child.get("stroke-dasharray", ""):
+                    continue
+                polylines = path_to_polylines(d)
+                for pl in polylines:
+                    pts = transform_pts(pl)
+                    xs = [p[0] for p in pts]
+                    ys = [p[1] for p in pts]
+                    ax.plot(xs, ys, color=color, linewidth=lw, alpha=alpha,
+                            zorder=10, solid_capstyle="round",
+                            solid_joinstyle="round")
+            # line/circle: skip — these are spines, hatching, etc.
 
     walk(root)
 

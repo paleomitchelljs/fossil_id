@@ -773,6 +773,7 @@ const TRAITS = {
   hinge:          { label: "Hinge" },
   spines:         { label: "Spines (productid)" },
   fold_sulcus:    { label: "Fold + sulcus" },
+  sulcus_dir:     { label: "Fold/sulcus direction" },
   outline:        { label: "Outline shape" },
   interarea_form: { label: "Interarea form" },
   size:           { label: "Size" },
@@ -780,7 +781,8 @@ const TRAITS = {
   // Side-view traits — features that are essentially invisible from the
   // top/front views and need a lateral look to read.
   beak_prom:       { label: "Beak/umbo prominence" },
-  lateral_profile: { label: "Lateral profile shape" }
+  lateral_profile: { label: "Lateral profile shape" },
+  inflation:       { label: "Shell inflation / body chunkiness" }
 };
 
 // Asked in order. `core: true` = always asked. Others gated by `when(answers)`.
@@ -890,6 +892,26 @@ const QUESTIONS = [
         svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="30" rx="40" ry="22" fill="white" stroke="black" stroke-width="2"/><path d="M 10,30 L 40,32 L 50,8 L 60,32 L 90,30" fill="none" stroke="black" stroke-width="2.5"/></svg>' }
     ] },
 
+  // Sulcus direction — only asked when fold/sulcus is present. Resolves
+  // the dorsal/ventral orientation ambiguity at the student-facing
+  // layer. Students typically can't reliably tell dorsal from ventral
+  // on a hand specimen, but they CAN see which way the central
+  // commissure peak points relative to the valve they happen to be
+  // looking at. This drives the anterior view's vertical flip in PARAM.
+  { id: "sulcus_dir", trait: "sulcus_dir",
+    when: a => a.fold_pick === "weak" || a.fold_pick === "strong",
+    text: "Looking at the front edge, which way does the central peak point?",
+    hint: "Hold the shell with the umbo (back) facing away from you. The central commissure either bends UP into one valve or DOWN into the other. If you can't tell, try the other option — many specimens look right both ways.",
+    optionsLayout: "visual",
+    options: [
+      { value: "up", setsTraitTo: "up",
+        label: "Peak points UP (commissure tongue goes up at center)",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="32" rx="40" ry="22" fill="white" stroke="black" stroke-width="2"/><path d="M 10,32 L 35,34 L 50,12 L 65,34 L 90,32" fill="none" stroke="black" stroke-width="2.5"/></svg>' },
+      { value: "down", setsTraitTo: "down",
+        label: "Peak points DOWN (commissure tongue goes down at center)",
+        svg: '<svg viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="28" rx="40" ry="22" fill="white" stroke="black" stroke-width="2"/><path d="M 10,28 L 35,26 L 50,48 L 65,26 L 90,28" fill="none" stroke="black" stroke-width="2.5"/></svg>' }
+    ] },
+
   // Outline — core question. Top-down silhouettes with exaggerated bulges so
   // the distinction is obvious at a glance.
   { id: "outline_pick", trait: "outline", core: true,
@@ -961,6 +983,28 @@ const QUESTIONS = [
       { value: "pyramidal", setsTraitTo: "pyramidal",
         label: "Pyramidal — tall triangular back wall (Cyrtina)",
         svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><path d="M 14,32 L 22,2 L 32,2 L 122,32 Q 65,52 14,32 Z" fill="white" stroke="black" stroke-width="2"/></svg>' }
+    ] },
+
+  // Shell inflation / body chunkiness — independent of beak prominence.
+  // The earlier model coupled body inflation to beak_pick (pyramidal
+  // beak forced a fat body); decoupling lets students express "thin
+  // shell with a tall beak" or "fat shell with a flush beak". Asked
+  // after profile so students have a clear sense of the side view.
+  { id: "inflation_pick", trait: "inflation",
+    when: a => a.profile_pick !== undefined,
+    text: "Looking from the side, how thick or inflated is the shell?",
+    hint: "Low = thin / flattened (most strophomenids and many orthids). Medium = typical biconvex inflation. High = noticeably chunky / globose (Theodossia, Pentamerus).",
+    optionsLayout: "visual",
+    options: [
+      { value: "low",    setsTraitTo: "low",
+        label: "Low — thin or flattened shell",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="65" cy="30" rx="55" ry="10" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "medium", setsTraitTo: "medium",
+        label: "Medium — moderately inflated (typical biconvex)",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="65" cy="30" rx="55" ry="20" fill="white" stroke="black" stroke-width="2"/></svg>' },
+      { value: "high",   setsTraitTo: "high",
+        label: "High — chunky / globose / very inflated",
+        svg: '<svg viewBox="0 0 130 60" xmlns="http://www.w3.org/2000/svg"><ellipse cx="65" cy="30" rx="55" ry="28" fill="white" stroke="black" stroke-width="2"/></svg>' }
     ] },
 
   // Lateral profile — kinks/inversions only visible from the side.

@@ -716,289 +716,150 @@ function viewKeyResult(sid, subIdsStr) {
 }
 
 // ============================================================
-// Tri-view brachiopod visualizer  (rebuilt 2026-05)
+// Tri-view brachiopod visualizer  (slider-driven, archetype-based; 2026-05)
 // ============================================================
-// One 3-D shape model. Three projections — top / front / side.
-// Changing a parameter updates all three views consistently.
 //
-// Coords (all SVGs share viewBox 0 0 200 200):
-//   TOP   (looking down at dorsal valve):  +x right, +y anterior.
-//                                          Beak at small y (top of view).
-//   FRONT (looking at anterior end):       +x right, +y ventral.
-//                                          Dorsal valve at small y.
-//   SIDE  (right lateral, looking outside):+x anterior, +y ventral.
-//                                          Beak at small x (back).
+// Pedagogical principle: each slider option produces a CLEARLY DISTINCT
+// silhouette. The goal is unambiguous visual identity per choice — not
+// photo-perfect reference matching. Students pick options and read the
+// resulting shape to confirm/refute matches against their specimen.
 //
-// Anatomical conventions baked into the renderer (calibrated against the
-// Day & Copper 1998 plates and Stigall & Rode 2005 plate referenced in the
-// manifest):
-//   * Umbo is a small bulge at the posterior midline — not a triangular spike.
-//   * "Biconvex" defaults to DORSI-biconvex (dorsal more inflated than ventral);
-//     equibiconvex is rare in fossil brachiopods.
-//   * Sulcus on the dorsal valve (atrypid/orthid convention): a midline
-//     depression rendered as a faint dashed line + a small anterior perimeter
-//     indent in TOP view, an upward notch in the lower outline in FRONT view.
-//   * Fold on the ventral valve (or, more generally, the matching uplift on
-//     the opposite valve): raises the commissure into a uniplicate peak in
-//     FRONT view; appears as a slight anterior commissure elevation in SIDE.
-//   * Growth lines are CONCENTRIC arcs centered on the beak that parallel the
-//     commissure perimeter (TOP) or each valve's curvature (FRONT/SIDE).
-//     Frills are the same geometry with bolder strokes and slight ruffling.
-//   * Ribs sweep across the FULL surface (TOP view), with fine longitudinal
-//     traces on dorsal and ventral surfaces in SIDE view, and small
-//     dorsoventral undulations of the valve outlines in FRONT view.
-//   * Strophic shells have a flat hinge line in TOP and a visible interarea
-//     wall at the back in SIDE; astrophic shells curve smoothly to a beak.
+// Three views (all share viewBox 0 0 200 200):
+//   TOP   — dorsal valve from above; +x right, +y anterior (down).
+//   FRONT — anterior commissure from the front; +x right, +y down (ventral).
+//   SIDE  — right lateral profile; +x anterior (right), +y down (ventral).
 //
-// Parametric morphospace
-// ----------------------
-// answersToShape(answers) → `s`, an object describing a single shell. All
-// three views read from `s`. Adding new traits means extending `s` and
-// teaching at least one view to render them.
+// All three views read from `s` (built by answersToShape) and use the
+// same archetype-keyed dimensions and inflation. No per-view fudge factors.
 
-// Rib presets — count = number of ribs around the dorsal perimeter; amp
-// = how far each rib bumps out (px). The commissure zigzag is a real
-// diagnostic feature: few coarse ribs produce a strongly crenulated
-// commissure; many fine ribs produce a finely serrated commissure;
-// smooth shells produce a straight commissure.
-const RIB_SETTINGS = {
-  sparse: { count: 10, amp: 4.0 },
-  medium: { count: 20, amp: 2.4 },
-  dense:  { count: 34, amp: 1.5 }
-};
+// ----- constants -----
 
-// Fold profile resolution — RICHER THAN THE USER-FACING SLIDER.
-//
-// The student picks one of {none, weak, strong} for fold strength,
-// but the actual shape of a "strong fold" depends on the outline
-// archetype. The same strength keyword maps to dramatically different
-// profiles:
-//
-//   - Wing-shaped (Cyrtospirifer) "strong"  → tall sharp central peak,
-//     narrow shoulder, near-half-rectangle plateau.
-//   - Conical (Conispirifer)      "strong"  → even narrower peak.
-//   - Subcircular (Gypidula, etc.) "strong" → BROAD smooth hump, more
-//     modest rise. Atrypid/pentameroid folds lift the entire midline
-//     gently, never producing a Cyrtospirifer-style spike — the fold
-//     IS the commissure curvature, not a separate spike on a dome.
-//
-// shape:
-//   * `rise`      — px height of the fold above the body envelope
-//   * `shoulderU` — width of the easing transition (smoothstep) from
-//                   plateau to body, in normalized u
-//   * `halfU`     — half-width of the flat plateau
-//   Total fold influence radius = halfU + shoulderU.
-function resolveFoldParams(f, o) {
-  if (f === "none") return { rise: 0, shoulderU: 0, halfU: 0 };
-
-  const isTriangular = o === "wing-shaped" || o === "conical";
-
-  if (isTriangular) {
-    // Sharp tall peak that emerges from a triangular body envelope.
-    // The fold itself is the dominant midline-height feature.
-    if (f === "strong") {
-      return o === "conical"
-        ? { rise: 55, shoulderU: 0.18, halfU: 0.04 }
-        : { rise: 50, shoulderU: 0.20, halfU: 0.05 };
-    }
-    return { rise: 16, shoulderU: 0.22, halfU: 0.06 };
-  }
-
-  // Subcircular / pentagonal / elongate-oval — the body itself is the
-  // dome, the fold adds a broad smooth midline rise. The inner V-peak
-  // commissure picks up the full rise * 1.8 coefficient (frontFoldSplit),
-  // so these values are scaled to give the commissure a pronounced flex
-  // even though the OUTER silhouette barely deforms.
-  if (f === "strong") return { rise: 30, shoulderU: 0.55, halfU: 0.18 };
-  return { rise: 14, shoulderU: 0.42, halfU: 0.10 };
-}
-
-// Beak/umbo prominence presets — drive the side view's posterior shape.
-//   apexShift : where the dorsal/ventral apex sits along the AP axis
-//               (0 = mid-shell, 0.5 = halfway back toward the beak).
-//               Pyramidal forms (Cyrtina, Pyramidspirifer) have the apex
-//               way back.
-//   umboPx     : astrophic shells get a curled beak this tall (px).
-//   interareaScale: strophic shells get their interareaH multiplied here.
-const BEAK_SETTINGS = {
-  subdued:   { apexShift: 0.05, umboPx: 3,  interareaScale: 0.6 },
-  moderate:  { apexShift: 0.20, umboPx: 6,  interareaScale: 1.0 },
-  prominent: { apexShift: 0.40, umboPx: 12, interareaScale: 1.6 },
-  pyramidal: { apexShift: 0.55, umboPx: 18, interareaScale: 2.4 }
-};
-
-// Lateral profile kinks — features that only the SIDE view can show.
-//   smooth:     no kink, dorsal/ventral curves are smooth parabolas
-//   geniculate: sharp 90°-ish bend in the ventral valve at kinkAt (fraction
-//               of length from beak). Typical of Douvillina-style
-//               concavo-convex strophomenids.
-//   resupinate: dorsal/ventral curvature INVERTS at kinkAt — the dorsal
-//               valve starts convex and becomes concave anteriorly
-//               (Strophonelloides reversa).
-const LATERAL_PROFILE_SETTINGS = {
-  smooth:     { type: "smooth"                            },
-  geniculate: { type: "geniculate", kinkAt: 0.55, dropPx: 16 },
-  resupinate: { type: "resupinate", kinkAt: 0.50, invertFactor: 1.0 }
-};
-
-// Stroke palette — centralised so the three views stay visually consistent.
 const SK = {
-  outlineW: 2.2,
+  outlineW: 2.4,
   ribCol:   "#5a5a5a", ribW:    0.7,
   growthCol:"#8a8a8a", growthW: 0.7,
   frillCol: "#1f1f1f", frillW:  1.4,
   hingeCol: "#1a1a1a", hingeW:  2.0,
   beakCol:  "#1a1a1a",
-  sulcusCol:"#7a7a7a", sulcusW: 0.7
+  sulcusCol:"#9a9a9a", sulcusW: 0.7
 };
 
+// Surface decoration intensities — count = number of ribs, amp = visual
+// scallop amplitude (mainly used for top-view perimeter undulation).
+const RIB_SETTINGS = {
+  sparse: { count:  9, amp: 4.0 },
+  medium: { count: 18, amp: 2.4 },
+  dense:  { count: 30, amp: 1.4 }
+};
+
+// Beak prominence — controls ONLY back-of-shell features (interarea
+// height for strophic, curl size for astrophic, apex sharpness for
+// conical). Body chunkiness lives on INFLATION_PRESETS, driven by
+// the separate inflation_pick slider. This decoupling means a student
+// can express "thin shell with a tall beak" (subdued inflation +
+// pyramidal beak) or "fat shell with no beak" (high inflation +
+// subdued beak) — combinations that were impossible when one slider
+// drove both.
+const BEAK_PRESETS = {
+  subdued:   { interareaScale: 0.30 },
+  moderate:  { interareaScale: 0.65 },
+  prominent: { interareaScale: 1.10 },
+  pyramidal: { interareaScale: 1.80 }
+};
+
+// Fold strength → numeric amplitude used by front + side views.
+const FOLD_STR = { absent: 0, none: 0, weak: 0.50, strong: 1.0 };
+
+// Per-outline body dimensions. halfW = lateral half-extent (used by top
+// & front views); halfL = AP half-extent (used by top & side views).
+// Choices tuned for clear differentiation:
+//   subcircular   — roughly square (W ≈ L)
+//   wing-shaped   — wide hinge, short AP (W > L)
+//   conical       — narrow body, moderate length
+//   elongate-oval — tall and narrow (L > W)
+const OUTLINE_DIMS = {
+  "subcircular":   { halfW: 70, halfL: 65 },
+  "wing-shaped":   { halfW: 88, halfL: 50 },
+  "conical":       { halfW: 42, halfL: 50 },
+  "elongate-oval": { halfW: 42, halfL: 82 }
+};
+
+// Base body amplitude (DV depth in pixels at inflate=1.0). Scaled by
+// `inflate` (driven by inflation_pick slider, not beak prominence).
+const BASE_AMP = 28;
+
+// Body inflation presets — driven by the separate inflation_pick
+// slider. Decoupled from beak prominence so students can express
+// "thin shell with a tall beak" or "fat shell with a flush beak".
+// Default = moderate when no slider value given (matches the old
+// implicit behavior reasonably).
+const INFLATION_PRESETS = {
+  low:    0.65,
+  medium: 0.95,
+  high:   1.35
+};
+
+// Lateral profile presets (side-view kink at anterior).
+const LATERAL_PRESETS = {
+  smooth:     { kink: false },
+  geniculate: { kink: true,  kinkAt: 0.58, drop: 18, dir: "down" },
+  resupinate: { kink: true,  kinkAt: 0.55, drop: 12, dir: "rev"  }
+};
+
+// ----- shape derivation -----
+//
+// answersToShape — single source of truth. All three views consume `s`.
+// Adding a new trait means extending this function AND teaching at least
+// one view to render it.
 function answersToShape(answers) {
-  const features = featuresFromAnswers(answers);
-  const o = answers.outline_pick || "subcircular";
-  const p = answers.profile_pick || "biconvex";
-  const h = answers.hinge_pick   || "astrophic";
-  const f = answers.fold_pick    || "none";
-  const b = answers.beak_pick    || "moderate";
-  const k = answers.lateral_pick || "smooth";
+  const features  = featuresFromAnswers(answers);
+  const outline   = answers.outline_pick    || "subcircular";
+  const profile   = answers.profile_pick    || "biconvex";
+  const hinge     = answers.hinge_pick      || "astrophic";
+  const beak      = answers.beak_pick       || "moderate";
+  const fold      = answers.fold_pick       || "absent";
+  const lateral   = answers.lateral_pick    || "smooth";
+  const sulcus    = answers.sulcus_dir      || "down";
+  const inflation = answers.inflation_pick  || "medium";
 
-  // Top-view half-dimensions, in px (viewBox 200×200). Per-outline base
-  // dimensions, then nudged based on surface features so atrypids look
-  // different from spinatryids look different from pentameroids:
-  //   * Spinatryid (frills + spines): TRANSVERSE — wider than long
-  //   * Atrypid (frills only): mild teardrop — slightly taller than wide
-  //   * Default subcircular: square circle
-  let halfWidth, halfLength;
-  if (o === "wing-shaped")        { halfWidth = 90; halfLength = 60; }
-  else if (o === "elongate-oval") { halfWidth = 46; halfLength = 86; }
-  else if (o === "conical")       { halfWidth = 40; halfLength = 50; }
-  else {
-    halfWidth = 70; halfLength = 70;
-    if (features.frills && features.spines) {
-      // Spinatryid: transverse outline (wider than long, ~1.3:1)
-      halfWidth = 80; halfLength = 60;
-    } else if (features.frills) {
-      // Atrypid: slightly taller-than-wide teardrop (~0.92:1)
-      halfWidth = 66; halfLength = 72;
-    }
-  }
-
-  // Hinge fraction — what proportion of the top edge is straight.
-  // For wing-shaped / conical shells, the hinge IS the cardinal axis (the
-  // wing tips or interarea base mark the lateral extremes), so hingeFrac
-  // matches the full lateral extent. For subcircular strophic shells, the
-  // hinge truncates the upper portion of an otherwise round outline → hingeFrac < 1.
-  const hingeFrac  = h === "wide-strophic"   ? ((o === "wing-shaped" || o === "conical") ? 1.00 : 0.95)
-                  : h === "narrow-strophic" ? 0.55
-                  : 0;
-  const beakPreset = BEAK_SETTINGS[b] || BEAK_SETTINGS.moderate;
-  // Astrophic shells have an umbo bulge; strophic ones flatten into the hinge.
-  // Beak prominence scales the bulge height.
-  const beakProm   = h === "astrophic" ? beakPreset.umboPx : 0;
-  // Side-view interarea wall (visible only on strophic shells). The base width
-  // depends on hinge type; beak prominence scales it further so a "pyramidal"
-  // wide-strophic shell (e.g. Cyrtina) shows a tall back wall.
-  const baseInterarea = h === "wide-strophic"   ? 30
-                     : h === "narrow-strophic" ? 16
-                     : 0;
-  const interareaH = baseInterarea * beakPreset.interareaScale;
-  // Posterior shift of the dorsal/ventral apex — drives the side view shape.
-  // 0 = symmetric lemon (apex at mid-shell), positive = apex pulled back toward
-  // the beak (teardrop/triangle shape, typical of pyramidal forms).
-  // For conical shells the dorsal/ventral apex sits AT the back wall
-  // (the interarea is the maximum-DV point), so the side-view curves
-  // descend monotonically from the back to the anterior tip — no
-  // interior parabolic peak. Push apexShift toward the back regardless
-  // of beak_pick (a conical shell with subdued beak still has its apex
-  // at the back). Brach3 red overlay confirms this geometry.
-  let apexShift = beakPreset.apexShift;
-  if (o === "conical") apexShift = Math.max(apexShift, 0.92);
-
-  // Valve convexity (px) — controls the side-view inflation of each
-  // valve above/below the commissure plane. Real Iowa Devonian
-  // specimens are STRONGLY inequivalve; the user's brach photos show
-  // dorsal valves dramatically more inflated than ventral on most
-  // taxa. The defaults below bias toward pronounced dorsibiconvexity
-  // (2-3:1 ratio) instead of the near-symmetric 62/38 that produced
-  // generic "lens" silhouettes in earlier renders.
-  //
-  // Per-outline ratios:
-  //   subcircular / pentagonal / elongate-oval — strongly
-  //     dorsibiconvex (atrypids, orthids, terebratulids, pentameroids,
-  //     Theodossia). Dorsal apex sits ~3× the depth of the ventral.
-  //   wing-shaped — moderate (alate spiriferids like Cyrtospirifer
-  //     are closer to equivalve, just slightly dorsibiconvex)
-  //   conical — ventro-biconvex (cone IS the ventral valve)
-  //
-  // surface_frills boosts dorsibiconvexity further (atrypids/spinatrypids
-  // have notably inflated dorsal valves carrying the lamellae stack).
-  let dorsalConv, ventralConv;
-  if (p === "concavo-convex") {
-    // Strophomenids and productids — overall FLAT shell. The previous
-    // 24/64 split made the silhouette a deep U-pouch which doesn't
-    // match the brach7 (Douvillina) photo where the side view is a
-    // thin strip with a small anterior bend (the geniculate).
-    // Dorsal is essentially flat / slightly concave (small positive
-    // value, rather than negative — the side-view silhouette can't
-    // dip below cy without self-crossing the commissure-plane closure).
-    // Productids with spines get a deeper ventral cone via the spines
-    // boost below.
-    dorsalConv = 6;
-    ventralConv = features.spines ? 38 : 22;
-  } else if (p === "plano-convex") {
-    dorsalConv = 70; ventralConv = 6;
-  } else if (o === "conical") {
-    dorsalConv = 24; ventralConv = 78;   // ventro-biconvex cone
-  } else if (o === "wing-shaped") {
-    dorsalConv = 56; ventralConv = 40;   // near-equivalve alate
-  } else {
-    // Subcircular / pentagonal / elongate-oval — strong dorsibiconvex
-    dorsalConv = 72; ventralConv = 25;
-    if (features.frills) {
-      // Atrypids and spinatrypids — even more pronounced
-      dorsalConv = 80; ventralConv = 22;
-    }
-  }
-
-  const foldPreset = resolveFoldParams(f, o);
-  const lateralPreset = LATERAL_PROFILE_SETTINGS[k] || LATERAL_PROFILE_SETTINGS.smooth;
-  const ribCount = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0;
-  const ribAmp   = features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0;
+  const dims     = OUTLINE_DIMS[outline]   || OUTLINE_DIMS.subcircular;
+  const beakP    = BEAK_PRESETS[beak]      || BEAK_PRESETS.moderate;
+  const latP     = LATERAL_PRESETS[lateral] || LATERAL_PRESETS.smooth;
+  const infl     = INFLATION_PRESETS[inflation] || INFLATION_PRESETS.medium;
 
   return {
-    outline: o, profile: p, hinge: h, fold: f, beak: b, lateral: k,
-    halfWidth, halfLength, hingeFrac, beakProm, interareaH, apexShift,
-    dorsalConv, ventralConv,
-    foldStr: f === "strong" ? 1 : f === "weak" ? 0.4 : 0,
-    foldRise: foldPreset.rise,
-    foldShoulderU: foldPreset.shoulderU,
-    foldHalfU: foldPreset.halfU,
-    // Lateral kink (side-view only) — geniculate or resupinate
-    lateralType: lateralPreset.type,
-    lateralKinkAt: lateralPreset.kinkAt || 0,
-    lateralDropPx: lateralPreset.dropPx || 0,
-    lateralInvert: lateralPreset.invertFactor || 0,
-    ribCount, ribAmp,
-    hasFrills:      features.frills,
-    hasSpines:      features.spines,
-    hasGrowthLines: features.lines || features.frills
+    outline, profile, hinge, beak, fold, lateral, sulcus, inflation,
+    halfWidth:  dims.halfW,
+    halfLength: dims.halfL,
+    // Hinge fraction (0..1): width of the flat hinge line as a fraction
+    // of halfWidth. 0 = no flat hinge (astrophic curves smoothly).
+    hingeFrac:  hinge === "wide-strophic"   ? 1.0 :
+                hinge === "narrow-strophic" ? 0.40 : 0,
+    isStrophic: hinge !== "astrophic",
+    inflate:    infl,
+    // Narrow-strophic shells (Schizophoria-style orthids) have a less-
+    // prominent posterior than wide-strophic spiriferids — the hinge
+    // line is shorter AND the back-of-shell area is correspondingly
+    // smaller. Scale down the interarea height so the SIDE view shows
+    // a more modest back-feature for narrow-strophic.
+    interareaScale: beakP.interareaScale * (hinge === "narrow-strophic" ? 0.65 : 1.0),
+    foldStr:    FOLD_STR[fold] || 0,
+    // Whether to flip the front view vertically (resolves dorsal/ventral
+    // orientation ambiguity for students who can't tell which valve is up).
+    foldInvert: sulcus === "down",
+    lateralKink: latP.kink ? latP : null,
+    ribs:       features.ribs,
+    ribCount:   features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).count : 0,
+    ribAmp:     features.ribs ? (RIB_SETTINGS[features.density] || RIB_SETTINGS.medium).amp   : 0,
+    frills:     features.frills,
+    spines:     features.spines,
+    growthLines: features.lines
   };
 }
 
-// Fold profile — flat plateau across |u| < halfU, then a Gaussian
-// decay outside. The Gaussian's long tail prevents the silhouette
-// "bifurcating divot" that an abrupt cutoff produces when the fold
-// contribution drops to zero abruptly while the body envelope is still
-// descending. Gaussians never reach zero, so the fold smoothly merges
-// into the body slope.
-//
-// shoulderU = characteristic width of the Gaussian decay (1/e width).
-function foldRiseAt(u, s) {
-  if (s.foldRise === 0) return 0;
-  const au = Math.abs(u);
-  if (au <= s.foldHalfU) return s.foldRise;
-  const d = au - s.foldHalfU;
-  return s.foldRise * Math.exp(-Math.pow(d / s.foldShoulderU, 2));
-}
+// ----- shared helpers -----
+
+const CX = 100, CY = 100;
 
 function pointsToPath(pts, close = true) {
   let d = `M ${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
@@ -1008,1190 +869,728 @@ function pointsToPath(pts, close = true) {
   return close ? d + " Z" : d;
 }
 
-// ============================================================
-// TOP VIEW — dorsal valve seen from above
-// ============================================================
-// Build pipeline: outline shape (normalized -1..1) → hinge straightening
-// (strophic forms) → sulcus indent at anterior midline → rib perimeter
-// scallop → scale to screen coords → umbo bulge for astrophic.
+// Fold rise as a Gaussian peak at u=0 (centerline). Width controlled by
+// sigma; height by foldStr * baseRise. Used by FRONT view (silhouette
+// modulation + internal commissure line) and SIDE view (anterior bow).
+function foldRiseAt(u, s, baseRise = 18) {
+  if (!s.foldStr) return 0;
+  const sigma = s.outline === "wing-shaped" || s.outline === "conical" ? 0.20 : 0.25;
+  return baseRise * s.foldStr * Math.exp(-(u * u) / (2 * sigma * sigma));
+}
 
+// ============================================================
+// ATLAS — hand-drawn SVG paths for each archetype × view
+// ============================================================
+//
+// Each entry is one ARCHETYPE (a discrete combination of outline +
+// profile + beak + hinge that defines a recognizable brachiopod
+// morphotype). Each archetype has three views (top/front/side) drawn
+// as hand-authored SVG path strings in a 200×200 viewBox.
+//
+// Why hand-drawn: procedural curve construction was fragile (cusps,
+// tangent mismatches, control-point sign bugs). Hand-drawn paths are
+// anatomically correct by construction — a human draws the umbo, the
+// neck concavity, the back boundary etc. once and they stay right.
+//
+// Conventions (in 200×200 viewBox, CX=100, CY=100):
+//   TOP view: hinge/beak at TOP (small y), anterior at BOTTOM (large y)
+//   FRONT view: dorsal at TOP (small y), ventral at BOTTOM. The
+//     foldInvert flip handles sulcus-down convention at the SVG layer.
+//   SIDE view: beak at LEFT (small x), anterior at RIGHT (large x)
+//
+// Decorations (ribs, frills, spines, internal commissure, hinge bar,
+// umbo dot) are still PROCEDURAL — drawn on top of the atlas outline
+// based on slider answers. This keeps the atlas small (just outlines)
+// while preserving the decoration variety students need.
+
+const ATLAS = {
+  // -------- Atrypid dome (Pseudoatrypa-like, atrypid-spinose by overlay)
+  // subcircular biconvex, moderate beak, astrophic
+  "atrypid-dome": {
+    top:
+      "M 100,28 C 130,30 158,55 168,90 C 172,125 150,168 100,175 " +
+      "C 50,168 28,125 32,90 C 42,55 70,30 100,28 Z",
+    front:
+      "M 30,100 C 30,72 55,52 100,52 C 145,52 170,72 170,100 " +
+      "C 170,128 145,148 100,148 C 55,148 30,128 30,100 Z",
+    side:
+      "M 175,95 C 145,52 105,42 65,52 Q 28,55 22,72 " +
+      "Q 22,95 32,100 Q 22,108 22,128 Q 28,145 65,148 " +
+      "C 105,158 145,148 175,105 L 175,95 Z"
+  },
+
+  // -------- Atrypid globose (Theodossia-like, big inflated dome)
+  // Per reference photos: subcircular top, CHUNKY GLOBOSE side with
+  // small umbo curl, prominent V-NOTCH (sulcus dip) at bottom of
+  // anterior perimeter.
+  "atrypid-globose": {
+    top:
+      // Subcircular with subtle slight pentagonal feel
+      "M 100,28 C 140,32 172,60 175,98 C 172,138 145,172 100,178 " +
+      "C 55,172 28,138 25,98 C 28,60 60,32 100,28 Z",
+    front:
+      // CHUNKY hemispheric dome on top + clear V-notch (sulcus) at
+      // bottom-center. The bottom undulates: down to lobe, up into V
+      // dip, down to lobe, up to lateral.
+      "M 22,100 " +
+      "C 22,55 55,28 100,28 C 145,28 178,55 178,100 " +     // tall dome on top
+      "C 175,128 158,148 130,150 " +                          // right lobe
+      "C 118,148 108,135 100,118 " +                          // up into V dip
+      "C 92,135 82,148 70,150 " +                             // left lobe
+      "C 42,148 25,128 22,100 Z",                             // close to left
+    side:
+      // Chunky globose oval with small backward beak curl
+      "M 178,95 C 155,42 108,32 65,45 " +                    // top arc from anterior to back
+      "Q 25,48 18,65 Q 18,82 28,90 " +                         // small backward beak curl
+      "L 30,100 " +                                            // commissure plane
+      "Q 18,118 18,138 Q 25,160 65,165 " +                     // bot back-shoulder
+      "C 108,178 155,168 178,108 L 178,95 Z"                   // bottom arc to anterior
+  },
+
+  // -------- Orthid (Schizophoria-like, subcircular w/ narrow strophic hinge)
+  "orthid": {
+    // Schizophoria-like — subcircular outline; ANTERIOR has clear W
+    // in the perimeter (sulcus dip + two lobes); SIDE has small umbo
+    // and clean biconvex oval.
+    top:
+      // Subcircular with subtle small umbo at top (beak)
+      "M 100,28 Q 110,28 113,32 L 115,40 " +              // tiny umbo bump at back
+      "C 145,42 168,68 170,100 " +                          // top-right arc
+      "C 170,135 145,170 100,176 " +                        // right-anterior
+      "C 55,170 30,135 30,100 " +                           // left side
+      "C 32,68 55,42 85,40 L 87,32 Q 90,28 100,28 Z",       // back to umbo
+    front:
+      // Smooth dome on top + W-shape on bottom perimeter (sulcus dip).
+      // Diagnostic anterior feature: ventral side undulates with V
+      // notch at center going UP-INTO body, flanked by two lobes
+      // hanging DOWN. Lateral cusps are softly rounded for orthid.
+      "M 28,100 " +
+      "C 28,72 55,50 100,50 C 145,50 172,72 172,100 " +     // top dome arc
+      "C 168,118 152,128 130,128 " +                         // down to right lobe top
+      "C 118,128 110,115 100,102 " +                         // up into V (sulcus dip)
+      "C 90,115 82,128 70,128 " +                            // down to left lobe top
+      "C 48,128 32,118 28,100 Z",                            // close to left
+    side:
+      // Clean biconvex oval with TINY umbo bump at back-upper-left
+      "M 175,95 C 150,55 110,48 75,55 " +                   // top arc from anterior to back-shoulder
+      "Q 50,55 38,58 " +                                     // back-shoulder to near beakX
+      "Q 28,55 25,62 Q 28,72 35,75 " +                       // small umbo bump (back-and-up curl)
+      "L 38,100 " +                                          // down to commissure plane
+      "Q 40,135 75,142 " +                                   // bot back-shoulder
+      "C 110,150 150,142 175,105 L 175,95 Z"                 // bottom arc to anterior
+  },
+
+  // -------- Spiriferid wing (Cyrtospirifer-like, alate, prominent beak)
+  "spiriferid-wing": {
+    // TOP: wide hinge with SHARP lateral wing tips, prominent body
+    // peak at back-center (apex with umbo above).
+    top:
+      "M 100,22 L 108,32 L 116,42 " +                       // small umbo at back
+      "L 192,52 " +                                          // sharp right wing tip
+      "L 170,75 C 158,115 135,158 100,180 " +                // anterior taper
+      "C 65,158 42,115 30,75 " +                             // left side
+      "L 8,52 L 84,42 L 92,32 Z",                            // left wing tip to umbo
+    front:
+      // Diamond with SHARP lateral wing tips + W bottom (sulcus dip).
+      // Central peak at top (fold) and V-notch at bottom (sulcus).
+      "M 12,100 " +                                          // left wing tip (sharp)
+      "L 70,68 Q 85,55 100,55 Q 115,55 130,68 L 188,100 " + // up to apex peak, back down
+      "L 145,128 " +                                          // down to right lobe top
+      "C 130,128 115,118 100,108 " +                          // up into V (sulcus)
+      "C 85,118 70,128 55,128 " +                             // down to left lobe top
+      "L 12,100 Z",                                           // close to left wing
+    side:
+      // PROMINENT BACKWARD UMBO extending sharply up-and-left past
+      // beakX. Below umbo: straight diagonal back boundary (interarea
+      // region). Body sweeps right to anterior commissure.
+      "M 175,95 " +                                          // anterior top
+      "C 150,52 115,42 85,48 " +                              // top arc back to shoulder
+      "L 70,52 " +                                            // continue toward umbo base
+      "L 18,28 " +                                            // SHARP umbo tip extending back-up
+      "L 38,82 " +                                            // back down diagonal to interarea
+      "L 38,118 " +                                           // interarea face
+      "L 18,172 " +                                           // (symmetric ventral umbo? smaller)
+      "L 50,148 " +                                           // back to body
+      "C 90,158 140,150 175,108 " +                           // bottom arc to anterior
+      "L 175,95 Z"
+  },
+
+  // -------- Spiriferid pyramidal (Pyramidspirifer-like, tall interarea + bold umbo)
+  // Per reference image #49: WIDE alate top with sharp wing tips,
+  // PROMINENT central body peak with delthyrium; SIDE has VERY TALL
+  // backward-and-up curling umbo (more pronounced than standard
+  // spiriferid-wing); ANTERIOR shows diamond with central peak +
+  // V-notch bottom. Distinguishes pyramidal beak from prominent.
+  "spiriferid-pyramidal": {
+    top:
+      // Wide alate with extra-prominent central body peak (delthyrium)
+      "M 100,18 L 110,30 L 118,42 " +                       // tall delthyrium peak at back
+      "L 192,52 " +                                          // sharp right wing tip
+      "L 168,82 C 156,118 132,160 100,182 " +                // anterior taper
+      "C 68,160 44,118 32,82 " +                             // left side
+      "L 8,52 L 82,42 L 90,30 Z",                            // left wing tip back to peak
+    front:
+      // Diamond with PROMINENT central peak (delthyrium) + V-notch bottom
+      "M 12,100 " +                                          // left wing tip
+      "L 65,55 Q 80,40 100,30 Q 120,40 135,55 " +            // up to tall peak
+      "L 188,100 " +                                         // right wing tip
+      "L 148,128 " +                                         // right lobe down
+      "C 132,128 115,118 100,108 " +                          // up into V (sulcus)
+      "C 85,118 68,128 52,128 " +                             // left lobe
+      "L 12,100 Z",                                           // close
+    side:
+      // VERY TALL UMBO extending back-and-up at steep angle, then
+      // long slanted interarea face down to ventral side. Anatomy
+      // matches Pyramidspirifer/Cyrtina-style pyramidal forms.
+      "M 175,98 " +                                          // anterior top
+      "C 150,55 115,42 78,48 " +                              // top arc to back-shoulder
+      "L 60,52 " +                                            // continue toward umbo base
+      "L 12,15 " +                                            // VERY TALL umbo tip (pyramidal)
+      "L 32,75 " +                                            // back down along umbo curl
+      "L 40,115 " +                                           // continue interarea face
+      "L 12,178 " +                                           // ventral umbo (smaller, mirror)
+      "L 50,150 " +                                           // back to body
+      "C 90,160 140,150 175,108 " +                           // bottom arc to anterior
+      "L 175,98 Z"
+  },
+
+  // -------- Spiriferid cone (Conispirifer/Cyrtina-like, tall pyramidal back)
+  "spiriferid-cone": {
+    // TOP: narrow pentagonal body with slight back taper
+    top:
+      "M 100,28 L 130,40 L 140,75 " +                       // back-right curve
+      "C 142,118 128,160 100,178 " +                          // right tapering forward
+      "C 72,160 58,118 60,75 L 70,40 Z",                       // left side back to start
+    front:
+      // Heart shape — central peak at top (fold) + V-notch + lateral
+      // cusps. Width less than wing-shape (narrower body).
+      "M 40,108 " +                                            // left lateral
+      "Q 55,55 100,32 Q 145,55 160,108 " +                     // up-and-over peak
+      "L 132,142 " +                                           // right lobe down
+      "C 122,138 110,125 100,115 " +                            // up into V
+      "C 90,125 78,138 68,142 L 40,108 Z",
+    side:
+      // VERY TALL backward-curling umbo + slanting interarea +
+      // small body extending forward. Pyramidal beak: apex sits
+      // way up and BACK of beakX.
+      "M 175,108 " +                                          // anterior top
+      "Q 150,90 130,75 " +                                     // top arc back to apex region
+      "L 95,32 L 78,28 " +                                     // tall umbo (apex of cone)
+      "L 38,150 " +                                            // long slanted interarea face
+      "Q 100,165 175,148 " +                                    // bottom arc forward to anterior
+      "L 175,108 Z"
+  },
+
+  // -------- Strophomenid geniculate (Douvillina-like, concavo-convex)
+  // Per reference: rounded triangular top, VERY LOW PROFILE crescent
+  // side (flat-ish top + bowed bottom), wide thin lens anterior.
+  "strophomenid-geniculate": {
+    top:
+      // Wider triangular/teardrop with rounded back
+      "M 100,32 C 142,38 172,68 178,108 " +
+      "C 172,148 142,178 100,182 " +
+      "C 58,178 28,148 22,108 C 28,68 58,38 100,32 Z",
+    front:
+      // VERY LOW PROFILE thin lens — both valves curving same direction
+      // (concavo-convex). Almost flat with slight curvature.
+      "M 22,98 Q 100,75 178,98 Q 100,118 22,98 Z",
+    side:
+      // CRESCENT/BANANA — flat-ish top, bowed bottom. Low profile.
+      // Very thin shellThickness reading anatomically appropriate.
+      "M 22,95 Q 100,100 178,95 " +                      // flat top edge (commissure plane)
+      "Q 140,135 100,148 " +                              // bow down on bottom-right
+      "Q 50,142 22,108 " +                                // bow back up on bottom-left
+      "L 22,95 Z"
+  }
+};
+
+// answersToArchetype — map slider answers to an atlas key. Each
+// archetype is a discrete combination; this function picks the BEST
+// matching atlas entry given the student's slider choices.
+function answersToArchetype(answers) {
+  const outline = answers.outline_pick || "subcircular";
+  const profile = answers.profile_pick || "biconvex";
+  const hinge   = answers.hinge_pick   || "astrophic";
+  const beak    = answers.beak_pick    || "moderate";
+  const lateral = answers.lateral_pick || "smooth";
+
+  // Concavo-convex always maps to strophomenid (regardless of other choices).
+  if (profile === "concavo-convex") return "strophomenid-geniculate";
+
+  // Wing-shaped: distinguish prominent vs pyramidal beak. Pyramidal
+  // beak with wing-shape gets the tall-umbo pyramidal variant
+  // (Pyramidspirifer-like); prominent gets the standard wing-spiriferid
+  // (Cyrtospirifer-like).
+  if (outline === "wing-shaped") {
+    return beak === "pyramidal" ? "spiriferid-pyramidal" : "spiriferid-wing";
+  }
+
+  // Conical outline → cone-spiriferid.
+  if (outline === "conical") return "spiriferid-cone";
+
+  // Strophic dome → orthid-style.
+  if (hinge === "narrow-strophic" || hinge === "wide-strophic") return "orthid";
+
+  // Astrophic dome with prominent/pyramidal beak → globose (Theodossia)
+  if (beak === "prominent" || beak === "pyramidal") return "atrypid-globose";
+
+  // Default astrophic dome → atrypid.
+  return "atrypid-dome";
+}
+
+function atlasOutline(archetypeKey, view) {
+  // Prefer vectorized reference outlines (from real Rockford specimens)
+  // when available; fall back to hand-drawn ATLAS for archetypes without
+  // a reference (e.g. spiriferid-pyramidal) or missing views.
+  if (typeof VECTORIZED_ATLAS !== "undefined") {
+    const v = VECTORIZED_ATLAS[archetypeKey];
+    if (v && v[view]) return v[view];
+  }
+  const entry = ATLAS[archetypeKey];
+  if (!entry || !entry[view]) {
+    return "M 100,40 C 145,40 170,70 170,100 C 170,130 145,160 100,160 " +
+           "C 55,160 30,130 30,100 C 30,70 55,40 100,40 Z";
+  }
+  return entry[view];
+}
+
+// ============================================================
+// TOP VIEW — dorsal valve seen from above (beak at top of view)
+// ============================================================
+//
+// Renders the outline shape (4 archetypes) plus surface decorations:
+// radial ribs fanning from the beak, concentric growth-line frills, and
+// spine dots. Strophic hinges show as a thick straight bar at the back.
+
+// unitOutline(theta, s) → [nx, ny] in [-1, +1]^2.
+//   theta = 0 → beak (back, ny=-1)
+//   theta = π → anterior commissure (ny=+1)
 function unitOutline(theta, s) {
-  // theta = 0 at beak, π at anterior commissure; CW (right at π/2).
   const ct = Math.cos(theta), st = Math.sin(theta);
-  if (s.outline === "wing-shaped") {
-    // Alate (winged) outline — the hinge IS the cardinal axis. The base
-    // outline is rectangular on the upper half (vertical sides at the
-    // full lateral extent, from the equator up to the hinge line) and
-    // tapers anteriorly on the lower half. applyHingeStraightening then
-    // pulls the top of the rectangle onto the flat hinge line.
-    let nx, ny;
-    if (ct >= 0) {
-      // Upper / hinge zone: vertical sides at x = ±1 from the equator
-      // (ct = 0, ny = 0) up to the beak (ct = 1, ny = -1).
-      nx = Math.sign(st || 1);
-      ny = -ct;
-    } else {
-      // Lower / anterior zone: kite-like taper to the anterior point.
-      const w = Math.pow(Math.max(0, 1 - Math.abs(ct)), 0.7);
-      nx = Math.sign(st || 1) * w;
-      ny = -ct;
+  let nx, ny;
+  switch (s.outline) {
+    case "wing-shaped": {
+      // Hinge zone (back half): rectangular — full lateral extent
+      // straight to the back beak. Anterior half: tapered diamond.
+      if (ct >= 0) {
+        nx = Math.sign(st) || 1;
+        ny = -ct;
+      } else {
+        const taper = Math.pow(1 - Math.abs(ct), 0.65);
+        nx = (Math.sign(st) || 1) * taper;
+        ny = -ct;
+      }
+      break;
     }
-    return [nx, ny];
-  }
-  if (s.outline === "elongate-oval") return [st, -ct];
-  if (s.outline === "conical") {
-    // Cone-spiriferid plan view — the hinge IS the cardinal axis but the
-    // body is narrow (the interarea wall takes up most of the apparent
-    // length when viewed from the front). Upper half: vertical sides at
-    // full lateral extent like wing-shaped, but the lateral extent is
-    // already narrow (halfWidth 40 vs wing-shaped 90). Lower half:
-    // rounded taper (exponent 0.65) to a blunted anterior — Conispirifer
-    // / Cyrtina / Pyramidspirifer aren't dagger-sharp at the front.
-    let nx, ny;
-    if (ct >= 0) {
-      nx = Math.sign(st || 1);
-      ny = -ct;
-    } else {
-      const w = Math.pow(Math.max(0, 1 - Math.abs(ct)), 0.65);
-      nx = Math.sign(st || 1) * w;
-      ny = -ct;
+    case "conical": {
+      // Narrow body, flat back, tapered front.
+      if (ct >= 0) {
+        nx = Math.sign(st) || 1;
+        ny = -ct;
+      } else {
+        const taper = Math.pow(1 - Math.abs(ct), 0.60);
+        nx = (Math.sign(st) || 1) * taper;
+        ny = -ct;
+      }
+      break;
     }
-    return [nx, ny];
+    case "elongate-oval": {
+      // Tall oval with very gentle beak taper.
+      nx = st;
+      ny = -ct;
+      if (ct > 0.6) {
+        const tt = (ct - 0.6) / 0.4;
+        nx *= 1 - 0.20 * Math.pow(tt, 1.4);
+      }
+      break;
+    }
+    case "subcircular":
+    default: {
+      // Round shape with subtle teardrop at the beak.
+      nx = st;
+      ny = -ct;
+      if (ct > 0.5) {
+        const tt = (ct - 0.5) / 0.5;
+        nx *= 1 - 0.18 * Math.pow(tt, 1.3);
+      }
+      break;
+    }
   }
-  if (s.outline === "pentagonal") {
-    // Pentagonal / subtriangular — narrow toward the beak, broadest at the
-    // anterior-flanks, with straight-ish sides. Common in rhynchonellids
-    // (Trichorhynchia) and some atrypids. Modeled as a superellipse with
-    // n=1.4 (between diamond at n=1 and ellipse at n=2), shifted so the
-    // widest point sits at y ≈ +0.3.
-    const n = 1.4;
-    const y_shift = 0.30;
-    const yc = -ct - y_shift;            // shift the centre of the shape
-    const yAbs = Math.min(Math.abs(yc), 1);
-    const xFrac = Math.pow(Math.max(0, 1 - Math.pow(yAbs, n)), 1 / n);
-    return [Math.sign(st || 1) * xFrac, -ct];
+
+  // Strophic hinge straightening: blend the back curve toward a flat
+  // hinge line. The hinge extends from -hingeFrac to +hingeFrac in
+  // normalized lateral coords. Outside that range the perimeter falls
+  // away to the wing tips (or curls in for narrow-strophic).
+  if (s.hingeFrac > 0 && ct > 0) {
+    const blend = Math.pow(ct, 1.4);
+    ny = ny * (1 - blend) + (-1) * blend;
+    // Cap lateral extent at the hinge boundary for the back zone.
+    if (ct > 0.35) {
+      nx = Math.sign(nx || 1) * Math.min(Math.abs(nx), s.hingeFrac);
+    }
   }
-  // subcircular — TEARDROP / shield shape with a meaningful narrowing
-  // toward the beak. Real Pseudoatrypa / Spinatrypa / Theodossia have
-  // a noticeable taper at the posterior (where the umbo sits) and
-  // typically a slight anterior bulge (the widest part is anterior of
-  // the equator). The previous near-circular formula collapsed all
-  // taxa to the same outline — user critique noted "shells snap to
-  // rigid geometric primitives. It forces Spinatrypa and Pseudoatrypa
-  // into almost perfect circles."
-  let r;
-  if (ct >= 0) {
-    // Posterior half: shrink toward the beak (20% narrower at the umbo)
-    r = 1 - 0.20 * ct;
-  } else {
-    // Anterior half: slight outward bulge (widest just anterior of equator)
-    r = 1 + 0.04 * (-ct) * (1 - (-ct));
-  }
-  return [r * st, -r * ct];
+  return [nx, ny];
 }
 
-function applyHingeStraightening(nx, ny, s) {
-  // Pull the very top of the outline onto a flat hinge line at ny = -0.95.
-  // Range = top 25% of the perimeter; over that range, points are linearly
-  // blended toward (clamp(nx, ±hingeHalfW), -0.95). The same hingeY is used
-  // by topHingeLine() so the explicit hinge bar always coincides with the
-  // straightened outline edge.
-  if (s.hingeFrac < 0.05 || ny > 0) return [nx, ny];
-  const topness = -ny;
-  const range = 0.25;
-  if (topness < 1 - range) return [nx, ny];
-  const blend = Math.min(1, (topness - (1 - range)) / range);
-  const hingeHalfW = s.hingeFrac;
-  const hingeX = Math.max(-hingeHalfW, Math.min(hingeHalfW, nx));
-  const hingeY = -0.95;
-  return [
-    nx * (1 - blend) + hingeX * blend,
-    ny * (1 - blend) + hingeY * blend
-  ];
-}
+// topPerimeter (procedural body outline) removed in the atlas pivot.
+// Top-view body shape now comes from atlasOutline() lookup.
+// unitOutline() is RETAINED because it's still used by decoration
+// helpers (topRibs, topFrills, topGrowthLines, topSpines) to position
+// surface features relative to a normalized body shape.
 
-function applySulcusIndent(nx, ny, theta, s) {
-  if (s.foldStr === 0) return [nx, ny];
-  const dt = theta - Math.PI;
-  const range = 0.45;
-  if (Math.abs(dt) > range) return [nx, ny];
-  const w = Math.cos((dt / range) * (Math.PI / 2)) ** 2;
-  const depth = s.foldStr * 0.07 * w;     // scales toward centroid
-  return [nx * (1 - depth), ny * (1 - depth)];
-}
-
-function applyRibScallop(nx, ny, theta, s) {
-  // Each rib bumps the perimeter outward where it crosses. The bump is full
-  // amplitude at the anterior commissure (the diagnostic zone — students
-  // look at the front edge to count and gauge ribs), fading toward the beak.
-  // Bump is in screen-px equivalents, applied along the radial direction
-  // with anisotropic scaling so it lands at the same px amplitude regardless
-  // of whether the perimeter sits on the wide or short axis.
-  if (s.ribCount === 0) return [nx, ny];
-  const ct = Math.cos(theta);
-  const anteriorStrength = Math.pow(Math.max(0, -ct), 0.5);   // peaks at anterior
-  const sideStrength     = Math.pow(Math.max(0, 1 - Math.abs(ct)), 0.6) * 0.6;
-  const ribness = Math.max(sideStrength, anteriorStrength);
-  if (ribness < 1e-3) return [nx, ny];
-  // Full px amplitude at peak; cos gives the rib spacing
-  const amp_px = s.ribAmp * ribness * Math.cos(theta * s.ribCount);
-  const len = Math.hypot(nx, ny);
-  if (len < 1e-3) return [nx, ny];
-  const ux = nx / len, uy = ny / len;
-  // Anisotropic scaling: bump applies in screen px, so the normalized step
-  // depends on whether we're moving in the wide or short direction.
-  return [nx + (amp_px / s.halfWidth) * ux, ny + (amp_px / s.halfLength) * uy];
-}
-
-function topPerimeterAt(theta, s) {
-  // Same pipeline as topOutlinePoints, evaluated at a single theta — used to
-  // anchor ribs/growth lines on the rib-perturbed perimeter.
-  const cx = 100, cy = 102;
-  let [nx, ny] = unitOutline(theta, s);
-  [nx, ny] = applyHingeStraightening(nx, ny, s);
-  [nx, ny] = applySulcusIndent(nx, ny, theta, s);
-  [nx, ny] = applyRibScallop(nx, ny, theta, s);
-  return [cx + nx * s.halfWidth, cy + ny * s.halfLength];
-}
-
-function topOutlinePoints(s) {
-  const N = 192;
-  const cx = 100, cy = 102;
-  const pts = [];
+function topRibs(s) {
+  // Radial ribs fanning from beak (top of view, at CY - halfLength)
+  // out toward the anterior. Number from ribCount; spread evenly across
+  // the body width.
+  if (!s.ribs || s.ribCount === 0) return "";
+  const beakX = CX, beakY = CY - s.halfLength * 0.95;
+  const N = s.ribCount;
+  let out = "";
+  // Sample anterior perimeter (lower half) for rib endpoints.
   for (let i = 0; i < N; i++) {
-    const theta = (i / N) * 2 * Math.PI;
-    let [nx, ny] = unitOutline(theta, s);
-    [nx, ny] = applyHingeStraightening(nx, ny, s);
-    [nx, ny] = applySulcusIndent(nx, ny, theta, s);
-    [nx, ny] = applyRibScallop(nx, ny, theta, s);
-    pts.push([cx + nx * s.halfWidth, cy + ny * s.halfLength]);
-  }
-  // Umbo as a small rounded bulge (3-point nudge), not a triangular spike.
-  if (s.beakProm > 0) {
-    let topI = 0, minY = Infinity;
-    for (let i = 0; i < pts.length; i++) {
-      if (pts[i][1] < minY) { minY = pts[i][1]; topI = i; }
-    }
-    const nudge = (i, f) => {
-      const idx = (i + pts.length) % pts.length;
-      pts[idx] = [pts[idx][0], pts[idx][1] - s.beakProm * f];
-    };
-    nudge(topI, 1.0);
-    nudge(topI - 1, 0.7); nudge(topI + 1, 0.7);
-    nudge(topI - 2, 0.4); nudge(topI + 2, 0.4);
-  }
-  return pts;
-}
-
-function topRibLines(s) {
-  if (s.ribCount === 0) return "";
-  const cx = 100, cy = 102;
-  const beakY = cy - s.halfLength + 4;
-  const beakX = cx;
-  let out = "";
-  // Ribs sweep across the FULL perimeter, including over the anterior midline
-  // (the old code split into mirrored halves with a gap — fixed here).
-  for (let i = 0; i < s.ribCount; i++) {
-    const t = (i + 0.5) / s.ribCount;
-    const margin = 0.04 * Math.PI;
-    const theta = margin + t * (2 * Math.PI - 2 * margin);
-    const [ex, ey] = topPerimeterAt(theta, s);
-    const dx = ex - beakX, dy = ey - beakY;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-3) continue;
-    // Gentle curvature: bend the rib outward following the shell surface.
-    const px = dy / len, py = -dx / len;
-    const side = Math.sign(ex - beakX) || 1;
-    const bend = Math.min(7, len * 0.04);
-    const ctlX = (beakX + ex) / 2 + px * side * bend;
-    const ctlY = (beakY + ey) / 2 + py * side * bend;
-    out += `<path d="M ${beakX.toFixed(1)},${beakY.toFixed(1)} Q ${ctlX.toFixed(1)},${ctlY.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW}"/>`;
+    const t = (i + 0.5) / N;   // 0..1
+    // Map to a theta in lower half (anterior): theta ∈ [π/2, 3π/2]
+    const theta = Math.PI * (0.5 + t);
+    const [nx, ny] = unitOutline(theta, s);
+    const endX = CX + nx * s.halfWidth * 0.92;
+    const endY = CY + ny * s.halfLength * 0.92;
+    out += `<line x1="${beakX.toFixed(1)}" y1="${beakY.toFixed(1)}" x2="${endX.toFixed(1)}" y2="${endY.toFixed(1)}" stroke="${SK.ribCol}" stroke-width="${SK.ribW}"/>`;
   }
   return out;
 }
 
-function topGrowthArcs(s, count, strokeW, strokeCol) {
-  // Concentric arcs centered on the beak — each is a scaled copy of the
-  // outline. The arc spans most of the perimeter (skipping a small wedge
-  // over the beak itself).
-  const cx = 100, cy = 102;
-  const N = 64;
+function topFrills(s) {
+  // Concentric arcs around the anterior half — bolder than growth lines.
+  if (!s.frills) return "";
   let out = "";
-  for (let k = 1; k <= count; k++) {
-    const f = k / (count + 1);
-    let path = "";
-    const tMin = 0.08, tMax = 1.92;
+  const K = 3;
+  for (let k = 1; k <= K; k++) {
+    const f = 0.55 + 0.13 * k;   // distance fraction from beak
+    let d = "";
+    const N = 60;
     for (let i = 0; i <= N; i++) {
-      const tt = tMin + (tMax - tMin) * (i / N);
-      const theta = tt * Math.PI;
-      let [nx, ny] = unitOutline(theta, s);
-      [nx, ny] = applyHingeStraightening(nx, ny, s);
-      [nx, ny] = applySulcusIndent(nx, ny, theta, s);
-      // Scale toward the beak (normalized beak is at (0, -1))
-      const bx = 0, by = -1;
-      const px = bx + (nx - bx) * f;
-      const py = by + (ny - by) * f;
-      const x = cx + px * s.halfWidth;
-      const y = cy + py * s.halfLength;
-      path += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+      const t = i / N;
+      const theta = Math.PI * (0.5 + t);   // lower (anterior) half
+      const [nx, ny] = unitOutline(theta, s);
+      const x = CX + nx * s.halfWidth * f;
+      const y = CY + ny * s.halfLength * f;
+      d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
     }
-    out += `<path d="${path}" fill="none" stroke="${strokeCol}" stroke-width="${strokeW}"/>`;
+    out += `<path d="${d}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW}" opacity="0.7"/>`;
   }
   return out;
 }
 
-function topSulcusMark(s) {
-  // Subtle dashed midline indicating the sulcus on the dorsal valve.
-  // Replaces the old thick black bar that dominated the view.
-  if (s.foldStr === 0) return "";
-  const cx = 100, cy = 102;
-  const y1 = cy - s.halfLength * 0.40;
-  const y2 = cy + s.halfLength * 0.82;
-  const sw = (0.55 + s.foldStr * 0.45).toFixed(2);
-  return `<line x1="${cx}" y1="${y1.toFixed(1)}" x2="${cx}" y2="${y2.toFixed(1)}" stroke="${SK.sulcusCol}" stroke-width="${sw}" stroke-dasharray="3,2"/>`;
+function topGrowthLines(s) {
+  // Subtle concentric arcs (used when growthLines=true but frills=false)
+  if (!s.growthLines) return "";
+  let out = "";
+  const K = 5;
+  for (let k = 1; k <= K; k++) {
+    const f = 0.50 + 0.10 * k;
+    let d = "";
+    const N = 50;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const theta = Math.PI * (0.5 + t);
+      const [nx, ny] = unitOutline(theta, s);
+      const x = CX + nx * s.halfWidth * f;
+      const y = CY + ny * s.halfLength * f;
+      d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    out += `<path d="${d}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`;
+  }
+  return out;
 }
 
 function topSpines(s) {
-  // Spinatryid spines arise from intersections of growth lamellae with
-  // radial ribs — a coherent grid pattern, NOT random dots. Previous
-  // Vogel-spiral placement disrupted the structural outline (user
-  // critique). New placement: at fixed radial fractions (lamellae) on a
-  // subset of the rib angles, concentrated on the anterior + lateral
-  // commissure where lamellae are thickest.
-  const cx = 100, cy = 102;
+  // Random-ish dots distributed across the body
+  if (!s.spines) return "";
   let out = "";
-  // Spine angular range — skip the back ~80° around the hinge area
-  // (theta=0 is the beak / posterior; we span from theta ≈ 0.22π
-  // out around to theta ≈ 1.78π, i.e., 320° of the perimeter)
-  const thetaMin = Math.PI * 0.22;
-  const thetaMax = Math.PI * 1.78;
-  const ribCount = Math.max(8, s.ribCount || 16);
-  // Spines per lamella — every ~third rib, so they read as discrete
-  const spinesPerRing = Math.max(6, Math.min(14, Math.floor(ribCount / 3)));
-  // Three concentric lamella positions
-  const rings = [0.55, 0.74, 0.90];
-  for (const ringR of rings) {
-    for (let i = 0; i < spinesPerRing; i++) {
-      const tFrac = i / (spinesPerRing - 1);
-      const theta = thetaMin + tFrac * (thetaMax - thetaMin);
-      const [nx, ny] = unitOutline(theta, s);
-      const x = cx + nx * s.halfWidth * ringR;
-      const y = cy + ny * s.halfLength * ringR;
-      out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.4" fill="#222"/>`;
-    }
-  }
-  // Perimeter spine stubs projecting outward — the most prominent spines,
-  // visible as protrusions at the shell edge. Fewer than ring spines.
-  const NP = Math.max(5, Math.floor(spinesPerRing * 0.7));
-  for (let i = 0; i < NP; i++) {
-    const tFrac = i / (NP - 1);
-    // Slightly narrower angular range for perimeter stubs (lateral+anterior)
-    const theta = Math.PI * 0.35 + tFrac * Math.PI * 1.30;
-    const [ex, ey] = topPerimeterAt(theta, s);
-    const dx = ex - cx, dy = ey - cy;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-3) continue;
-    const ox = dx / len * 6.5, oy = dy / len * 6.5;
-    out += `<line x1="${ex.toFixed(1)}" y1="${ey.toFixed(1)}" x2="${(ex + ox).toFixed(1)}" y2="${(ey + oy).toFixed(1)}" stroke="#222" stroke-width="1.3" stroke-linecap="round"/>`;
-  }
-  return out;
-}
-
-function topHingeLine(s) {
-  if (s.hingeFrac < 0.5) return "";
-  const cx = 100, cy = 102;
-  const hingeY = cy - s.halfLength * 0.95;
-  const hingeHalfW = s.halfWidth * s.hingeFrac;
-  return `<line x1="${(cx - hingeHalfW).toFixed(1)}" y1="${hingeY.toFixed(1)}" x2="${(cx + hingeHalfW).toFixed(1)}" y2="${hingeY.toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="${SK.hingeW}"/>`;
-}
-
-function topUmboDot(s) {
-  // Beak marker. For astrophic shells (curved hinge), the umbo is a visible
-  // little bump — we draw a small filled wedge. For strophic shells, the umbo
-  // sits on the straight hinge line; we render it as a small triangular notch
-  // pointing posteriorly.
-  const cx = 100, cy = 102;
-  const beakY = cy - s.halfLength + (s.beakProm > 0 ? -s.beakProm * 0.4 : 4);
-  if (s.beakProm > 0) {
-    // Astrophic — small triangular umbo bulge above the outline.
-    const h = 6;
-    const w = 4;
-    return `<path d="M ${cx},${(beakY - h).toFixed(1)} L ${(cx - w).toFixed(1)},${(beakY + 1).toFixed(1)} L ${(cx + w).toFixed(1)},${(beakY + 1).toFixed(1)} Z" fill="${SK.beakCol}"/>`;
-  }
-  // Conical (Conispirifer / Cyrtina / Pyramidspirifer) — the dorsal beak
-  // sits at the apex of the interarea wall, which is visible in SIDE view
-  // not top view. From above, the hinge line is the back edge with no
-  // bump above it. Skip the triangle.
-  if (s.outline === "conical") return "";
-  // Strophic — small dorsal-beak triangle riding on top of the hinge bar.
-  const hingeY = cy - s.halfLength * 0.95;
-  const h = 7, w = 5;
-  return `<path d="M ${cx},${(hingeY - h).toFixed(1)} L ${(cx - w).toFixed(1)},${hingeY.toFixed(1)} L ${(cx + w).toFixed(1)},${hingeY.toFixed(1)} Z" fill="${SK.beakCol}"/>`;
-}
-
-function svgTopView(answers) {
-  const s = answersToShape(answers);
-  const pts = topOutlinePoints(s);
-  const outlinePath = pointsToPath(pts);
-  const clipId = "brachTopClip_" + Math.floor(Math.random() * 1e6);
-
-  let inner = "";
-  // Layer order: growth (background) → ribs → frills (bolder, on top of ribs)
-  //              → sulcus midline → spines.
-  if (s.hasGrowthLines && !s.hasFrills) inner += topGrowthArcs(s, 6, SK.growthW, SK.growthCol);
-  if (s.ribCount > 0)                   inner += topRibLines(s);
-  if (s.hasFrills)                      inner += topGrowthArcs(s, 5, SK.frillW, SK.frillCol);
-  inner += topSulcusMark(s);
-  if (s.hasSpines)                      inner += topSpines(s);
-
-  // Hinge line + umbo dot drawn on top of everything for clarity.
-  const overlay = topHingeLine(s) + topUmboDot(s);
-
-  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
-    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
-    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
-    <g clip-path="url(#${clipId})">${inner}</g>
-    ${overlay}
-  </svg>`;
-}
-
-// ============================================================
-// FRONT VIEW — anterior end seen from the front
-// ============================================================
-// Dorsal valve on top, ventral on bottom. Width = full shell width.
-// Default biconvex is DORSI-biconvex. Fold/sulcus convention:
-//   * Dorsal valve has a midline RIDGE (fold) → small peak on the upper outline.
-//   * Ventral valve has a midline TROUGH (sulcus) → the lower outline lifts
-//     UPWARD at center (depression dips into the shell). Strong sulcus
-//     produces a pronounced V-notch in the bottom — matches Day & Copper
-//     plate B5 of Pseudoatrypa.
-//   * The commissure becomes uniplicate (peaks at center).
-
-// ============================================================
-// Front-view silhouette templates (per outline archetype)
-// ============================================================
-// The front view's silhouette is built as the sum of two contributions:
-//   - a valve "body" envelope that depends on the outline archetype
-//   - the fold (or sulcus, on the ventral side) that creates the central
-//     commissure peak
-//
-// Earlier the renderer had only one body model — a parabolic dome
-// `valveConv * (1 - u²)` — which works for atrypid/orthid subcircular
-// shells where the body IS a low dome and the fold is a mild rise on
-// top. But for alate spiriferids (Cyrtospirifer-style) and conical
-// spirifers (Conispirifer / Cyrtina / Pyramidspirifer) the body is
-// fundamentally triangular — wings sweep DOWN from a central peak with
-// no underlying dome. Applying the dome formula there produces the
-// wrong silhouette: a wide low arch with a narrow cone glued on top.
-//
-// `frontBodyShape(u, s)` returns a unit-amplitude shape factor (0..1)
-// for the body at lateral position u ∈ [-1, 1]:
-//   - subcircular / pentagonal / elongate-oval → parabolic dome (1 - u²)
-//   - wing-shaped → linear triangle (1 - |u|), wings descend to wingtips
-//   - conical → narrow triangle, shape drops faster than linear
-//
-// The valve convexity (px) then scales this shape, and the fold is
-// added on top with full weight (the fold's own narrow rise creates
-// the central peak).
-
-function frontBodyShape(u, s) {
-  const au = Math.abs(u);
-  if (s.outline === "wing-shaped") {
-    // Linear taper — triangular wings. Slightly convex (0.95 exponent)
-    // so the wings have a faint curve rather than being pure straight
-    // lines, which reads better as a real shell.
-    return Math.max(0, 1 - Math.pow(au, 0.95));
-  }
-  if (s.outline === "conical") {
-    // Narrower than wing-shaped (the body itself is narrow) and the
-    // taper is sharper, so most of the silhouette rises into the
-    // central pyramidal peak. The halfWidth is also smaller, so this
-    // shape factor controls only the relative curvature.
-    return Math.max(0, 1 - Math.pow(au, 1.3));
-  }
-  // Dome model — subcircular / pentagonal / elongate-oval
-  return Math.max(0, 1 - au * au);
-}
-
-// frontFoldSplit — distribute the fold's rise between three places it
-// can visually manifest in the front view:
-//   * outerDorsal  : how much the dorsal silhouette rises at center
-//   * outerVentral : how much the ventral silhouette pulls UP at center
-//                    (the sulcus indent visible in the outer outline)
-//   * commissure   : how much the internal commissure line peaks at center
-//                    (the V where dorsal & ventral surfaces meet INSIDE)
-//
-// The user's red-overlay diagnostics showed that:
-//
-//  • For dome shells (Gypidula / atrypids / orthids — subcircular,
-//    pentagonal, elongate-oval) the OUTER silhouette is a smooth dome
-//    with no visible fold influence. The fold lives entirely in the
-//    INTERNAL commissure line — a clear V/peak inside the dome where
-//    dorsal and ventral surfaces meet at the midline.
-//
-//  • For triangular shells (wing-shaped, conical) the OUTER silhouette
-//    IS the commissure (no separate inner line). The dorsal outline
-//    rises into a central peak; the ventral outline pulls UP at center
-//    creating a W-shape with lateral lobes and a midline V-indent.
-function frontFoldSplit(s) {
-  if (s.outline === "wing-shaped") {
-    // Alate spiriferid (Cyrtospirifer) — anterior view shows a near
-    // diamond/kite with the dorsal triangle peaked by the fold and the
-    // ventral triangle pointing DOWN to the sulcus. The sulcus produces
-    // only a subtle V-indent on the bottom outline (brach4 anterior),
-    // not a Conispirifer-style deep W.
-    return { outerDorsal: 0.30, outerVentral: 0.25, commissure: 0.30 };
-  }
-  if (s.outline === "conical") {
-    // Dorsal: modest fold contribution (the conical's dorsal valve is
-    // small/flat — most DV depth lives in the ventral cone seen in side
-    // view). Ventral: the sulcus carves a V into the bottom outline but
-    // the absolute depth has to match the foreshortened front-view
-    // ventral body (see frontVentralY's ventralScale).
-    return { outerDorsal: 0.30, outerVentral: 0.50, commissure: 0.15 };
-  }
-  // Dome outlines — atrypids, orthids, pentameroids, terebratulids.
-  // The user's brach1/brach6 critique notes that real specimens have
-  // a deep U/V deflection of the anterior margin — the outer silhouette
-  // genuinely deforms, it isn't just a smooth dome with an interior V.
-  // Outer contributions raised so the front view shows real margin
-  // deflection; commissure line still arches higher than the outer
-  // because the dorsal-meets-ventral seam runs through the fold's apex.
-  return { outerDorsal: 0.45, outerVentral: 0.40, commissure: 1.40 };
-}
-
-// frontValveScale — front-view foreshortening.
-//
-// The side view shows full DV depth; the front view's anterior
-// projection captures only a fraction of that depth depending on
-// HOW FORESHORTENED the cone is. apexShift modulation applies
-// PRIMARILY to outlines where the body genuinely tapers along AP
-// (conical, wing-shaped). For dome outlines (subcircular, etc.) the
-// body is centered regardless of beak prominence — globose shells
-// stay tall in front view, which is what the user critique flagged.
-function frontValveScale(s) {
-  if (s.outline === "conical") {
-    // Conical — ventral cone is heavily foreshortened. Higher apexShift
-    // (more pyramidal) pushes the apex even further back, so the
-    // anterior projection captures less of the cone depth → flatter.
-    const apexCentered = 1.0 - Math.min(1.0, s.apexShift / 0.6);
-    const factor = 0.55 + 0.45 * apexCentered;
-    return { dorsal: factor, ventral: 0.35 * factor };
-  }
-  if (s.outline === "wing-shaped") {
-    // Wing-shaped — moderate foreshortening from the lateral extent;
-    // less sensitive to apexShift since wings are at full lateral.
-    return { dorsal: 0.60, ventral: 0.55 };
-  }
-  // Dome outlines — front view shows the full body cross-section, no
-  // foreshortening. Globose specimens (Pseudoatrypa, Theodossia) read
-  // as tall in front view, matching the photo's apparent volume.
-  return { dorsal: 1.0, ventral: 1.0 };
-}
-
-function frontDorsalY(u, s) {
-  const scale = frontValveScale(s);
-  if (s.outline === "wing-shaped" || s.outline === "conical") {
-    // Triangular outlines: dorsal silhouette is a SINGLE smooth triangle.
-    // Peak height = foreshortened body + fold contribution. The body's
-    // shape function provides the descent to wingtips.
-    const peak = s.dorsalConv * scale.dorsal + foldRiseAt(0, s) * frontFoldSplit(s).outerDorsal;
-    return peak * frontBodyShape(u, s);
-  }
-  // Dome outlines: smooth dome + minimal fold contribution to outer
-  const body = s.dorsalConv * frontBodyShape(u, s);
-  const fold = foldRiseAt(u, s) * frontFoldSplit(s).outerDorsal;
-  return body + fold;
-}
-
-function frontVentralY(u, s) {
-  // Ventral keeps the additive body+sulcus model. The sulcus creates a
-  // V-indent at center on triangular outlines; for wing-shaped the
-  // contribution is small (brach4 anterior shows a near-diamond with
-  // subtle V); for conical the contribution is moderate (brach3 shows
-  // a clear W). Body foreshortening (frontValveScale) keeps the lobe
-  // depth proportional to the projected ventral height.
-  const scale = frontValveScale(s);
-  const body = s.ventralConv * scale.ventral * frontBodyShape(u, s);
-  const fold = foldRiseAt(u, s) * frontFoldSplit(s).outerVentral;
-  return body - fold;
-}
-
-function frontDorsalCurve(s) {
-  const cx = 100, cy = 100;
-  const halfW = s.halfWidth;
-  const N = 120;
-  const pts = [];
-  for (let i = 0; i <= N; i++) {
-    const u = (i / N - 0.5) * 2;          // -1..1
-    const x = cx + u * halfW;
-    let y = cy - frontDorsalY(u, s);
-    if (s.ribCount > 0) {
-      const ribness = Math.cos(u * Math.PI / 2) ** 2;
-      const phase = (u + 1) * Math.PI * s.ribCount / 2;
-      y -= s.ribAmp * 0.55 * ribness * Math.sin(phase);
-    }
-    pts.push([x, y]);
-  }
-  return pts;
-}
-
-function frontVentralCurve(s) {
-  const cx = 100, cy = 100;
-  const halfW = s.halfWidth;
-  const N = 120;
-  const pts = [];
-  for (let i = 0; i <= N; i++) {
-    const u = (i / N - 0.5) * 2;
-    const x = cx + u * halfW;
-    let y = cy + frontVentralY(u, s);
-    if (s.ribCount > 0) {
-      const ribness = Math.cos(u * Math.PI / 2) ** 2;
-      const phase = (u + 1) * Math.PI * s.ribCount / 2;
-      y += s.ribAmp * 0.55 * ribness * Math.sin(phase);
-    }
-    pts.push([x, y]);
-  }
-  return pts;
-}
-
-function frontCommissureLine(s) {
-  // Internal commissure line — the V/peak inside the outer silhouette
-  // where the dorsal and ventral surfaces meet at the midline. For
-  // dome-bodied shells (atrypids, pentameroids) this is the PRIMARY
-  // way the fold reads on the front view because the outer silhouette
-  // stays a smooth dome. For triangular shells (wing-shaped/conical)
-  // the outer outline already carries the fold so the internal line
-  // is suppressed (commissureCoef ~0.2).
-  const cx = 100, cy = 100;
-  const halfW = s.halfWidth;
-  const split = frontFoldSplit(s);
-  const N = 240;
-  let d = "";
-  for (let i = 0; i <= N; i++) {
-    const u = (i / N - 0.5) * 2;
-    const x = cx + u * halfW;
-    let y = cy - foldRiseAt(u, s) * split.commissure;
-    if (s.ribCount > 0) {
-      const ribness = Math.cos(u * Math.PI / 2) ** 2;
-      y += s.ribAmp * 0.7 * ribness * Math.cos((u + 1) * Math.PI * s.ribCount / 2);
-    }
-    d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-  }
-  const dash = s.foldStr > 0 ? "" : "3,2";
-  const sw   = s.foldStr > 0 ? 1.6 : 1.0;
-  return `<path d="${d}" fill="none" stroke="#333" stroke-width="${sw}" stroke-dasharray="${dash}"/>`;
-}
-
-function frontGrowthArcs(s) {
-  // Growth lines arc BACK and UP toward the hinge (where the dorsal apex is
-  // when seen end-on). Each line is a scaled-down copy of the dorsal valve
-  // outline, contracted toward the apex point. Older growth lines are
-  // narrower AND sit higher — they don't touch the lateral commissure.
-  const cx = 100, cy = 100;
-  const halfW = s.halfWidth;
-  const N = 64;
-  const dorsalApex = Math.max(0, s.dorsalConv) + foldRiseAt(0, s) * 0.95;
-  const y_apex = cy - dorsalApex;
-  const K = 5;
-  const arcs = [];
-  for (let k = 1; k <= K; k++) {
-    const f = k / (K + 1);
-    let d = "";
-    for (let i = 0; i <= N; i++) {
-      const u = (i / N - 0.5) * 2;
-      const y_silhouette = cy - frontDorsalY(u, s);
-      const x = cx + (1 - f) * u * halfW;
-      const y = y_apex + (1 - f) * (y_silhouette - y_apex);
-      d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    arcs.push(`<path d="${d}" fill="none" stroke="${SK.growthCol}" stroke-width="${SK.growthW}"/>`);
-  }
-  return arcs.join("");
-}
-
-function frontFrills(s) {
-  // Bolder lamellae — same geometry as growth arcs, drawn fewer + thicker.
-  const cx = 100, cy = 100;
-  const halfW = s.halfWidth;
-  const N = 48;
-  const arcs = [];
-
-  function valveArc(sign, k, K) {
-    const f = k / (K + 1);
-    const conv = sign === -1 ? s.dorsalConv : s.ventralConv;
-    if (Math.abs(conv) < 5) return null;
-    let d = "";
-    for (let i = 0; i <= N; i++) {
-      const u = (i / N - 0.5) * 2;
-      const shape = frontBodyShape(u, s);
-      const x = cx + u * halfW * (1 - 0.12 * f);
-      let y = cy + sign * Math.abs(conv) * shape * (1 - f);
-      if (sign === -1 && conv < 0) y = cy + Math.abs(conv) * shape * (1 - f);
-      if (sign === +1 && conv < 0) y = cy - Math.abs(conv) * shape * (1 - f);
-      const riseScale = sign === -1 ? 0.95 : 0.9;
-      y -= foldRiseAt(u, s) * riseScale * (1 - f);
-      d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    return d;
-  }
-
-  for (let k = 1; k <= 2; k++) {
-    const dD = valveArc(-1, k, 2);
-    if (dD) arcs.push(`<path d="${dD}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW * 0.85}" opacity="0.85"/>`);
-    const dV = valveArc(+1, k, 2);
-    if (dV) arcs.push(`<path d="${dV}" fill="none" stroke="${SK.frillCol}" stroke-width="${SK.frillW * 0.85}" opacity="0.85"/>`);
-  }
-  return arcs.join("");
-}
-
-function frontSpines(s) {
-  const cx = 100, cy = 100;
-  let out = "";
-  const N = 30;
+  const N = 24;
   for (let i = 0; i < N; i++) {
     const a = i * 137.5 * Math.PI / 180;
-    const r = Math.sqrt((i + 0.5) / N) * 0.78;
-    const xf = r * Math.cos(a);
-    const yf = r * Math.sin(a);
-    const x = cx + xf * s.halfWidth * 0.85;
-    const conv = yf < 0 ? Math.max(0, s.dorsalConv) : Math.max(0, s.ventralConv);
-    const y = cy + Math.sign(yf) * Math.abs(yf) * conv * 0.95;
+    const r = Math.sqrt((i + 0.5) / N) * 0.75;
+    const x = CX + r * Math.cos(a) * s.halfWidth * 0.85;
+    const y = CY + r * Math.sin(a) * s.halfLength * 0.85;
     out += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.4" fill="#222"/>`;
   }
   return out;
 }
 
+function topHingeBar(s, hingeGeom) {
+  if (s.hingeFrac === 0) return "";
+  // Use the geometry computed by flattenTopForHinge so the bar aligns
+  // exactly with the flat segment of the reshaped outline.
+  if (!hingeGeom) {
+    const halfW = s.halfWidth * s.hingeFrac;
+    const y = CY - s.halfLength + 1;
+    return `<line x1="${(CX - halfW).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(CX + halfW).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="${SK.hingeW}"/>`;
+  }
+  return `<line x1="${hingeGeom.x0.toFixed(1)}" y1="${hingeGeom.y.toFixed(1)}" x2="${hingeGeom.x1.toFixed(1)}" y2="${hingeGeom.y.toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="${SK.hingeW}"/>`;
+}
+
+// ---------- Strophic hinge top-flattening (procedural outline reshape) ----------
+
+function parsePathPoints(d) {
+  const tokens = d.replace(/,/g, " ").split(/\s+/).filter(Boolean);
+  const pts = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (t === "M" || t === "L") {
+      pts.push({ x: parseFloat(tokens[i+1]), y: parseFloat(tokens[i+2]) });
+      i += 3;
+    } else { i += 1; }
+  }
+  return pts;
+}
+
+function polygonWidthAtY(pts, y) {
+  const xs = [];
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    if ((a.y <= y && b.y > y) || (a.y > y && b.y <= y)) {
+      const t = (y - a.y) / (b.y - a.y);
+      xs.push(a.x + t * (b.x - a.x));
+    }
+  }
+  if (xs.length < 2) return { width: 0, x0: 0, x1: 0 };
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  return { width: x1 - x0, x0, x1 };
+}
+
+// Find Y where polygon width equals targetWidth (scanning from top down).
+function findHingeY(pts, targetWidth, minY, maxY) {
+  const steps = 60;
+  let prev = 0;
+  for (let i = 1; i < steps; i++) {
+    const y = minY + (maxY - minY) * (i / steps);
+    const w = polygonWidthAtY(pts, y).width;
+    if (w >= targetWidth) {
+      // Linear interp between previous and current step
+      const prevY = minY + (maxY - minY) * ((i - 1) / steps);
+      const t = prev === 0 ? 1 : (targetWidth - prev) / Math.max(0.001, w - prev);
+      return prevY + t * (y - prevY);
+    }
+    prev = w;
+  }
+  return minY + (maxY - minY) * 0.10;
+}
+
+// Sutherland-Hodgman clip: keep points with y >= hingeY, replace anything
+// above with a straight horizontal segment at hingeY.
+function flattenTopForHinge(d, s) {
+  if (!s.isStrophic) return { d, hingeGeom: null };
+  const pts = parsePathPoints(d);
+  if (pts.length < 4) return { d, hingeGeom: null };
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const fullW = maxX - minX;
+  const targetW = s.hingeFrac * fullW;
+  const hingeY = findHingeY(pts, targetW, minY, maxY);
+
+  const out = [];
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const cur = pts[i];
+    const next = pts[(i + 1) % n];
+    const curIn = cur.y >= hingeY;
+    const nextIn = next.y >= hingeY;
+    if (curIn) {
+      out.push(cur);
+      if (!nextIn) {
+        const t = (hingeY - cur.y) / (next.y - cur.y);
+        out.push({ x: cur.x + t * (next.x - cur.x), y: hingeY });
+      }
+    } else if (nextIn) {
+      const t = (hingeY - cur.y) / (next.y - cur.y);
+      out.push({ x: cur.x + t * (next.x - cur.x), y: hingeY });
+    }
+  }
+
+  if (out.length < 3) return { d, hingeGeom: null };
+
+  const hingePts = out.filter(p => Math.abs(p.y - hingeY) < 0.001);
+  const hx0 = hingePts.length ? Math.min(...hingePts.map(p => p.x)) : CX;
+  const hx1 = hingePts.length ? Math.max(...hingePts.map(p => p.x)) : CX;
+
+  let newD = `M ${out[0].x.toFixed(1)},${out[0].y.toFixed(1)}`;
+  for (let i = 1; i < out.length; i++) {
+    newD += ` L ${out[i].x.toFixed(1)},${out[i].y.toFixed(1)}`;
+  }
+  newD += " Z";
+  return { d: newD, hingeGeom: { x0: hx0, x1: hx1, y: hingeY } };
+}
+
+function topUmboDot(s) {
+  // Small marker at the beak position (back center).
+  const x = CX, y = CY - s.halfLength + (s.isStrophic ? 4 : 6);
+  return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="${SK.beakCol}"/>`;
+}
+
+function topSulcusLine(s) {
+  // Faint dashed line down the AP midline (anterior half) if fold present.
+  if (!s.foldStr) return "";
+  const x = CX;
+  const y0 = CY;
+  const y1 = CY + s.halfLength * 0.85;
+  return `<line x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${SK.sulcusCol}" stroke-width="${SK.sulcusW}" stroke-dasharray="3,2"/>`;
+}
+
+function svgTopView(answers) {
+  const s = answersToShape(answers);
+  const archetype = answersToArchetype(answers);
+  const rawOutline = atlasOutline(archetype, "top");
+
+  // For strophic hinges, RESHAPE the outline itself (clip top with a
+  // horizontal segment) so the silhouette has a flat back edge — not
+  // just a line decoration drawn over a curved dome.
+  const { d: outlinePath, hingeGeom } = flattenTopForHinge(rawOutline, s);
+
+  const clipId = "brachTopClip_" + Math.floor(Math.random() * 1e6);
+  let inner = "";
+  if (s.frills) inner += topFrills(s);
+  else if (s.growthLines) inner += topGrowthLines(s);
+  if (s.ribs)   inner += topRibs(s);
+
+  return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
+    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
+    <path d="${outlinePath}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
+    <g clip-path="url(#${clipId})">${inner}</g>
+    ${topSulcusLine(s)}
+    ${topHingeBar(s, hingeGeom)}
+    ${topUmboDot(s)}
+    ${s.spines ? topSpines(s) : ""}
+  </svg>`;
+}
+
+// ============================================================
+// FRONT VIEW — anterior commissure seen head-on
+// ============================================================
+//
+// The combined dorsal-above + ventral-below silhouette. Profile
+// determines which valve(s) bulge; fold modulates the central commissure.
+// Width matches the top view's halfWidth.
+
+// Body amplitude multiplier — scales DV (dorso-ventral) depth in BOTH
+// SIDE and FRONT views so chunky shells read volumetrically. Used by
+// SIDE and FRONT alike for cross-view consistency: the same physical
+// shell depth must render at the same pixel scale whether viewed from
+// the front or from the side. Earlier, SIDE used amp×1.0 while FRONT
+// used amp×1.7 — same shell would render dramatically thicker in
+// front view than in side view, anatomically inconsistent.
+const AMP_MULT = 1.7;
+const FRONT_AMP_MULT = AMP_MULT;   // backwards compat — same value
+
+// (stripped procedural body code — atlas pivot)
+
+function frontCommissureLine(s) {
+  // M-shape commissure: lateral cusps rise high (where the two valves
+  // meet at the body's widest point), commissure dips inward into the
+  // body, then a central fold peak (smaller than the cusps).
+  // The path extends slightly beyond ±halfW and is clipped to the
+  // silhouette so its endpoints visually meet the lateral cusps.
+  if (!s.foldStr) return "";
+  const isTriangular = s.outline === "wing-shaped" || s.outline === "conical";
+  const commCoef = isTriangular ? 0.55 : 1.10;
+  const halfW = s.halfWidth * 1.10;   // overshoot for clean clipping
+  const cuspAmp = 22;                  // strong lateral cusps
+  const foldAmp = 9;                   // smaller central peak
+  const foldSigma = 0.28;
+  const N = 96;
+  let d = "";
+  for (let i = 0; i <= N; i++) {
+    const u = (i / N - 0.5) * 2;
+    const x = CX + u * halfW;
+    const cuspRise = cuspAmp * Math.pow(Math.abs(u), 2);
+    const foldRise = foldAmp * s.foldStr * Math.exp(-(u * u) / (2 * foldSigma * foldSigma));
+    const y = CY - (cuspRise + foldRise) * commCoef;
+    d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
+  }
+  return `<path d="${d}" fill="none" stroke="#333" stroke-width="1.5"/>`;
+}
+
 function svgFrontView(answers) {
   const s = answersToShape(answers);
-  const top = frontDorsalCurve(s);
-  const bot = frontVentralCurve(s).reverse();
-  const outlinePath = pointsToPath(top.concat(bot));
+  const archetype = answersToArchetype(answers);
+  const d = atlasOutline(archetype, "front");
+
+  // Internal commissure line still drawn procedurally (it's a feature
+  // that varies with foldStr/sulcusDir, not the archetype itself).
+  // ClipPath ensures the M-curve terminates at the silhouette's lateral
+  // cusps no matter how wide the cusps actually sit.
+  const flipAttr = s.foldInvert ? ` transform="translate(0,200) scale(1,-1)"` : "";
+  const commLine = frontCommissureLine(s);
   const clipId = "brachFrontClip_" + Math.floor(Math.random() * 1e6);
 
-  let inner = "";
-  if (s.hasGrowthLines && !s.hasFrills) inner += frontGrowthArcs(s);
-  if (s.hasFrills)                      inner += frontFrills(s);
-  if (s.hasSpines)                      inner += frontSpines(s);
-
-  const commissure = frontCommissureLine(s);
-
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
-    <defs><clipPath id="${clipId}"><path d="${outlinePath}"/></clipPath></defs>
-    <path d="${outlinePath}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
-    <g clip-path="url(#${clipId})">${inner}</g>
-    ${commissure}
+    <defs><clipPath id="${clipId}"><path d="${d}"/></clipPath></defs>
+    <g${flipAttr}>
+      <path d="${d}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
+      <g clip-path="url(#${clipId})">${commLine}</g>
+    </g>
   </svg>`;
 }
 
 // ============================================================
-// SIDE VIEW — right lateral, looking from outside
-// ============================================================
-// Beak at left (posterior), anterior commissure at right.
-// Strophic shells show an interarea wall at the back; astrophic shells curve
-// smoothly to a beak tip. Default biconvex = dorsibiconvex so the silhouette
-// is taller above the midline than below.
-//
-// Rib pattern: the side view does NOT draw ribs as parallel longitudinal
-// stripes (that read as growth lines, not ribs). Instead, ribs are encoded
-// in the anterior commissure edge: each rib produces a small zigzag notch
-// where it crosses the commissure. Smooth shells have a straight commissure;
-// dense ribs make fine teeth; sparse ribs make coarse crenulations. This is
-// a diagnostic field-ID cue.
-
-// ============================================================
-// Side view — two-valve model
+// SIDE VIEW — right lateral profile
 // ============================================================
 //
-// Each valve is drawn as its own closed shape. The dorsal valve sits
-// above the commissure plane (cy), the ventral valve below. They meet
-// at the anterior commissure (frontX) and, for strophic shells, at the
-// hinge point (beakX, cy) with an interarea face on each valve. For
-// astrophic shells the two beaks meet directly at (beakX, cy) and coil
-// opposite directions.
+// Three sub-renderers by outline archetype:
+//   conical            — tall triangular back + small dorsal cap
+//   concavo-convex     — bowed crescent (both valves curve same way)
+//   default (biconvex) — smooth oval split horizontally at the commissure
 //
-// Each valve's outline includes its OWN beak curl as part of the path,
-// so the iconic brachiopod beak-coiling reads natively in side view
-// instead of being a stuck-on overlay.
-
-// commissureY(u, s) — the y-coordinate of the commissure plane as a
-// FUNCTION OF AP position u ∈ [-1, +1]. For most shells this is just
-// cy (flat plane). But strophomenids with geniculate trails curl the
-// commissure downward at the anterior; resupinate forms swing it
-// upward. Treating the commissure as a renderable curve (not a flat
-// datum) lets the side view handle concavo-convex/geniculate shells
-// without the two-halves-around-cy straightjacket that was glitching
-// brach7. Both valves close along this curve.
-function commissureY(u, s) {
-  const cy = 100;
-  if (s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
-    const kinkU = 2 * s.lateralKinkAt - 1;
-    const t = (u - kinkU) / (1 - kinkU);
-    // Commissure follows ~60% of the ventral trail drop — the dorsal
-    // partially follows the ventral down, so the meeting plane drops
-    // less than the ventral trail itself
-    return cy + s.lateralDropPx * Math.pow(t, 1.25) * 0.60;
-  }
-  if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
-    const kinkU = 2 * s.lateralKinkAt - 1;
-    const t = (u - kinkU) / (1 - kinkU);
-    return cy - 10 * Math.pow(t, 1.2);   // commissure rises at anterior
-  }
-  return cy;
-}
-
-// Returns { fill, stroke }: a closed path for fill (with the commissure
-// closure included) and an OPEN path for the stroke (silhouette + beak
-// curl + optional interarea face only — no horizontal commissure line).
-// Splitting these is what removes the "T-bar through the middle"
-// artifact: the commissure isn't a true outer edge, so it shouldn't be
-// stroked even though the closed fill needs it.
-function sideValveClosedPath(s, isDorsal) {
-  const cx = 100, cy = 100;
-  const halfL = s.halfLength;
-  const beakX = cx - halfL;
-  const frontX = cx + halfL;
-  const sign = isDorsal ? -1 : 1;
-  const conv = isDorsal ? s.dorsalConv : s.ventralConv;
-
-  // === Cubic Bezier silhouette ===
-  // Each valve's outer outline is now TWO cubic-Bezier segments
-  // (back-anchor → apex, apex → anterior tip) instead of joined
-  // half-parabolas. Bezier handles give organic control over taper
-  // sharpness, flat regions near the apex, and asymmetric front/back
-  // shaping that parabolas couldn't express.
-  //
-  // C¹ continuity at the apex is enforced by placing both control
-  // points adjacent to the apex on the SAME horizontal line (y = apexY)
-  // — so the tangent at the apex is horizontal on both sides.
-  // Similarly the back-anchor and anterior-tip endpoints get
-  // horizontal-tangent control points for smooth attachment to the
-  // closure path.
-
-  // Apex position
-  const apexU = -s.apexShift;
-  const apexX = beakX + (1 + apexU) / 2 * 2 * halfL;
-  const apexY = cy + sign * conv * 0.95;
-
-  // Anchors
-  const backAnchorY = s.interareaH > 0 ? cy + sign * s.interareaH * 0.5 : cy;
-  const anteriorHalf = s.foldStr * 11;
-  const frontTipY = commissureY(1, s) + sign * anteriorHalf;
-
-  // Handle lengths per outline — DIRECTIONALLY ASYMMETRIC. Real shells
-  // have a fat posterior (where the umbo sits) and a tapered anterior:
-  //   * Short apexBackH → curve drops steeply from apex toward umbo
-  //   * Long apexFrontH → gradual glide from apex to anterior tip
-  // This is what produces a "shell-like" silhouette instead of a
-  // symmetric lens. The previous symmetric handles produced renders
-  // that looked like geometric primitives, not specimens.
-  let backH, apexBackH, apexFrontH, frontH;
-  if (s.outline === "conical") {
-    backH = halfL * 0.08;
-    apexBackH = halfL * 0.18;
-    apexFrontH = halfL * 0.55;
-    frontH = halfL * 0.20;
-  } else if (s.outline === "wing-shaped") {
-    backH = halfL * 0.12;
-    apexBackH = halfL * 0.22;
-    apexFrontH = halfL * 0.50;
-    frontH = halfL * 0.32;
-  } else {
-    // Dome outlines — asymmetric: posterior bulk, anterior taper
-    backH = halfL * 0.18;
-    apexBackH = halfL * 0.28;
-    apexFrontH = halfL * 0.60;
-    frontH = halfL * 0.22;
-  }
-
-  // Clamp handles so they don't exceed segment distance
-  const backDist = Math.max(1, apexX - beakX);
-  const frontDist = Math.max(1, frontX - apexX);
-  backH = Math.min(backH, backDist * 0.45);
-  apexBackH = Math.min(apexBackH, backDist * 0.65);
-  apexFrontH = Math.min(apexFrontH, frontDist * 0.65);
-  frontH = Math.min(frontH, frontDist * 0.45);
-
-  // Sample the silhouette by Bezier parameter t (not by uniform x)
-  function bz(t, p0, p1, p2, p3) {
-    const omt = 1 - t;
-    return omt*omt*omt*p0 + 3*omt*omt*t*p1 + 3*omt*t*t*p2 + t*t*t*p3;
-  }
-  const N_BACK = 36;
-  const N_FRONT = 48;
-  const sil = [];
-
-  // Back segment: beak/back-anchor → apex
-  for (let i = 0; i <= N_BACK; i++) {
-    const t = i / N_BACK;
-    const x = bz(t, beakX, beakX + backH, apexX - apexBackH, apexX);
-    const y = bz(t, backAnchorY, backAnchorY, apexY, apexY);
-    sil.push([x, y]);
-  }
-  // Front segment: apex → anterior tip (skip first to avoid duplicate)
-  for (let i = 1; i <= N_FRONT; i++) {
-    const t = i / N_FRONT;
-    const x = bz(t, apexX, apexX + apexFrontH, frontX - frontH, frontX);
-    let y = bz(t, apexY, apexY, frontTipY, frontTipY);
-
-    // Lateral kinks applied as Y-perturbation in the front segment
-    const u = (x - cx) / halfL;
-    if (!isDorsal && s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
-      const kinkU = 2 * s.lateralKinkAt - 1;
-      const tt = (u - kinkU) / (1 - kinkU);
-      const ease = Math.pow(tt, 1.25);
-      y += s.lateralDropPx * ease;
-    }
-    if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
-      const kinkU = 2 * s.lateralKinkAt - 1;
-      const tt = (u - kinkU) / (1 - kinkU);
-      // Smoothly mirror the offset-from-cy across cy (the valve flips)
-      const offset = y - cy;
-      y = y * (1 - tt) + (cy - offset * 0.6) * tt;
-    }
-    sil.push([x, y]);
-  }
-
-  // === Umbo — sized as a DOMINANT body feature, not a decorative tick ===
-  //
-  // The umbo is the diagnostic feature a student's eye locks onto in
-  // the photos. Sizing it at ~20% of halfL (the previous default)
-  // produced renders that looked like generic lenses with optional
-  // commas. The new sizing makes the umbo a major visible region of
-  // the side view — biologically appropriate for the shells where the
-  // umbo IS the defining feature (Theodossia, Cyrtospirifer,
-  // Pseudoatrypa). Subdued/pyramidal beaks get smaller umbos.
-  //
-  // The inner-arc Bezier control points now swing forward past the
-  // anchor AND well past cy, producing the wraparound coil geometry
-  // a real hooked umbo shows — the inner edge of the coil passes
-  // through the body interior, creating visible self-intersection
-  // that SVG nonzero winding renders as a credible hooked beak.
-  let coil = "";
-  if (s.beak !== "subdued") {
-    const isWingShaped = s.outline === "wing-shaped";
-    const isConical = s.outline === "conical";
-    // Beak prominence multiplier on the umbo size
-    const beakMul = ({ moderate: 0.85, prominent: 1.15, pyramidal: 1.0 })[s.beak] || 0.85;
-    const baseFracDorsal = isWingShaped ? 0.65 : isConical ? 0.25 : 0.50;
-    const baseFracVentral = isWingShaped ? 0.42 : isConical ? 0.18 : 0.32;
-    const baseFrac = (isDorsal ? baseFracDorsal : baseFracVentral) * beakMul;
-    const astroBoost = s.interareaH === 0 ? 1.40 : 1.0;
-    let hookExt = halfL * baseFrac * astroBoost;
-    // Clamp so the umbo doesn't extend past the canvas (beakX is ~30
-    // for dome outlines, ~50 for wing-shaped — keep at least 4px margin)
-    hookExt = Math.min(hookExt, beakX - 4);
-    if (hookExt < 5) { coil = ""; }
-    else {
-      const ax = beakX, ay = backAnchorY;
-      // The umbo coil traces clockwise (for dorsal): anchor → up-back
-      // (outer arc) → tip → down-forward into the body interior
-      // (inner arc returns to anchor). Both arcs are cubic Beziers
-      // whose control points are placed to produce a tight spiral
-      // shape rather than a wide-open comma.
-      //
-      // Tip sits BACK and FURTHER from cy than the anchor — this is
-      // the "back-most" point of the coil.
-      const tipX = ax - hookExt * 0.95;
-      const tipY = ay + sign * hookExt * 0.70;
-      // Outer arc: from anchor → tip. Control points bulge HARD away
-      // from cy at first (rising over the top of the shell) then
-      // approach the tip from above. This is the "back-up" portion
-      // of the coil.
-      const oC1x = ax + hookExt * 0.30, oC1y = ay + sign * hookExt * 1.50;
-      const oC2x = ax - hookExt * 1.30, oC2y = ay + sign * hookExt * 1.20;
-      // Inner arc: from tip → anchor. Sweeps FORWARD past the anchor
-      // AND across cy into the opposite hemisphere — this is what
-      // makes the inner edge of the coil pass THROUGH the body region.
-      // The result reads as a small spiral with its tip pointing back
-      // into the shell interior, not a comma stuck to the back.
-      const iC1x = ax - hookExt * 0.20, iC1y = ay - sign * hookExt * 0.35;
-      const iC2x = ax + hookExt * 0.70, iC2y = ay - sign * hookExt * 0.80;
-      coil = `M ${ax.toFixed(1)},${ay.toFixed(1)} ` +
-             `C ${oC1x.toFixed(1)},${oC1y.toFixed(1)} ${oC2x.toFixed(1)},${oC2y.toFixed(1)} ${tipX.toFixed(1)},${tipY.toFixed(1)} ` +
-             `C ${iC1x.toFixed(1)},${iC1y.toFixed(1)} ${iC2x.toFixed(1)},${iC2y.toFixed(1)} ${ax.toFixed(1)},${ay.toFixed(1)} Z`;
-    }
-  }
-
-  // === Body STROKE (open, silhouette + interarea face only) ===
-  let stroke = `M ${frontX.toFixed(1)},${frontTipY.toFixed(1)}`;
-  for (let i = sil.length - 1; i >= 0; i--) {
-    stroke += ` L ${sil[i][0].toFixed(1)},${sil[i][1].toFixed(1)}`;
-  }
-  if (s.interareaH > 0) {
-    stroke += ` L ${beakX.toFixed(1)},${cy.toFixed(1)}`;
-  }
-
-  // === Body FILL (closed, doesn't include the coil) ===
-  // Closure goes from the back-anchor → hinge point (beakX, cy) →
-  // along the COMMISSURE CURVE back to the anterior. For flat
-  // commissure shells this is just a horizontal line at cy; for
-  // geniculate/resupinate shells it follows the actual commissureY(u).
-  let fill = stroke;
-  // Sample the commissure from the hinge (u=-1) forward to anterior (u=1)
-  const M = 40;
-  for (let i = 1; i <= M; i++) {
-    const u = -1 + (2 * i / M);
-    const x = beakX + ((u + 1) / 2) * 2 * halfL;
-    const y = commissureY(u, s);
-    fill += ` L ${x.toFixed(1)},${y.toFixed(1)}`;
-  }
-  fill += ` L ${frontX.toFixed(1)},${frontTipY.toFixed(1)} Z`;
-
-  return { fill, stroke, coil };
-}
+// All sub-renderers handle the same modifier set: beak prominence (back
+// shape), lateral kink (geniculate/resupinate at anterior).
 
 function svgSideView(answers) {
-  const s = answersToShape(answers);
-  const cx = 100, cy = 100;
-  const halfL = s.halfLength;
-  const beakX = cx - halfL;
-  const frontX = cx + halfL;
+  const archetype = answersToArchetype(answers);
+  const d = atlasOutline(archetype, "side");
 
-  // Per-valve paths — each returns { fill, stroke }. fill is a closed
-  // path (includes commissure closure) used for the body color; stroke
-  // is an open path (silhouette + curl + optional interarea face) for
-  // the visible outline. Keeping these separate hides the commissure
-  // line at cy that would otherwise stroke through the middle.
-  const dorsal = sideValveClosedPath(s, true);
-  const ventral = sideValveClosedPath(s, false);
+  // Median commissure visualization aid (light dashed line at CY) —
+  // only for biconvex profiles where the commissure is internal.
+  const medianLine = answers.profile_pick !== "concavo-convex"
+    ? `<line x1="22" y1="100" x2="178" y2="100" stroke="#9a9a9a" stroke-width="0.8" stroke-dasharray="4,2"/>`
+    : "";
 
-  // Legacy dorsalY / ventralY for decoration helpers (ribs, spines).
-  // Kept as smooth-parabola functions of x; not used for outline drawing.
-  const peakU = -s.apexShift;
-  function smoothParabola(u, conv) {
-    if (u <= peakU) {
-      const t = (u - (-1)) / (peakU - (-1));
-      return cy - conv * (1 - (1 - t) ** 2) * 0.95;
-    }
-    const t = (u - peakU) / (1 - peakU);
-    return cy - conv * (1 - t ** 2) * 0.95;
-  }
-
-  const dorsalY = (x) => {
-    const u = (x - cx) / halfL;
-    let y = smoothParabola(u, s.dorsalConv);
-    if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
-      // Anterior third inverts: the dorsal valve curves DOWN instead of up.
-      const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
-      const baseY = smoothParabola(u, s.dorsalConv);
-      const flipped = cy + (cy - baseY) * 0.6;   // mirrored across cy
-      y = baseY * (1 - t) + flipped * t;
-    }
-    return y;
-  };
-
-  const ventralY = (x) => {
-    const u = (x - cx) / halfL;
-    let y;
-    if (s.lateralType === "geniculate" && u > 2 * s.lateralKinkAt - 1) {
-      // Sharp angular bend in the ventral valve at kinkAt — typical of
-      // Douvillina-style concavo-convex strophomenids. Before the kink the
-      // ventral is gently convex; after the kink the trail drops sharply.
-      const kinkU = 2 * s.lateralKinkAt - 1;
-      const kinkY = cy + Math.max(0, s.ventralConv) * 0.55;
-      const t = (u - kinkU) / (1 - kinkU);
-      y = kinkY + s.lateralDropPx * t;
-    } else {
-      y = smoothParabola(u, -s.ventralConv);   // ventral apex below cy
-      if (s.lateralType === "resupinate" && u > 2 * s.lateralKinkAt - 1) {
-        const t = (u - (2 * s.lateralKinkAt - 1)) / (1 - (2 * s.lateralKinkAt - 1));
-        const baseY = smoothParabola(u, -s.ventralConv);
-        const flipped = cy - (baseY - cy) * 0.6;
-        y = baseY * (1 - t) + flipped * t;
-      }
-    }
-    return y;
-  };
-
-  // Interarea-induced offset at the back (used by overlay decoration).
-  const interareaTop = cy - s.interareaH * 0.5;
-  const interareaBot = cy + s.interareaH * 0.5;
-  const anteriorHalf = 5 + s.foldStr * 9;
-
-  // Anterior commissure zigzag — drawn as a separate overlay between the
-  // two valves' anterior tips so the rib teeth pattern reads on the front
-  // edge of the shell.
-  const commXInner = cx + halfL * 0.96;
-  const commXOuter = frontX;
-  let zigzagPath = "";
-  if (s.ribCount > 0 && s.ribAmp > 0) {
-    const visibleTeeth = Math.max(4, Math.min(16, Math.round(s.ribCount * 0.6)));
-    const yStart = cy - anteriorHalf;
-    const yEnd   = cy + anteriorHalf;
-    const totalSteps = visibleTeeth * 2 + 1;
-    const amp = Math.min(s.ribAmp, halfL * 0.10);
-    let zd = `M ${commXOuter.toFixed(1)},${yStart.toFixed(1)}`;
-    for (let i = 1; i < totalSteps; i++) {
-      const u = i / totalSteps;
-      const y = yStart + (yEnd - yStart) * u;
-      const x = (i % 2 === 1) ? commXOuter + amp * 0.4 : commXInner;
-      zd += ` L ${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    zd += ` L ${commXOuter.toFixed(1)},${yEnd.toFixed(1)}`;
-    zigzagPath = `<path d="${zd}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>`;
-  }
-
-  const clipId = "brachSideClip_" + Math.floor(Math.random() * 1e6);
-
-  let inner = "";
-
-  // ---- Growth lines / frills ----
-  //
-  // Dropped from the side view. Growth lines on a 3D shell are concentric
-  // loops on the dorsal (or ventral) surface around the umbo. Projected to
-  // a strict lateral plane (y, z), each loop's two halves collapse onto a
-  // single curve that emanates from the umbo point — a fan, not nested
-  // concentric arcs. Frills have the same projection problem. Rather than
-  // ship a stylization that misrepresents the geometry, the side view now
-  // omits both. The diagnostic rib info still shows up in the anterior
-  // commissure zigzag and the longitudinal rib traces below.
-
-  // ---- Longitudinal rib traces on dorsal/ventral surfaces ----
-  //
-  // Ribs run from the beak area to the anterior commissure along each
-  // valve's surface. The visible ribs in a lateral view are those whose
-  // lateral position (around the perimeter) puts them on the near side of
-  // the shell. We stack a few fine traces between the dorsal apex curve
-  // and the commissure level (and the same on the ventral side), each
-  // representing a rib at a different lateral position.
-  if (s.ribCount > 0 && s.ribAmp > 0) {
-    const visibleRibs = Math.min(10, Math.max(4, Math.round(s.ribCount * 0.45)));
-    const steps = 36;
-    // Dorsal-surface ribs
-    for (let r = 0; r < visibleRibs; r++) {
-      const depthFrac = (r + 0.5) / visibleRibs;     // 0 = apex, 1 = commissure
-      let d = "";
-      for (let j = 0; j <= steps; j++) {
-        const u = j / steps;
-        const x = beakX + u * 2 * halfL;
-        const dY = dorsalY(x);
-        const valveDepth = Math.max(0, cy - dY);
-        // Each rib trace sits at a fixed depth fraction below the dorsal
-        // apex curve, so the family of traces parallels the dorsal profile
-        // (concentric stripes are visually distinct from growth lines now
-        // that those have been removed).
-        const y = dY + depthFrac * valveDepth;
-        d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-      }
-      inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.85}"/>`;
-    }
-    // Ventral-surface ribs (only if the ventral valve is meaningfully convex)
-    if (s.ventralConv > 8) {
-      for (let r = 0; r < visibleRibs; r++) {
-        const depthFrac = (r + 0.5) / visibleRibs;
-        let d = "";
-        for (let j = 0; j <= steps; j++) {
-          const u = j / steps;
-          const x = beakX + u * 2 * halfL;
-          const vY = ventralY(x);
-          const valveDepth = Math.max(0, vY - cy);
-          const y = vY - depthFrac * valveDepth;
-          d += (j === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
-        }
-        inner += `<path d="${d}" fill="none" stroke="${SK.ribCol}" stroke-width="${SK.ribW * 0.85}"/>`;
-      }
-    }
-  }
-
-  // ---- Spines ----
-  if (s.hasSpines) {
-    const NS = 20;
-    for (let i = 0; i < NS; i++) {
-      const a = i * 137.5 * Math.PI / 180;
-      const r = Math.sqrt((i + 0.5) / NS) * 0.75;
-      const xf = r * Math.cos(a);
-      const yf = -Math.abs(r * Math.sin(a));
-      const x = cx + xf * halfL * 0.92;
-      const yTop = dorsalY(x);
-      const y = cy + yf * (cy - yTop) * 0.9;
-      inner += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="#222"/>`;
-    }
-    for (let i = 0; i < 5; i++) {
-      const t = 0.18 + i * 0.18;
-      const x = beakX + t * 2 * halfL;
-      const dY = dorsalY(x);
-      inner += `<line x1="${x.toFixed(1)}" y1="${dY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(dY - 8).toFixed(1)}" stroke="#222" stroke-width="1.2"/>`;
-    }
-  }
-
-  // ---- Beak / interarea overlay ----
-  //
-  // The back interarea has to read as distinctly different from the
-  // anterior commissure (which may have rib-zigzag teeth that look like
-  // a similar trapezoidal protrusion). We do three things to disambiguate:
-  //   - the interarea is drawn DARKER and with PARALLEL HATCH LINES
-  //     (interareas in real shells are striated)
-  //   - the interarea extends FURTHER posteriorly than the rib teeth
-  //     extend anteriorly
-  //   - a small "← P" posterior label sits just behind the interarea
-  let overlay = "";
-  // Each valve's beak curl is now drawn by sideValveClosedPath itself —
-  // no separate hook overlay needed.
-  if (s.interareaH > 0) {
-    // Larger tilt — the interarea looks like a real flat wall, deeper than
-    // any rib-zigzag teeth at the anterior.
-    const tilt = 10;
-    const x0 = beakX, y0a = interareaTop, y0b = interareaBot;
-    const x1 = beakX - tilt;
-    // Wall fill (paler than shell so it reads as a separate surface)
-    overlay += `<path d="M ${x0.toFixed(1)},${y0a.toFixed(1)} L ${x1.toFixed(1)},${(y0a - 1).toFixed(1)} L ${x1.toFixed(1)},${(y0b + 1).toFixed(1)} L ${x0.toFixed(1)},${y0b.toFixed(1)} Z" fill="#cdc6b1" stroke="${SK.hingeCol}" stroke-width="1.6"/>`;
-    // Vertical hatching lines on the interarea — real interareas are
-    // striated by growth lines perpendicular to the hinge.
-    const nHatch = 5;
-    for (let i = 1; i < nHatch; i++) {
-      const hx = x0 + (x1 - x0) * (i / nHatch);
-      overlay += `<line x1="${hx.toFixed(1)}" y1="${(y0a + 1).toFixed(1)}" x2="${hx.toFixed(1)}" y2="${(y0b - 1).toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="0.6" opacity="0.55"/>`;
-    }
-    // Delthyrium triangle (dark notch in the middle of the interarea)
-    const mid = (interareaTop + interareaBot) / 2;
-    const trW = 7;
-    overlay += `<path d="M ${(x0 - tilt * 0.35).toFixed(1)},${(mid - trW * 0.6).toFixed(1)} L ${(x1 + tilt * 0.15).toFixed(1)},${mid.toFixed(1)} L ${(x0 - tilt * 0.35).toFixed(1)},${(mid + trW * 0.6).toFixed(1)} Z" fill="#1a1a1a" opacity="0.7"/>`;
-    // Tiny posterior-direction tick mark
-    overlay += `<line x1="${(x1 - 4).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(x1 - 1).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${SK.hingeCol}" stroke-width="1.4"/>`;
-    overlay += `<path d="M ${(x1 - 4).toFixed(1)},${cy.toFixed(1)} L ${(x1 - 1).toFixed(1)},${(cy - 2).toFixed(1)} L ${(x1 - 1).toFixed(1)},${(cy + 2).toFixed(1)} Z" fill="${SK.hingeCol}"/>`;
-  } else if (s.beakProm > 0) {
-    // Astrophic curved beak — small protruding tip at posterior.
-    const beakTipX = beakX - 5;
-    overlay += `<path d="M ${beakX.toFixed(1)},${(cy - 5).toFixed(1)} Q ${beakTipX.toFixed(1)},${cy.toFixed(1)} ${beakX.toFixed(1)},${(cy + 5).toFixed(1)} Z" fill="#1a1a1a" opacity="0.55"/>`;
-  }
-  // Anterior commissure edge — when the shell is smooth (no rib zigzag),
-  // draw a faint vertical edge so the front face still reads as a flat
-  // commissure join rather than a pointed tip.
-  if ((s.foldStr > 0 || s.interareaH > 0) && s.ribCount === 0) {
-    overlay += `<line x1="${frontX.toFixed(1)}" y1="${(cy - anteriorHalf).toFixed(1)}" x2="${frontX.toFixed(1)}" y2="${(cy + anteriorHalf).toFixed(1)}" stroke="#444" stroke-width="0.9" stroke-dasharray="3,2"/>`;
-  }
-
-  // Two-valve render order — COILS ON TOP of body strokes:
-  //   1. Body fills (no stroke)
-  //   2. Decoration clipped to body fills
-  //   3. Interarea overlay between the valves at the back
-  //   4. Body silhouette strokes (visible outer edge of the body)
-  //   5. Beak coils (fill + stroke) — drawn LAST so the coil's outline
-  //      sits on top of the body stroke at the overlap. This makes the
-  //      umbo read as a coiled feature visually IN FRONT OF the body,
-  //      rather than a separate shape glued to the back.
-  //   6. Anterior commissure zigzag (if ribs)
-  const unionFill = dorsal.fill + " " + ventral.fill;
-  const ventralCoilSvg = ventral.coil
-    ? `<path d="${ventral.coil}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>` : "";
-  const dorsalCoilSvg = dorsal.coil
-    ? `<path d="${dorsal.coil}" fill="#fffef7" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>` : "";
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
-    <defs><clipPath id="${clipId}"><path d="${unionFill}"/></clipPath></defs>
-    <path d="${ventral.fill}" fill="#fffef7" stroke="none"/>
-    <path d="${dorsal.fill}" fill="#fffef7" stroke="none"/>
-    <g clip-path="url(#${clipId})">${inner}</g>
-    ${overlay}
-    <path d="${ventral.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="${dorsal.stroke}" fill="none" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round" stroke-linecap="round"/>
-    ${ventralCoilSvg}
-    ${dorsalCoilSvg}
-    ${zigzagPath}
+    <path d="${d}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
+    ${medianLine}
   </svg>`;
 }
 
-// ============================================================
+// --- biconvex side view (standard brachiopod oval) ---
+// Body envelope shape: returns a normalized height in [0,1] at lateral
+// position u ∈ [-1, +1]. The choice of envelope is critical for whether
+// shells read as "chunky" or "lens-like":
+//   parabolic (n=2):       1-u²       — thin lens, peaked apex, fast drop-off
+//   elliptical (n≈2.5):    fatter     — moderate plateau
+//   super-elliptical n=3:  chunky     — wide flat plateau, sharper edge taper
+// SIDE biconvex uses n=3 — gives the body a clear chunky oval reading
+// rather than the previous lens shape, which was the structural root of
+// the "PARAM too thin" complaint across taxa.
+// (stripped procedural body code — atlas pivot)
+
+// Beak decoration at the back of the side view. After the structural
+// rewrite of sideViewBiconvex, the SILHOUETTE itself carries:
+//   • the interarea face (for strophic + any non-subdued beak)
+//   • the umbo horn + neck concavity (for strophic + prominent/pyramidal)
+//   • the astrophic curl (for astrophic + non-subdued)
+//
+// So this function only adds the INTERAREA TEXTURE — a beige fill over
+// the interarea face plus a few hatching strokes. The fill helps the
+// interarea read as a distinct surface from the body proper (different
+// material in the silhouette).
+// (stripped procedural body code — atlas pivot)
 // Analytical morphospace renderer (port of data/fit_harness/model.py)
 // ============================================================
 //
@@ -2376,7 +1775,7 @@ function svgAnalyticalTop(p) {
   }
   // Skip umbo marker — outline is enough at this scale
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-top">
-    <path d="${d}" fill="#fffef7" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="${d}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
   </svg>`;
 }
 
@@ -2402,7 +1801,7 @@ function svgAnalyticalFront(p) {
   // Dorsal up in plot → flip Z to screen y
   const d = _morphPolyToSvgPath(pa, pb, (a, b) => _morphScreen(a, b));
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-front">
-    <path d="${d}" fill="#fffef7" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="${d}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
     <line x1="${(MORPH_CX - 90).toFixed(1)}" y1="${MORPH_CY}" x2="${(MORPH_CX + 90).toFixed(1)}" y2="${MORPH_CY}" stroke="#888" stroke-width="0.8" stroke-dasharray="3,2"/>
   </svg>`;
 }
@@ -2423,7 +1822,7 @@ function svgAnalyticalSide(p) {
   // SIDE: beak/umbo on left → flip Y to map -0.5 at left, +0.5 at right
   const d = _morphPolyToSvgPath(pa, pb, (a, b) => _morphScreen(-a, b));
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
-    <path d="${d}" fill="#fffef7" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="${d}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="2.2" stroke-linejoin="round"/>
     <line x1="${(MORPH_CX - 90).toFixed(1)}" y1="${MORPH_CY}" x2="${(MORPH_CX + 90).toFixed(1)}" y2="${MORPH_CY}" stroke="#888" stroke-width="0.8" stroke-dasharray="3,2"/>
   </svg>`;
 }
@@ -2517,7 +1916,13 @@ function viewBuild(sid, answers) {
   const matchingCount = allTaxa.filter(t => taxonMatches(t, answers)).length;
   const totalCount = allTaxa.length;
 
-  // Tri-view SVGs
+  // Tri-view SVGs — always categorical PARAM. The earlier auto-swap
+  // to fitted shape (when narrowed to a fitted taxon) was reverted:
+  // the fitted shapes are based on stand-in taxa from the morphospace
+  // pipeline and produce smooth bulk silhouettes that lose all
+  // diagnostic features (e.g., wing-spiriferid fitted = near-circle,
+  // losing the diamond character). High IoU but visually misleading.
+  // Categorical PARAM is the pedagogically right primary.
   const topSvg   = svgTopView(answers);
   const frontSvg = svgFrontView(answers);
   const sideSvg  = svgSideView(answers);

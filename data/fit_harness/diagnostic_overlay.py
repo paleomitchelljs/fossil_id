@@ -27,143 +27,120 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 
 # Layout per composite (estimated by eye). Each view = (x0, y0, x1, y1).
 SPECIMENS = [
-    dict(name="brach1",
-         photo="images/unknown_misc/rockford/brach1.png",
-         tiles=dict(
-             dorsal   =(40,   0,  500, 480),
-             ventral  =(40, 440,  500, 878),
-             anterior =(870,  0, 1300, 400),
-             hinge    =(870, 470, 1300, 870),
-             side     =(420, 230,  870, 660),
-         ),
+    dict(name="brach1", dir="brach1_pseudoatrypa_devoniana",
+         taxon_key="pseudoatrypa-devoniana",
          best_guess="Pseudoatrypa devoniana (atrypid w/ frills)",
          answers=dict(outline_pick="subcircular", profile_pick="biconvex",
                        hinge_pick="astrophic", surface_ribs="yes",
                        rib_density="dense", surface_frills="yes",
-                       fold_pick="strong",
+                       fold_pick="strong", inflation_pick="medium",
                        beak_pick="moderate", lateral_pick="smooth")),
-    dict(name="brach2",
-         photo="images/unknown_misc/rockford/brach2.png",
-         tiles=dict(
-             dorsal   =(20,   0,  450, 540),
-             side     =(420, 250,  790, 620),
-             anterior =(700,  30, 1100, 380),
-             ventral  =(770, 400, 1200, 780),
-         ),
+    dict(name="brach2", dir="brach2_schizophoria_iowensis",
+         taxon_key="schizophoria-iowensis",
          best_guess="Schizophoria iowensis (orthid)",
          answers=dict(outline_pick="subcircular", profile_pick="biconvex",
                        hinge_pick="narrow-strophic", surface_ribs="yes",
                        rib_density="medium", fold_pick="strong",
+                       inflation_pick="medium",
                        beak_pick="moderate", lateral_pick="smooth")),
-    dict(name="brach3",
-         photo="images/unknown_misc/rockford/brach3.png",
-         tiles=dict(
-             dorsal   =(20,   0,   460, 380),
-             ventral  =(20, 400,   460, 800),
-             side     =(450, 200,  900, 600),
-             # top-right = HINGE view (pyramidal interarea + umbo)
-             # bottom-right = ANTERIOR view (with fold)
-             hinge    =(880,   0, 1380, 400),
-             anterior =(880, 400, 1380, 818),
-         ),
+    dict(name="brach3", dir="brach3_conispirifer",
+         # No fitted shape data for Conispirifer — categorical only.
          best_guess="Conispirifer cyrtinaeformis (cone-shaped spiriferid)",
          answers=dict(outline_pick="conical", profile_pick="biconvex",
                        hinge_pick="wide-strophic", surface_ribs="yes",
                        rib_density="dense", fold_pick="strong",
+                       inflation_pick="high",
                        beak_pick="pyramidal", lateral_pick="smooth")),
-    # brach4 — non-standard 5-view layout: dorsal+ventral on left,
-    # side in center, hinge top-right, anterior bottom-right.
-    dict(name="brach4",
-         photo="images/unknown_misc/rockford/brach4.png",
-         tiles=dict(
-             dorsal   =(40,   20,  570, 380),
-             ventral  =(40,  380,  570, 760),
-             side     =(450, 270,  900, 670),
-             hinge    =(820,  20, 1380, 370),
-             anterior =(900, 440, 1310, 780),
-         ),
+    dict(name="brach4", dir="brach4_cyrtospirifer_whitneyi",
+         taxon_key="cyrtospirifer-whitneyi",
          best_guess="Cyrtospirifer whitneyi (alate spiriferid)",
          answers=dict(outline_pick="wing-shaped", profile_pick="biconvex",
                        hinge_pick="wide-strophic", surface_ribs="yes",
                        rib_density="dense", fold_pick="strong",
-                       beak_pick="moderate", lateral_pick="smooth")),
-    # brach5 — same 5-view layout as brach4. Subcircular astrophic with
-    # prominent growth-lamellae frills and weak fold. Could be an atrypid
-    # (Pseudoatrypa) or a smooth-looking spiriferid (Theodossia).
-    dict(name="brach5",
-         photo="images/unknown_misc/rockford/brach5.png",
-         tiles=dict(
-             dorsal   =(40,   20,  500, 410),
-             ventral  =(40,  420,  500, 800),
-             side     =(380, 280,  920, 660),
-             hinge    =(920,   60, 1290, 320),
-             anterior =(940, 420, 1290, 720),
-         ),
+                       inflation_pick="medium",
+                       beak_pick="prominent", lateral_pick="smooth")),
+    dict(name="brach5", dir="brach5_spinatrypa_rockfordensis",
          best_guess="Spinatrypa rockfordensis (spinose atrypid)",
          answers=dict(outline_pick="subcircular", profile_pick="biconvex",
                        hinge_pick="astrophic", surface_ribs="yes",
                        rib_density="sparse", surface_frills="yes",
                        surface_spines="yes", fold_pick="weak",
+                       inflation_pick="medium",
                        beak_pick="moderate", lateral_pick="smooth")),
-    # brach6 — Theodossia hungerfordi: globose subcircular biconvex
-    # spiriferid with prominent uniplicate fold, subdued ribs, and a
-    # hooked umbo that students perceive as astrophic.
-    dict(name="brach6",
-         photo="images/unknown_misc/rockford/brach6.png",
-         tiles=dict(
-             dorsal   =(40,   10,  490, 430),
-             ventral  =(40,  430,  490, 850),
-             side     =(430, 290,  900, 600),
-             anterior =(820, 100, 1260, 380),
-             hinge    =(840, 510, 1260, 800),
-         ),
+    dict(name="brach6", dir="brach6_theodossia_hungerfordi",
          best_guess="Theodossia hungerfordi (globose spiriferid)",
          answers=dict(outline_pick="subcircular", profile_pick="biconvex",
                        hinge_pick="astrophic", surface_ribs="yes",
                        rib_density="medium", fold_pick="strong",
+                       inflation_pick="high",
                        beak_pick="prominent", lateral_pick="smooth")),
-    # brach7 — strophomenid: very flat concavo-convex shell with fine
-    # radial ribs, wide strophic hinge, small subdued umbo, and a
-    # subtle geniculate bend at the anterior visible in side view.
-    # Likely Douvillina arcuata.
-    dict(name="brach7",
-         photo="images/unknown_misc/rockford/brach7.png",
-         tiles=dict(
-             dorsal   =(60,   60,  530, 480),
-             ventral  =(60,  380,  530, 620),
-             side     =(370, 250,  770, 410),
-             hinge    =(700,  70, 1140, 290),
-             anterior =(770, 400, 1140, 610),
-         ),
+    dict(name="brach7", dir="brach7_douvillina_arcuata",
          best_guess="Douvillina arcuata (geniculate strophomenid)",
          answers=dict(outline_pick="subcircular", profile_pick="concavo-convex",
                        hinge_pick="wide-strophic", surface_ribs="yes",
                        rib_density="dense", fold_pick="none",
+                       inflation_pick="low",
                        beak_pick="subdued", lateral_pick="geniculate")),
 ]
 
 
 def gen_svgs(answers_list, out_dir):
+    """Generate categorical PARAM SVGs from slider answers, plus
+    analytical (fitted-shape) SVGs for entries that include a
+    `taxon_key`. Analytical SVGs are saved with `_analytical_<view>`
+    suffix and are produced from the manifest's `shape:` block via
+    the morphospace renderer (svgAnalyticalTop / Front / Side)."""
     os.makedirs(out_dir, exist_ok=True)
-    driver = (
-        "const fs = require('fs'); const vm = require('vm');\n"
-        "const m = fs.readFileSync(process.argv[3], 'utf8');\n"
-        "const r = fs.readFileSync(process.argv[4], 'utf8');\n"
-        "const data = JSON.parse(fs.readFileSync(process.argv[5], 'utf8'));\n"
-        "const outDir = process.argv[6];\n"
-        "const ctx = vm.createContext({\n"
-        "  document: { addEventListener:()=>{}, getElementById:()=>null, createElement:()=>({}) },\n"
-        "  window: { addEventListener:()=>{}, scrollTo:()=>{}, location:{hash:''} },\n"
-        "  location:{hash:''}, console, Math\n"
-        "});\n"
-        "vm.runInContext(m, ctx); vm.runInContext(r, ctx);\n"
-        "data.forEach((entry) => {\n"
-        "  fs.writeFileSync(outDir + '/' + entry.id + '_top.svg', ctx.svgTopView(entry.answers));\n"
-        "  fs.writeFileSync(outDir + '/' + entry.id + '_front.svg', ctx.svgFrontView(entry.answers));\n"
-        "  fs.writeFileSync(outDir + '/' + entry.id + '_side.svg', ctx.svgSideView(entry.answers));\n"
-        "});\n"
-        "console.log('OK');\n"
-    )
+    driver = r"""
+const fs = require('fs'); const vm = require('vm');
+const m = fs.readFileSync(process.argv[3], 'utf8');
+const r = fs.readFileSync(process.argv[4], 'utf8');
+const data = JSON.parse(fs.readFileSync(process.argv[5], 'utf8'));
+const outDir = process.argv[6];
+const vecPath = process.argv[3].replace('manifest.js', 'vectorized_atlas.js');
+const vec = fs.existsSync(vecPath) ? fs.readFileSync(vecPath, 'utf8') : '';
+const ctx = vm.createContext({
+  document: { addEventListener:()=>{}, getElementById:()=>null, createElement:()=>({}) },
+  window: { addEventListener:()=>{}, scrollTo:()=>{}, location:{hash:''} },
+  location:{hash:''}, console, Math,
+  // Expose fs/data/outDir into the context so the inner script can
+  // access FAUNA (which lives in the context's lexical scope, not on
+  // the ctx object itself when declared via `const`).
+  fs: fs, _entries: data, _outDir: outDir
+});
+vm.runInContext(m, ctx);
+if (vec) vm.runInContext(vec, ctx);
+vm.runInContext(r, ctx);
+vm.runInContext(`
+  function _findTaxonShape(slug) {
+    for (const g of FAUNA) {
+      if (!g.subgroups) continue;
+      for (const sg of g.subgroups) {
+        for (const t of sg.taxa) {
+          const s = (t.genus + '-' + t.species).toLowerCase()
+                      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+          if (s === slug && t.shape) return t.shape;
+        }
+      }
+    }
+    return null;
+  }
+  for (const entry of _entries) {
+    fs.writeFileSync(_outDir + '/' + entry.id + '_top.svg', svgTopView(entry.answers));
+    fs.writeFileSync(_outDir + '/' + entry.id + '_front.svg', svgFrontView(entry.answers));
+    fs.writeFileSync(_outDir + '/' + entry.id + '_side.svg', svgSideView(entry.answers));
+    if (entry.taxon_key) {
+      const shape = _findTaxonShape(entry.taxon_key);
+      if (shape) {
+        fs.writeFileSync(_outDir + '/' + entry.id + '_analytical_top.svg', svgAnalyticalTop(shape));
+        fs.writeFileSync(_outDir + '/' + entry.id + '_analytical_front.svg', svgAnalyticalFront(shape));
+        fs.writeFileSync(_outDir + '/' + entry.id + '_analytical_side.svg', svgAnalyticalSide(shape));
+      }
+    }
+  }
+`, ctx);
+console.log('OK');
+"""
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
         f.write(driver); driver_path = f.name
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
@@ -176,18 +153,21 @@ def gen_svgs(answers_list, out_dir):
     os.unlink(driver_path); os.unlink(data_path)
 
 
-def crop(img, bbox):
-    x0, y0, x1, y1 = bbox
-    return img.crop((x0, y0, x1, y1))
-
-
-VIEW_MAP = [
-    ("dorsal",    "top"),
-    ("ventral",   "top"),
-    ("anterior",  "front"),
-    ("side",      "side"),
-    ("hinge",     "top"),    # hinge-view comparison — TOP shows the strophic hinge
+# View files in each brach subfolder, paired with the corresponding
+# parametric view (top/front/side from svgs).
+VIEW_FILES = [
+    ("top_valve1.png", "top"),
+    ("top_valve2.png", "top"),
+    ("anterior.png",   "front"),
+    ("side.png",       "side"),
+    ("hinge.png",      "top"),    # hinge-view comparison — TOP shows the strophic hinge
 ]
+
+IMG_DIR = os.path.join(ROOT, "images", "unknown_misc", "rockford")
+
+
+def view_path(specimen, filename):
+    return os.path.join(IMG_DIR, specimen["dir"], filename)
 
 
 def main():
@@ -195,21 +175,21 @@ def main():
     gen_svgs([dict(id=sp["name"], answers=sp["answers"]) for sp in SPECIMENS], svg_dir)
 
     for sp in SPECIMENS:
-        img = Image.open(os.path.join(ROOT, sp["photo"]))
-        avail_views = [(vn, ps) for vn, ps in VIEW_MAP if vn in sp["tiles"]]
-        n = len(avail_views)
-
+        avail = [(fn, pv) for fn, pv in VIEW_FILES if os.path.exists(view_path(sp, fn))]
+        n = len(avail)
+        if n == 0:
+            continue
         fig, axes = plt.subplots(n, 2, figsize=(10, 3.6 * n),
                                   gridspec_kw=dict(wspace=0.04, hspace=0.18))
         if n == 1:
             axes = [axes]
 
-        for r, (view_name, param_view) in enumerate(avail_views):
-            tile = crop(img, sp["tiles"][view_name])
+        for r, (fn, param_view) in enumerate(avail):
+            tile = Image.open(view_path(sp, fn))
             axes[r][0].imshow(tile)
             axes[r][0].set_xticks([]); axes[r][0].set_yticks([])
             for s in axes[r][0].spines.values(): s.set_visible(False)
-            axes[r][0].set_title(f"PHOTO — {view_name}", fontsize=11, color="#6b3410")
+            axes[r][0].set_title(f"PHOTO — {fn.replace('.png','')}", fontsize=11, color="#6b3410")
 
             axes[r][1].set_facecolor("#fffef7")
             svg_path = os.path.join(svg_dir, f"{sp['name']}_{param_view}.svg")
