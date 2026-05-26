@@ -1438,18 +1438,29 @@ function flattenTopForHinge(d, s) {
 }
 
 function topUmboDot(s) {
-  // Small marker at the beak position (back center).
-  const x = CX, y = CY - s.halfLength + (s.isStrophic ? 4 : 6);
-  return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.5" fill="${SK.beakCol}"/>`;
+  // Beak/umbo marker at the back center; its size scales with beak
+  // prominence so the Beak slider visibly registers (a subdued beak is a
+  // small nub, a pyramidal one a tall triangle).
+  const k = s.interareaScale;            // 0.30 (subdued) .. 1.80 (pyramidal)
+  const y = CY - s.halfLength + (s.isStrophic ? 4 : 6);
+  const w = 3 + 3.2 * k;                 // half-width of the triangle base
+  const h = 4 + 7 * k;                   // height, pointing back (up)
+  const d = `M ${(CX - w).toFixed(1)},${y.toFixed(1)} L ${CX},${(y - h).toFixed(1)} ` +
+            `L ${(CX + w).toFixed(1)},${y.toFixed(1)} Z`;
+  return `<path d="${d}" fill="${SK.beakCol}"/>`;
 }
 
 function topSulcusLine(s) {
-  // Faint dashed line down the AP midline (anterior half) if fold present.
+  // Dashed line down the AP midline (anterior half) marking the fold /
+  // sulcus crest. Weight grows with fold strength so a strong fold is
+  // clearly heavier than a weak one.
   if (!s.foldStr) return "";
   const x = CX;
   const y0 = CY;
   const y1 = CY + s.halfLength * 0.85;
-  return `<line x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${SK.sulcusCol}" stroke-width="${SK.sulcusW}" stroke-dasharray="3,2"/>`;
+  const w = (SK.sulcusW + 1.3 * s.foldStr).toFixed(1);
+  const col = s.foldStr >= 1 ? "#555" : SK.sulcusCol;
+  return `<line x1="${x.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${col}" stroke-width="${w}" stroke-dasharray="4,2"/>`;
 }
 
 function svgTopView(answers) {
@@ -1507,11 +1518,11 @@ function frontCommissureLine(s) {
   // silhouette so its endpoints visually meet the lateral cusps.
   if (!s.foldStr) return "";
   const isTriangular = s.outline === "wing-shaped" || s.outline === "conical";
-  const commCoef = isTriangular ? 0.55 : 1.10;
+  const commCoef = isTriangular ? 0.7 : 1.0;
   const halfW = s.halfWidth * 1.10;   // overshoot for clean clipping
-  const cuspAmp = 22;                  // strong lateral cusps
-  const foldAmp = 9;                   // smaller central peak
-  const foldSigma = 0.28;
+  const cuspAmp = 14;                  // lateral cusps (where valves meet)
+  const foldAmp = 34;                  // central fold tongue — dominant feature
+  const foldSigma = 0.30;
   const N = 96;
   let d = "";
   for (let i = 0; i <= N; i++) {
@@ -1522,7 +1533,10 @@ function frontCommissureLine(s) {
     const y = CY - (cuspRise + foldRise) * commCoef;
     d += (i === 0 ? "M " : " L ") + `${x.toFixed(1)},${y.toFixed(1)}`;
   }
-  return `<path d="${d}" fill="none" stroke="#333" stroke-width="1.5"/>`;
+  // Stroke weight also grows with fold strength so a strong fold reads
+  // boldly, not as a hairline.
+  const w = (1.6 + 1.4 * s.foldStr).toFixed(1);
+  return `<path d="${d}" fill="none" stroke="#2a2a2a" stroke-width="${w}" stroke-linejoin="round"/>`;
 }
 
 function svgFrontView(answers) {
@@ -1559,7 +1573,26 @@ function svgFrontView(answers) {
 // All sub-renderers handle the same modifier set: beak prominence (back
 // shape), lateral kink (geniculate/resupinate at anterior).
 
+function sideBeak(s) {
+  // Beak / interarea at the POSTERIOR (left) of the side view. The wedge
+  // projects backward and grows with beak prominence, so the Beak slider
+  // turns a flush/subdued umbo into a hooked or pyramidal one. A subdued
+  // beak (small projection) stays tucked inside the body outline; a
+  // prominent/pyramidal one juts out past the back edge.
+  const k = s.interareaScale;            // 0.30 (subdued) .. 1.80 (pyramidal)
+  const baseX = 26;                      // base sits inside the back of the body
+  const h = 6 + 8 * k;                   // half-height of the interarea face
+  const proj = 3 + 9 * k;                // backward (leftward) projection
+  const tipX = baseX - proj;
+  const d = `M ${baseX},${(CY - h).toFixed(1)} ` +
+            `L ${tipX.toFixed(1)},${(CY - h * 0.18).toFixed(1)} ` +
+            `L ${tipX.toFixed(1)},${(CY + h * 0.18).toFixed(1)} ` +
+            `L ${baseX},${(CY + h).toFixed(1)} Z`;
+  return `<path d="${d}" fill="#d8c79a" stroke="${SK.beakCol}" stroke-width="1.5" stroke-linejoin="round"/>`;
+}
+
 function svgSideView(answers) {
+  const s = answersToShape(answers);
   const archetype = answersToArchetype(answers);
   const d = atlasOutline(archetype, "side");
 
@@ -1569,7 +1602,10 @@ function svgSideView(answers) {
     ? `<line x1="22" y1="100" x2="178" y2="100" stroke="#9a9a9a" stroke-width="0.8" stroke-dasharray="4,2"/>`
     : "";
 
+  // Beak drawn UNDER the body so its base tucks behind the outline; only
+  // the projecting tip shows for prominent/pyramidal beaks.
   return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="brach-view brach-side">
+    ${sideBeak(s)}
     <path d="${d}" fill="#c9b380" fill-opacity="0.35" stroke="black" stroke-width="${SK.outlineW}" stroke-linejoin="round"/>
     ${medianLine}
   </svg>`;
