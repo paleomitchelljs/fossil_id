@@ -809,8 +809,8 @@ const INFLATION_PRESETS = {
 // Lateral profile presets (side-view kink at anterior).
 const LATERAL_PRESETS = {
   smooth:     { kink: false },
-  geniculate: { kink: true,  kinkAt: 0.58, drop: 18, dir: "down" },
-  resupinate: { kink: true,  kinkAt: 0.55, drop: 12, dir: "rev"  }
+  geniculate: { kink: true,  kinkAt: 0.52, drop: 34, dir: "down" },
+  resupinate: { kink: true,  kinkAt: 0.52, drop: 26, dir: "rev"  }
 };
 
 // ----- shape derivation -----
@@ -1508,7 +1508,66 @@ function svgTopView(answers) {
 const AMP_MULT = 1.7;
 const FRONT_AMP_MULT = AMP_MULT;   // backwards compat — same value
 
-// (stripped procedural body code — atlas pivot)
+// ---------- silhouette modifiers (front + side views) ----------
+// After the atlas pivot the silhouette is a fixed traced path, so the
+// body-shape sliders that don't pick the archetype (inflation, profile,
+// lateral) had nothing to act on. These helpers re-attach them by
+// transforming the traced path's coordinates before it is drawn.
+
+// Walk an SVG path and remap every coordinate PAIR through fn(x,y). Works
+// for M/L and for C/Q curve commands (every pair, incl. control points,
+// is transformed) so it's safe on both vectorized (M/L) outlines and the
+// hand-drawn ATLAS fallback (curves).
+function transformPathCoords(d, fn) {
+  const tokens = d.match(/[a-zA-Z]|-?\d*\.?\d+/g) || [];
+  const out = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (/[a-zA-Z]/.test(t)) {
+      out.push(t); i++;
+      while (i + 1 < tokens.length &&
+             !/[a-zA-Z]/.test(tokens[i]) && !/[a-zA-Z]/.test(tokens[i + 1])) {
+        const [nx, ny] = fn(parseFloat(tokens[i]), parseFloat(tokens[i + 1]));
+        out.push(nx.toFixed(1), ny.toFixed(1));
+        i += 2;
+      }
+    } else { i++; }
+  }
+  return out.join(" ");
+}
+
+// Inflation: scale dorso-ventral (vertical) extent about the commissure
+// plane (CY). Medium = the traced baseline, so it's a no-op there.
+function inflatePathDV(d, s) {
+  const k = s.inflate / INFLATION_PRESETS.medium;
+  if (Math.abs(k - 1) < 1e-3) return d;
+  return transformPathCoords(d, (x, y) => [x, CY + (y - CY) * k]);
+}
+
+// Profile: plano-convex flattens the ventral (lower) half toward the
+// commissure plane, leaving the dorsal valve bulging; biconvex keeps both
+// halves. (Concavo-convex is handled upstream by the strophomenid archetype.)
+function profilePathDV(d, s) {
+  if (s.profile !== "plano-convex") return d;
+  return transformPathCoords(d, (x, y) => [x, y > CY ? CY + (y - CY) * 0.22 : y]);
+}
+
+// Lateral profile: geniculate/resupinate bend the ANTERIOR (right) of the
+// side view ventrally / dorsally with an ease-in ramp. Side-view x is
+// padded to [12,188] by the vectorizer.
+function lateralKinkPath(d, s) {
+  const lk = s.lateralKink;
+  if (!lk) return d;
+  const xmin = 12, xmax = 188;
+  const kinkX = xmin + lk.kinkAt * (xmax - xmin);
+  const sign = lk.dir === "down" ? 1 : -1;
+  return transformPathCoords(d, (x, y) => {
+    if (x <= kinkX) return [x, y];
+    const t = (x - kinkX) / (xmax - kinkX);
+    return [x, y + sign * lk.drop * t * t];
+  });
+}
 
 function frontCommissureLine(s) {
   // M-shape commissure: lateral cusps rise high (where the two valves
@@ -1542,7 +1601,10 @@ function frontCommissureLine(s) {
 function svgFrontView(answers) {
   const s = answersToShape(answers);
   const archetype = answersToArchetype(answers);
-  const d = atlasOutline(archetype, "front");
+  // Traced silhouette, then re-attach the profile (valve bulge) and
+  // inflation (DV thickness) sliders by reshaping it.
+  let d = atlasOutline(archetype, "front");
+  d = inflatePathDV(profilePathDV(d, s), s);
 
   // Internal commissure line still drawn procedurally (it's a feature
   // that varies with foldStr/sulcusDir, not the archetype itself).
@@ -1594,7 +1656,11 @@ function sideBeak(s) {
 function svgSideView(answers) {
   const s = answersToShape(answers);
   const archetype = answersToArchetype(answers);
-  const d = atlasOutline(archetype, "side");
+  // Traced silhouette, then re-attach the profile (valve bulge),
+  // inflation (DV thickness), and lateral (anterior geniculation/
+  // resupination) sliders by reshaping it.
+  let d = atlasOutline(archetype, "side");
+  d = lateralKinkPath(inflatePathDV(profilePathDV(d, s), s), s);
 
   // Median commissure visualization aid (light dashed line at CY) —
   // only for biconvex profiles where the commissure is internal.
