@@ -304,7 +304,8 @@ const FAUNA = [
             note: "Sulcate; fine costae. (Older spelling: Sulcastrophia.)",
             traits: { surface_ribs: "yes", profile: "concavo-convex", hinge: "strophic", spines: "absent", fold_sulcus: "strong", outline: "subcircular", size: "medium", umbones: "ribbed" },
             images: [
-              { file: "camerata_nathan_01.jpg", src: "nathan" }
+              { file: "camerata_nathan_01.jpg", src: "nathan" },
+              { file: "camerata_unk_02.png", src: "unk" }
             ] },
           { genus: "Schuchertella", species: "sp.", sites: ["rockford"],
             note: "Concavo-convex; coarser costae than most strophomenes. Most Rockford specimens are S. parva.",
