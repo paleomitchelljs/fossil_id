@@ -78,7 +78,7 @@ const REF_PLATES = {
 };
 function refPlatePath(genus) {
   const f = REF_PLATES[(genus || "").toLowerCase()];
-  return f ? `data/fit_harness/reference_atlas/${f}` : null;
+  return f ? `images/reference_atlas/${f}` : null;
 }
 function getSite(sid) { return SITES.find(s => s.id === sid); }
 
