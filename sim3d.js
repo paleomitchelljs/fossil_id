@@ -94,13 +94,15 @@ const Sim3D = (function () {
     const conv = sign > 0 ? p.convV : p.convD;
     let z = sign * conv * bulge;
     if (sign > 0 && p.beak > 0) {
-      // raised umbo / interarea as a smooth posterior shoulder. (A gaussian
-      // here decayed faster than the valve convexity rose, leaving a valley
-      // between beak and body at high beak; a smoothstep ramp merges them.)
-      const reach = 0.5;
-      const ramp = u < reach ? 1 - smooth(u / reach) : 0;
-      const b = ramp * Math.pow(Math.cos(v * Math.PI / 2), 2);
-      z += p.beak * b; y -= p.beak * 0.45 * b;
+      // Ventral umbo. The HEIGHT spreads over a broad reach so it merges with
+      // the body convexity into a single dome — a short reach left a saddle
+      // between a tall beak and the valve front. The posterior OVERHANG stays
+      // localized so the beak still projects back over the hinge.
+      const lat = Math.pow(Math.cos(v * Math.PI / 2), 2);
+      const zb = (u < 0.8 ? 1 - smooth(u / 0.8) : 0) * lat;
+      const yb = (u < 0.3 ? 1 - smooth(u / 0.3) : 0) * lat;
+      z += p.beak * zb;
+      y -= p.beak * 0.45 * yb;
     }
     if (p.fold > 0 && p.plic > 0) z += p.fold * Math.pow(u, 3) * Math.cos(p.plic * Math.PI * v) * L;
     if (p.ribs > 0 && p.ribDepth > 0) {
