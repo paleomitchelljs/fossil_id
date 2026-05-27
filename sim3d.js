@@ -80,9 +80,13 @@ const Sim3D = (function () {
   const NU = 100, NV = 200, L = 1.0;
   const smooth = t => { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
 
+  // Posterior (umbo->widest) uses an ease-OUT (steep flare right off the umbo)
+  // so a small/astrophic hinge rounds into a broad umbo instead of pinching
+  // into a pointed neck. Anterior keeps the gentle smoothstep.
+  const easeOut = t => t * (2 - t);
   function halfWidth(u, p) {
     const body = p.width, hingeHW = p.hinge * body, frontHW = p.front * body, wp = p.wpos;
-    if (u <= wp) { const t = wp > 1e-4 ? u / wp : 1; return hingeHW + (body - hingeHW) * smooth(t); }
+    if (u <= wp) { const t = wp > 1e-4 ? u / wp : 1; return hingeHW + (body - hingeHW) * easeOut(t); }
     const t = wp < 1 - 1e-4 ? (u - wp) / (1 - wp) : 0; return body + (frontHW - body) * smooth(t);
   }
 
@@ -104,7 +108,7 @@ const Sim3D = (function () {
       const zb = (u < 0.8 ? 1 - smooth(u / 0.8) : 0) * lat;
       const yb = (u < 0.3 ? 1 - smooth(u / 0.3) : 0) * lat;
       z += p.beak * zb;
-      y -= p.beak * 0.45 * yb;
+      y -= p.beak * 0.28 * yb;   // gentler overhang — avoids a posterior "handle" spike
     }
     if (p.fold > 0 && p.plic > 0) z += p.fold * Math.pow(u, 3) * Math.cos(p.plic * Math.PI * v) * L;
     if (p.ribs > 0 && p.ribDepth > 0) {
