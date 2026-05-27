@@ -64,6 +64,22 @@ function imgPath(taxon, img, fallbackSid) {
 }
 function refPath(file) { return `images/reference/${file}`; }
 function getFigure(key) { return (typeof FIGURES !== "undefined") ? FIGURES[key] : null; }
+
+// Red-outline 5-view reference drawings (dorsal/ventral/side/posterior/anterior),
+// keyed by genus. Used as diagnostic comparison plates.
+const REF_PLATES = {
+  pseudoatrypa: "brach1_pseudoatrypa_5view.png",
+  schizophoria: "brach2_schizophoria_5view.png",
+  conispirifer: "brach3_conispirifer_5view.png",
+  cyrtospirifer: "brach4_cyrtospirifer_5view.png",
+  spinatrypa:   "brach5_spinatrypa_5view.png",
+  theodossia:   "brach6_theodossia_5view.png",
+  douvillina:   "brach7_douvillina_5view.png"
+};
+function refPlatePath(genus) {
+  const f = REF_PLATES[(genus || "").toLowerCase()];
+  return f ? `data/fit_harness/reference_atlas/${f}` : null;
+}
 function getSite(sid) { return SITES.find(s => s.id === sid); }
 
 function findGroup(sid, id) {
@@ -420,6 +436,19 @@ function viewTaxon(sid, slug) {
         el("p", {}, "📷 No photo yet for this taxon."),
         el("p", { class: "no-photo-sub" }, "If you collect or photograph one, drop the image into the right folder and append an entry to this taxon in manifest.js — see the README.")
       ]);
+  // Diagnostic line-drawing plate (if this genus has one) + a link to shape it
+  // in the 3D model.
+  const plateSrc = refPlatePath(taxon.genus);
+  const plate = plateSrc
+    ? el("figure", { class: "ref-figure taxon-plate" }, [
+        el("img", { class: "ref-plate", src: plateSrc, alt: `${taxon.genus} reference drawing (5 views)`, loading: "lazy" }),
+        el("figcaption", {}, `Diagnostic drawing — ${taxon.genus}: dorsal · ventral · side · posterior · anterior`)
+      ])
+    : null;
+  const modelLink = taxon.traits
+    ? el("p", { class: "more-link" },
+        el("a", { href: `${siteBase(sid)}/build?taxon=${slug}` }, "Shape this in the 3D model →"))
+    : null;
   return el("div", { class: "view" }, [
     topBar({ title: `${taxon.genus} ${taxon.species}`, sid }),
     siteSubBar(sid),
@@ -436,6 +465,8 @@ function viewTaxon(sid, slug) {
       ]),
       taxon.note ? el("p", { class: "taxon-note big" }, taxon.note) : null,
       imgs,
+      plate,
+      modelLink,
       el("p", { class: "more-link" }, [
         "More ", el("a", { href: `${siteBase(sid)}/sub/${group.id}/${sub.id}` }, sub.title.toLowerCase()), "."
       ])
@@ -859,6 +890,8 @@ function viewBuild(sid, answers) {
   // Live "closest species" panel — count shown in the summary, photos behind it.
   const matchSummary = el("span", { class: "build-matches-summary" }, "Matching species");
   const matchList = el("div", { class: "build-matches" });
+  // Closest reference drawing (red-outline 5-view plate) for comparison.
+  const refDrawing = el("div", { class: "ref-drawing" });
   function updateMatches() {
     const traits = Sim3D.simTraits(P);
     const scored = allTaxa.map(t => Object.assign({ t }, scoreTraitsObj(t, traits)))
@@ -873,6 +906,15 @@ function viewBuild(sid, answers) {
       card.appendChild(el("div", { class: "match-score" }, `${Math.round(r.score * 100)}%`));
       matchList.appendChild(card);
     });
+    // Show the nearest match whose genus has a reference plate.
+    const refHit = scored.find(r => refPlatePath(r.t.genus));
+    clear(refDrawing);
+    if (refHit) {
+      refDrawing.appendChild(el("div", { class: "ref-cap" },
+        `Closest reference form: ${refHit.t.genus} — dorsal · ventral · side · posterior · anterior`));
+      refDrawing.appendChild(el("img", { class: "ref-plate", loading: "lazy",
+        src: refPlatePath(refHit.t.genus), alt: `${refHit.t.genus} reference drawing (5 views)` }));
+    }
   }
 
   // Which labelled region does the current value fall in?
@@ -969,6 +1011,7 @@ function viewBuild(sid, answers) {
         el("span", {}, "3D — drag to rotate"), el("span", {}, "Dorsal"),
         el("span", {}, "Anterior"), el("span", {}, "Side")
       ]),
+      refDrawing,
       speciesPick,
       el("h3", { class: "build-section-h" }, "Key traits"),
       quickPanel,

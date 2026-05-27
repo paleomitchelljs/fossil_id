@@ -685,6 +685,19 @@ img { max-width: 100%; display: block; }
   border: 1px solid var(--rule); border-radius: 6px; background: var(--card-bg);
 }
 
+/* Red-outline reference drawings (5-view plates) */
+.ref-drawing:empty { display: none; }
+.ref-drawing { margin: 0 0 0.8rem; }
+.ref-cap { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.25rem; }
+.ref-plate {
+  width: 100%; max-height: 240px; object-fit: contain;
+  background: #fff; border: 1px solid var(--rule); border-radius: 8px; padding: 4px;
+  display: block;
+}
+.taxon-plate { margin: 1rem 0; }
+.taxon-plate .ref-plate { max-height: 320px; }
+.taxon-plate figcaption { font-size: 0.8rem; color: var(--muted); margin-top: 0.3rem; text-align: center; }
+
 /* Quick panel: the few most diagnostic sliders, always visible */
 .sim-quick {
   border: 1px solid var(--rule);
