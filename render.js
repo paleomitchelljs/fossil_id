@@ -879,6 +879,7 @@ function viewNotFound() {
 function viewBuild(sid, answers) {
   const brachF = brachFaunaForSite(sid);
   const allTaxa = brachF.subgroups.flatMap(s => s.taxa).filter(t => t.traits);
+  const siteName = (getSite(sid) && getSite(sid).title) ? getSite(sid).title.split(" (")[0] : "this site";
 
   // Seed parameters from a linked taxon (?taxon=slug) or the model defaults.
   let P;
@@ -997,7 +998,7 @@ function viewBuild(sid, answers) {
     siteSubBar(sid),
     el("main", { class: "page build-page" }, [
       el("p", { class: "build-intro" },
-        "Shape the shell with the sliders — the static dorsal, anterior, and side views (top) and the spinnable 3D model (bottom) update live. Each slider is labelled with the morphological categories it spans, and the matching Rockford species narrow as you go. Drag the 3D model to rotate."),
+        `Shape the shell with the sliders — the static dorsal, anterior, and side views (top) and the spinnable 3D model (bottom) update live. Each slider is labelled with the morphological categories it spans, and the matching ${siteName} species narrow as you go. Drag the 3D model to rotate.`),
       el("div", { class: "sim-topcaps" }, [
         el("span", {}, "Dorsal"), el("span", {}, "Anterior"), el("span", {}, "Side")
       ]),
