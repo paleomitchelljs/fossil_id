@@ -110,7 +110,13 @@ const Sim3D = (function () {
       z += p.beak * zb;
       y -= p.beak * 0.28 * yb;   // gentler overhang — avoids a posterior "handle" spike
     }
-    if (p.fold > 0 && p.plic > 0) z += p.fold * Math.pow(u, 3) * Math.cos(p.plic * Math.PI * v) * L;
+    if (p.fold > 0 && p.plic > 0) {
+      // fold/sulcus over the anterior, easing to full deflection at the
+      // commissure with ZERO slope there (u^3 peaked its slope at the margin,
+      // producing a protruding terminal "flap").
+      const fr = u < 0.4 ? 0 : smooth((u - 0.4) / 0.6);
+      z += p.fold * fr * Math.cos(p.plic * Math.PI * v) * L;
+    }
     if (p.ribs > 0 && p.ribDepth > 0) {
       // Costae radiate from the umbo: phase tracks the angle from the beak, so
       // lateral ribs terminate on the lateral commissure and medial ribs on the
