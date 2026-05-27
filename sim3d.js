@@ -65,13 +65,15 @@ const Sim3D = (function () {
   // standalone page's preset buttons; the app drives params from manifest
   // traits via traitsToParams instead).
   const PRESETS = {
-    "Pseudoatrypa":  {width:0.54,hinge:0.12,wpos:0.52,front:0.72,convV:0.22,convD:0.30,beak:0.10,fold:0.14,plic:1,ribs:24,ribDepth:0.013,growthN:8, growthDepth:0.010,bumps:0,  delth:2},
-    "Schizophoria":  {width:0.60,hinge:0.22,wpos:0.50,front:0.78,convV:0.20,convD:0.20,beak:0.08,fold:0.06,plic:1,ribs:30,ribDepth:0.008,growthN:10,growthDepth:0.005,bumps:0,  delth:1},
-    "Conispirifer":  {width:1.00,hinge:0.95,wpos:0.05,front:0.26,convV:0.70,convD:0.36,beak:0.30,fold:0.30,plic:5,ribs:14,ribDepth:0.034,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
-    "Cyrtospirifer": {width:0.92,hinge:0.85,wpos:0.10,front:0.30,convV:0.40,convD:0.26,beak:0.52,fold:0.30,plic:6,ribs:16,ribDepth:0.030,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
-    "Spinatrypa":    {width:0.52,hinge:0.12,wpos:0.50,front:0.70,convV:0.24,convD:0.32,beak:0.10,fold:0.12,plic:1,ribs:20,ribDepth:0.016,growthN:7, growthDepth:0.018,bumps:1.0,delth:2},
-    "Theodossia":    {width:0.56,hinge:0.15,wpos:0.46,front:0.55,convV:0.42,convD:0.30,beak:0.46,fold:0.22,plic:1,ribs:0, ribDepth:0.0,  growthN:12,growthDepth:0.006,bumps:0,  delth:1},
-    "Douvillina":    {width:0.78,hinge:0.95,wpos:0.02,front:0.52,convV:0.10,convD:-0.12,beak:0.02,fold:0.0, plic:0,ribs:30,ribDepth:0.007,growthN:10,growthDepth:0.004,bumps:0,  delth:0}
+    // width/convV/convD/beak fitted to the reference plates (side H/L + dorsal W/L);
+    // ornament/hinge/fold kept from morphology. See FIT below.
+    "Pseudoatrypa":  {width:0.53,hinge:0.12,wpos:0.52,front:0.72,convV:0.29,convD:0.37, beak:0.10,fold:0.14,plic:1,ribs:24,ribDepth:0.013,growthN:8, growthDepth:0.010,bumps:0,  delth:2},
+    "Schizophoria":  {width:0.60,hinge:0.22,wpos:0.50,front:0.78,convV:0.37,convD:0.37, beak:0.10,fold:0.06,plic:1,ribs:30,ribDepth:0.008,growthN:10,growthDepth:0.005,bumps:0,  delth:1},
+    "Conispirifer":  {width:0.71,hinge:0.95,wpos:0.05,front:0.26,convV:0.75,convD:0.41, beak:0.34,fold:0.30,plic:5,ribs:14,ribDepth:0.034,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
+    "Cyrtospirifer": {width:0.64,hinge:0.85,wpos:0.10,front:0.30,convV:0.53,convD:0.32, beak:0.45,fold:0.30,plic:6,ribs:16,ribDepth:0.030,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
+    "Spinatrypa":    {width:0.47,hinge:0.12,wpos:0.50,front:0.70,convV:0.28,convD:0.36, beak:0.10,fold:0.12,plic:1,ribs:20,ribDepth:0.016,growthN:7, growthDepth:0.018,bumps:1.0,delth:2},
+    "Theodossia":    {width:0.43,hinge:0.15,wpos:0.46,front:0.55,convV:0.35,convD:0.26, beak:0.20,fold:0.22,plic:1,ribs:0, ribDepth:0.0,  growthN:12,growthDepth:0.006,bumps:0,  delth:1},
+    "Douvillina":    {width:0.59,hinge:0.95,wpos:0.02,front:0.52,convV:0.37,convD:-0.13,beak:0.03,fold:0.0, plic:0,ribs:30,ribDepth:0.007,growthN:10,growthDepth:0.004,bumps:0,  delth:0}
   };
 
   // ---- geometry (verbatim from the standalone) ----------------------------
@@ -282,22 +284,25 @@ const Sim3D = (function () {
   function traitsToParams(traits) {
     const p = Object.assign({}, DEFAULTS);
     const t = traits || {};
+    // Widths fitted to the reference plates' dorsal W/L (= 2 × half-width).
     switch (firstOf(t.outline)) {
-      case "wing-shaped":   p.width = 0.95; p.hinge = 0.85; p.wpos = 0.08; p.front = 0.30; break;
-      case "conical":       p.width = 0.90; p.hinge = 0.92; p.wpos = 0.05; p.front = 0.25; p.beak = 0.30; break;
+      case "wing-shaped":   p.width = 0.66; p.hinge = 0.85; p.wpos = 0.10; p.front = 0.30; break;
+      case "conical":       p.width = 0.71; p.hinge = 0.95; p.wpos = 0.05; p.front = 0.26; p.beak = 0.34; break;
       case "elongate-oval": p.width = 0.42; p.hinge = 0.10; p.wpos = 0.55; p.front = 0.60; break;
-      case "pentagonal":    p.width = 0.56; p.hinge = 0.15; p.wpos = 0.46; p.front = 0.55; break;
-      default:              p.width = 0.55; p.hinge = 0.14; p.wpos = 0.50; p.front = 0.72;  // subcircular
+      case "pentagonal":    p.width = 0.45; p.hinge = 0.15; p.wpos = 0.46; p.front = 0.55; break;
+      default:              p.width = 0.53; p.hinge = 0.14; p.wpos = 0.50; p.front = 0.72;  // subcircular
     }
+    // Convexity fitted to the plates' side H/L. Biconvex defaults to gently
+    // dorsibiconvex (atrypid-like); spiriferid outlines override below.
     switch (firstOf(t.profile)) {
-      case "plano-convex":   p.convV = 0.28; p.convD = 0.03; break;
-      case "concavo-convex": p.convV = 0.12; p.convD = -0.12; p.hinge = 0.92; p.wpos = 0.02; break;
-      default:               p.convV = 0.26; p.convD = 0.24;  // biconvex
+      case "plano-convex":   p.convV = 0.30; p.convD = 0.03; break;
+      case "concavo-convex": p.convV = 0.37; p.convD = -0.13; p.hinge = 0.95; p.wpos = 0.02; break;
+      default:               p.convV = 0.30; p.convD = 0.35;  // biconvex (dorsibiconvex)
     }
-    // Conical (cone-spiriferid) shells are strongly inflated — taller than long
-    // in side view (cf. the Conispirifer reference outline), so override the
-    // generic biconvex convexity with a tall ventral dome.
-    if (firstOf(t.outline) === "conical") { p.convV = 0.70; p.convD = 0.36; }
+    // Cone-spiriferids are strongly inflated (taller than long); winged
+    // spiriferids moderately so and ventribiconvex.
+    if (firstOf(t.outline) === "conical")    { p.convV = 0.75; p.convD = 0.41; }
+    else if (firstOf(t.outline) === "wing-shaped") { p.convV = 0.53; p.convD = 0.32; }
     const hinge = firstOf(t.hinge);
     if (hinge === "astrophic") { if (p.hinge > 0.3) p.hinge = 0.14; }
     else if (hinge === "strophic" || hinge === "wide-strophic" || hinge === "narrow-strophic") {
