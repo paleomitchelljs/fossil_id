@@ -892,8 +892,6 @@ function viewBuild(sid, answers) {
   // Live "closest species" panel — count shown in the summary, photos behind it.
   const matchSummary = el("span", { class: "build-matches-summary" }, "Matching species");
   const matchList = el("div", { class: "build-matches" });
-  // Closest reference drawing (red-outline 5-view plate) for comparison.
-  const refDrawing = el("div", { class: "ref-drawing" });
   function updateMatches() {
     const traits = Sim3D.simTraits(P);
     const scored = allTaxa.map(t => Object.assign({ t }, scoreTraitsObj(t, traits)))
@@ -908,15 +906,6 @@ function viewBuild(sid, answers) {
       card.appendChild(el("div", { class: "match-score" }, `${Math.round(r.score * 100)}%`));
       matchList.appendChild(card);
     });
-    // Show the nearest match whose genus has a reference plate.
-    const refHit = scored.find(r => refPlatePath(r.t.genus));
-    clear(refDrawing);
-    if (refHit) {
-      refDrawing.appendChild(el("div", { class: "ref-cap" },
-        `Closest reference form: ${refHit.t.genus} — dorsal · ventral · side · posterior · anterior`));
-      refDrawing.appendChild(el("img", { class: "ref-plate", loading: "lazy",
-        src: refPlatePath(refHit.t.genus), alt: `${refHit.t.genus} reference drawing (5 views)` }));
-    }
   }
 
   // Which labelled region does the current value fall in?
@@ -992,7 +981,8 @@ function viewBuild(sid, answers) {
   ]);
 
   const simWrap = el("div", { class: "sim-wrap", id: "sim-wrap",
-    style: "width:100%;height:min(62vh,560px);min-height:340px;position:relative;background:#141414;border-radius:8px;overflow:hidden" });
+    style: "width:100%;height:min(56vh,500px);min-height:320px;position:relative;background:#141414;border-radius:8px;overflow:hidden" },
+    [el("div", { class: "sim-3dcap" }, "3D — drag to rotate")]);
 
   // Mount once the container is attached and sized.
   requestAnimationFrame(() => {
@@ -1007,13 +997,11 @@ function viewBuild(sid, answers) {
     siteSubBar(sid),
     el("main", { class: "page build-page" }, [
       el("p", { class: "build-intro" },
-        "Shape the shell with the sliders — the 3D model and its dorsal, anterior, and side views update live. Each slider is labelled with the morphological categories it spans, and the matching Rockford species narrow as you go. Drag the 3D (top) view to rotate."),
-      simWrap,
-      el("div", { class: "sim-viewcaps" }, [
-        el("span", {}, "3D — drag to rotate"), el("span", {}, "Dorsal"),
-        el("span", {}, "Anterior"), el("span", {}, "Side")
+        "Shape the shell with the sliders — the static dorsal, anterior, and side views (top) and the spinnable 3D model (bottom) update live. Each slider is labelled with the morphological categories it spans, and the matching Rockford species narrow as you go. Drag the 3D model to rotate."),
+      el("div", { class: "sim-topcaps" }, [
+        el("span", {}, "Dorsal"), el("span", {}, "Anterior"), el("span", {}, "Side")
       ]),
-      refDrawing,
+      simWrap,
       speciesPick,
       el("h3", { class: "build-section-h" }, "Key traits"),
       quickPanel,

@@ -196,15 +196,17 @@ const Sim3D = (function () {
     persp.lookAt(0, 0, 0);
   }
 
-  // Layout inside the container: perspective on top (larger), 3 ortho views below.
+  // Layout: 3 static ortho views in a row on TOP; spinnable perspective on the
+  // BOTTOM (closest to the sliders). Viewport y-origin is the bottom of the canvas.
   function rects(W, H) {
-    const split = Math.round(H * 0.40);      // bottom (ortho) strip height
+    const orthoH = Math.round(H * 0.38);     // top strip for Dorsal/Anterior/Side
+    const perspH = H - orthoH;
     const cw = Math.floor(W / 3);
     return {
-      persp:  { x: 0, y: split, w: W, h: H - split },
-      dorsal: { x: 0, y: 0, w: cw, h: split },
-      front:  { x: cw, y: 0, w: cw, h: split },
-      side:   { x: 2 * cw, y: 0, w: W - 2 * cw, h: split }
+      persp:  { x: 0, y: 0, w: W, h: perspH },                  // bottom (spinnable)
+      dorsal: { x: 0, y: perspH, w: cw, h: orthoH },            // top row
+      front:  { x: cw, y: perspH, w: cw, h: orthoH },
+      side:   { x: 2 * cw, y: perspH, w: W - 2 * cw, h: orthoH }
     };
   }
   function renderView(cam, vp) {
@@ -253,9 +255,9 @@ const Sim3D = (function () {
     placeOrtho();
 
     canvas.addEventListener("pointerdown", e => {
-      // perspective pane occupies the top (offsetY 0 .. persp.h on screen)
-      const v = rects(container.clientWidth, container.clientHeight);
-      if (e.offsetY > v.persp.h) return;           // only orbit in the perspective pane
+      // perspective pane is the BOTTOM region (screen offsetY from orthoTop down)
+      const H = container.clientHeight, v = rects(container.clientWidth, H);
+      if (e.offsetY < H - v.persp.h) return;       // only orbit in the (bottom) perspective pane
       dragging = true; lx = e.clientX; ly = e.clientY; spin = false;
       canvas.setPointerCapture(e.pointerId);
     });

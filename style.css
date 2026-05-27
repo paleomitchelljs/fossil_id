@@ -599,16 +599,31 @@ img { max-width: 100%; display: block; }
 
 /* 3D model canvas + view captions */
 .sim-wrap { touch-action: none; }   /* let pointer-drag rotate without scrolling */
-.sim-viewcaps {
+/* labels for the three static views, sitting directly above the top strip */
+.sim-topcaps {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
   font-size: 0.7rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin: 0.3rem 0 0.8rem;
+  margin: 0 0 0.25rem;
   text-align: center;
+}
+/* "3D — drag to rotate" overlaid at the top of the perspective (bottom) pane */
+.sim-3dcap {
+  position: absolute;
+  top: 38%;               /* matches the ortho/perspective split in sim3d.js */
+  left: 8px;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: #cfcabd;
+  background: rgba(0,0,0,0.4);
+  padding: 2px 7px;
+  border-radius: 4px;
 }
 
 .build-status {
