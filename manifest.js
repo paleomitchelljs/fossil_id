@@ -1160,7 +1160,7 @@ const TAXA = [
       },
       {
         "src": "jsm",
-        "file": "iowensis_jsm_01.png",
+        "file": "iowensis_jsm_crawford_01.png",
         "site": "crawford"
       },
       {
