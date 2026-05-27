@@ -31,10 +31,10 @@ const Sim3D = (function () {
         regions: [{ to: 0.4, name: "tapered" }, { to: 1.0, name: "rounded" }] }
     ]},
     { title: "Profile (inflation)", params: [
-      { key: "convV", min: 0.0, max: 0.75, step: 0.005, label: "Ventral convexity",
-        regions: [{ to: 0.06, name: "flat" }, { to: 0.75, name: "convex" }] },
-      { key: "convD", min: -0.25, max: 0.75, step: 0.005, label: "Dorsal convexity",
-        regions: [{ to: -0.02, name: "concave" }, { to: 0.06, name: "flat" }, { to: 0.75, name: "convex" }] },
+      { key: "convV", min: 0.0, max: 0.9, step: 0.005, label: "Ventral convexity",
+        regions: [{ to: 0.06, name: "flat" }, { to: 0.5, name: "convex" }, { to: 0.9, name: "inflated" }] },
+      { key: "convD", min: -0.25, max: 0.9, step: 0.005, label: "Dorsal convexity",
+        regions: [{ to: -0.02, name: "concave" }, { to: 0.06, name: "flat" }, { to: 0.5, name: "convex" }, { to: 0.9, name: "inflated" }] },
       { key: "beak", min: 0.0, max: 0.65, step: 0.005, label: "Beak / interarea",
         regions: [{ to: 0.18, name: "subdued" }, { to: 0.4, name: "prominent" }, { to: 0.65, name: "pyramidal" }] }
     ]},
@@ -67,7 +67,7 @@ const Sim3D = (function () {
   const PRESETS = {
     "Pseudoatrypa":  {width:0.54,hinge:0.12,wpos:0.52,front:0.72,convV:0.22,convD:0.30,beak:0.10,fold:0.14,plic:1,ribs:24,ribDepth:0.013,growthN:8, growthDepth:0.010,bumps:0,  delth:2},
     "Schizophoria":  {width:0.60,hinge:0.22,wpos:0.50,front:0.78,convV:0.20,convD:0.20,beak:0.08,fold:0.06,plic:1,ribs:30,ribDepth:0.008,growthN:10,growthDepth:0.005,bumps:0,  delth:1},
-    "Conispirifer":  {width:1.00,hinge:0.95,wpos:0.05,front:0.26,convV:0.46,convD:0.28,beak:0.30,fold:0.30,plic:5,ribs:14,ribDepth:0.034,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
+    "Conispirifer":  {width:1.00,hinge:0.95,wpos:0.05,front:0.26,convV:0.70,convD:0.36,beak:0.30,fold:0.30,plic:5,ribs:14,ribDepth:0.034,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
     "Cyrtospirifer": {width:0.92,hinge:0.85,wpos:0.10,front:0.30,convV:0.40,convD:0.26,beak:0.52,fold:0.30,plic:6,ribs:16,ribDepth:0.030,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
     "Spinatrypa":    {width:0.52,hinge:0.12,wpos:0.50,front:0.70,convV:0.24,convD:0.32,beak:0.10,fold:0.12,plic:1,ribs:20,ribDepth:0.016,growthN:7, growthDepth:0.018,bumps:1.0,delth:2},
     "Theodossia":    {width:0.56,hinge:0.15,wpos:0.46,front:0.55,convV:0.42,convD:0.30,beak:0.46,fold:0.22,plic:1,ribs:0, ribDepth:0.0,  growthN:12,growthDepth:0.006,bumps:0,  delth:1},
@@ -294,6 +294,10 @@ const Sim3D = (function () {
       case "concavo-convex": p.convV = 0.12; p.convD = -0.12; p.hinge = 0.92; p.wpos = 0.02; break;
       default:               p.convV = 0.26; p.convD = 0.24;  // biconvex
     }
+    // Conical (cone-spiriferid) shells are strongly inflated — taller than long
+    // in side view (cf. the Conispirifer reference outline), so override the
+    // generic biconvex convexity with a tall ventral dome.
+    if (firstOf(t.outline) === "conical") { p.convV = 0.70; p.convD = 0.36; }
     const hinge = firstOf(t.hinge);
     if (hinge === "astrophic") { if (p.hinge > 0.3) p.hinge = 0.14; }
     else if (hinge === "strophic" || hinge === "wide-strophic" || hinge === "narrow-strophic") {
