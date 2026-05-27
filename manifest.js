@@ -823,7 +823,9 @@ const TAXA = [
     "subgroup": "atrypids",
     "genus": "Costatrypa",
     "species": "varicostata",
-    "photos": [],
+    "photos": [
+      { "src": "daycopper", "file": "varicostata_daycopper_01.png", "site": "rockford" }
+    ],
     "note": "Late Frasnian Lime Creek Fm atrypid (Stainbrook 1945); listed by Day & Copper 1998 as part of the standard Lime Creek atrypid fauna. PBDB: 1 record.",
     "sites": [
       "rockford"
@@ -835,7 +837,9 @@ const TAXA = [
     "subgroup": "atrypids",
     "genus": "Iowatrypa",
     "species": "owenensis",
-    "photos": [],
+    "photos": [
+      { "src": "daycopper", "file": "owenensis_daycopper_01.png", "site": "rockford" }
+    ],
     "note": "Late Frasnian Lime Creek Fm atrypid (Webster, 1921); zone fossil for the uppermost Lime Creek (M.N. Zone 13 — 'Iowatrypa owenensis Zone'). Day & Copper 1998.",
     "sites": [
       "rockford"
@@ -847,7 +851,9 @@ const TAXA = [
     "subgroup": "atrypids",
     "genus": "Iowatrypa",
     "species": "minor",
-    "photos": [],
+    "photos": [
+      { "src": "daycopper", "file": "minor_daycopper_01.png", "site": "rockford" }
+    ],
     "note": "Smaller congener of I. owenensis in the Lime Creek Fm fauna (Fenton & Fenton, 1924). Day & Copper 1998.",
     "sites": [
       "rockford"
