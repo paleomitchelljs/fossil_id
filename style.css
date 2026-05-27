@@ -675,8 +675,44 @@ img { max-width: 100%; display: block; }
 .sim-region { flex: 1; text-align: center; }
 .sim-region.active { color: var(--accent); font-weight: 700; }
 
+/* Quick panel: the few most diagnostic sliders, always visible */
+.sim-quick {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 0.2rem 0.7rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.sim-quick .sim-ctrl:first-child { border-top: none; }
+
+/* "More sliders…" wrapper + the collapsed matches menu */
+.sim-more, .build-matches-wrap {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 0 0.7rem;
+  margin-bottom: 0.6rem;
+}
+.sim-more > summary, .build-matches-wrap > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 0.7rem 0;
+  list-style: none;
+}
+.sim-more > summary::-webkit-details-marker,
+.build-matches-wrap > summary::-webkit-details-marker { display: none; }
+.sim-more > summary::before { content: "\25B8  "; }
+.sim-more[open] > summary::before { content: "\25BE  "; }
+.build-matches-wrap > summary::before { content: "\25B8  "; }
+.build-matches-wrap[open] > summary::before { content: "\25BE  "; }
+.sim-more .sim-controls { padding-bottom: 0.5rem; }
+.build-matches-wrap .build-matches { padding-bottom: 0.7rem; }
+
 @media (min-width: 700px) {
   .sim-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1rem; align-items: start; }
+  .sim-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+  .sim-quick .sim-ctrl { border-top: none; }
 }
 
 

@@ -856,8 +856,8 @@ function viewBuild(sid, answers) {
     P = Object.assign({}, Sim3D.DEFAULTS);
   }
 
-  // Live "closest species" panel — recomputed on every slider move.
-  const matchHead = el("div", { class: "build-status" });
+  // Live "closest species" panel — count shown in the summary, photos behind it.
+  const matchSummary = el("span", { class: "build-matches-summary" }, "Matching species");
   const matchList = el("div", { class: "build-matches" });
   function updateMatches() {
     const traits = Sim3D.simTraits(P);
@@ -865,12 +865,10 @@ function viewBuild(sid, answers) {
       .filter(r => r.considered > 0)
       .sort((a, b) => b.score - a.score || b.considered - a.considered);
     const perfect = scored.filter(r => r.score >= 0.999).length;
-    clear(matchHead);
-    matchHead.appendChild(el("strong", {}, String(perfect)));
-    matchHead.appendChild(document.createTextNode(
-      ` of ${allTaxa.length} brachiopod species match every trait you've set — closest candidates (tap for photos):`));
+    matchSummary.textContent =
+      `Matching species — ${perfect} of ${allTaxa.length} match every trait set (tap to show photos)`;
     clear(matchList);
-    scored.slice(0, 8).forEach(r => {
+    scored.slice(0, 12).forEach(r => {
       const card = taxonThumb(r.t, sid);
       card.appendChild(el("div", { class: "match-score" }, `${Math.round(r.score * 100)}%`));
       matchList.appendChild(card);
@@ -886,11 +884,23 @@ function viewBuild(sid, answers) {
     }
     return null;
   }
+  // A slider can appear in both the quick panel and the full set (same key,
+  // two inputs). Every control registers a refresher so a move in one place
+  // syncs the value, region label, and slider position everywhere.
+  const refreshers = [];
+  const refreshAll = () => refreshers.forEach(f => f());
   function sliderControl(def) {
     const isInt = Sim3D.INT_KEYS.includes(def.key);
     const valSpan = el("span", { class: "sim-val" });
     const regionRow = el("div", { class: "sim-regions" });
+    const input = el("input", { type: "range", min: def.min, max: def.max, step: def.step,
+      value: P[def.key],
+      on: { input: (e) => {
+        P[def.key] = isInt ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+        refreshAll(); Sim3D.setParams(P); updateMatches();
+      } } });
     const refresh = () => {
+      input.value = P[def.key];
       const rn = regionName(def, P[def.key]);
       valSpan.textContent = rn || (isInt ? String(P[def.key]) : Number(P[def.key]).toFixed(2));
       clear(regionRow);
@@ -898,24 +908,26 @@ function viewBuild(sid, answers) {
       names.forEach(n => regionRow.appendChild(
         el("span", { class: "sim-region" + (n === rn ? " active" : "") }, n)));
     };
-    const input = el("input", { type: "range", min: def.min, max: def.max, step: def.step,
-      value: P[def.key],
-      on: { input: (e) => {
-        P[def.key] = isInt ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
-        refresh(); Sim3D.setParams(P); updateMatches();
-      } } });
-    refresh();
+    refreshers.push(refresh); refresh();
     return el("div", { class: "sim-ctrl" }, [
       el("label", { class: "sim-label" }, [el("span", {}, def.label), valSpan]),
       input, regionRow
     ]);
   }
 
-  const groupEls = Sim3D.GROUPS.map((g, i) =>
-    el("details", { class: "sim-group", open: i === 0 ? "" : null }, [
-      el("summary", {}, g.title),
-      g.params.map(sliderControl)
-    ]));
+  // Quick panel: the four most diagnostic sliders; full set behind "More sliders…".
+  const defByKey = {};
+  Sim3D.GROUPS.forEach(g => g.params.forEach(d => defByKey[d.key] = d));
+  const QUICK = ["hinge", "width", "fold", "ribs"];
+  const quickPanel = el("div", { class: "sim-quick" }, QUICK.map(k => sliderControl(defByKey[k])));
+  const moreSliders = el("details", { class: "sim-more" }, [
+    el("summary", {}, "More sliders…"),
+    el("div", { class: "sim-controls" }, Sim3D.GROUPS.map(g =>
+      el("details", { class: "sim-group" }, [
+        el("summary", {}, g.title),
+        g.params.map(sliderControl)
+      ])))
+  ]);
 
   const simWrap = el("div", { class: "sim-wrap", id: "sim-wrap",
     style: "width:100%;height:min(62vh,560px);min-height:340px;position:relative;background:#141414;border-radius:8px;overflow:hidden" });
@@ -939,10 +951,13 @@ function viewBuild(sid, answers) {
         el("span", {}, "3D — drag to rotate"), el("span", {}, "Dorsal"),
         el("span", {}, "Anterior"), el("span", {}, "Side")
       ]),
-      matchHead,
-      matchList,
-      el("h3", { class: "build-section-h" }, "Shape & ornament"),
-      el("div", { class: "sim-controls" }, groupEls),
+      el("h3", { class: "build-section-h" }, "Key traits"),
+      quickPanel,
+      moreSliders,
+      el("details", { class: "build-matches-wrap" }, [
+        el("summary", {}, matchSummary),
+        matchList
+      ]),
       el("div", { class: "key-footer" }, [
         el("a", { class: "restart-link", href: `${siteBase(sid)}/build` }, "Reset model"),
         el("a", { class: "restart-link", href: `${siteBase(sid)}/filter` }, "Use the question wizard instead")
