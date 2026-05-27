@@ -743,8 +743,8 @@ const TAXA = [
         "site": "rockford"
       },
       {
-        "src": "unk",
-        "file": "rockfordensis_unk_01.webp",
+        "src": "jsm",
+        "file": "rockfordensis_jsm_01.webp",
         "site": "rockford"
       },
       {
@@ -1024,16 +1024,13 @@ const TAXA = [
     "genus": "Sulcatostrophia",
     "species": "camerata",
     "photos": [
-      {
-        "src": "nathan",
-        "file": "camerata_nathan_01.jpg",
-        "site": "rockford"
-      },
-      {
-        "src": "unk",
-        "file": "camerata_unk_02.png",
-        "site": "rockford"
-      }
+      { "src": "nathan", "file": "camerata_nathan_01.jpg", "site": "rockford" },
+      { "src": "jsm", "file": "camerata_jsm_02.png", "site": "rockford" },
+      { "src": "jsm", "file": "camerata_jsm_dorsal.png", "site": "rockford" },
+      { "src": "jsm", "file": "camerata_jsm_ventral.png", "site": "rockford" },
+      { "src": "jsm", "file": "camerata_jsm_side.png", "site": "rockford" },
+      { "src": "jsm", "file": "camerata_jsm_anterior.png", "site": "rockford" },
+      { "src": "jsm", "file": "camerata_jsm_posterior.png", "site": "rockford" }
     ],
     "note": "Sulcate; fine costae. (Older spelling: Sulcastrophia.)",
     "sites": [
