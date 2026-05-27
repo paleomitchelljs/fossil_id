@@ -59,8 +59,10 @@ function dirify(s)  { return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace
 function taxonSlug(t) { return slugify(t.genus + "-" + t.species); }
 function taxonDir(t)  { return t.dir || dirify(t.genus); }
 function imgPath(taxon, img, fallbackSid) {
-  const site = img.site || (taxon.sites && taxon.sites[0]) || fallbackSid;
-  return `images/${taxonDir(taxon)}/${site}/${img.file}`;
+  // New layout: images/{phylum}/{clade}/{genus}/{genus-species}/{file}
+  // (_phylum/_clade/_slug are stamped onto each taxon by manifest.js)
+  const phy = taxon._phylum, clade = taxon._clade, slug = taxon._slug || taxonSlug(taxon);
+  return `images/${phy}/${clade}/${taxonDir(taxon)}/${slug}/${img.file}`;
 }
 function refPath(file) { return `images/reference/${file}`; }
 function getFigure(key) { return (typeof FIGURES !== "undefined") ? FIGURES[key] : null; }
