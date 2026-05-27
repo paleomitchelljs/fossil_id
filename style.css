@@ -675,6 +675,16 @@ img { max-width: 100%; display: block; }
 .sim-region { flex: 1; text-align: center; }
 .sim-region.active { color: var(--accent); font-weight: 700; }
 
+/* Load-a-species dropdown */
+.sim-species-pick {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.6rem; font-size: 0.9rem; font-weight: 500;
+}
+.sim-species {
+  flex: 1; padding: 0.5rem; font: inherit;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--card-bg);
+}
+
 /* Quick panel: the few most diagnostic sliders, always visible */
 .sim-quick {
   border: 1px solid var(--rule);

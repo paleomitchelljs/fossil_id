@@ -81,7 +81,12 @@ const Sim3D = (function () {
     const conv = sign > 0 ? p.convV : p.convD;
     let z = sign * conv * bulge;
     if (sign > 0 && p.beak > 0) {
-      const b = Math.exp(-Math.pow(u / 0.20, 2)) * Math.pow(Math.cos(v * Math.PI / 2), 2);
+      // raised umbo / interarea as a smooth posterior shoulder. (A gaussian
+      // here decayed faster than the valve convexity rose, leaving a valley
+      // between beak and body at high beak; a smoothstep ramp merges them.)
+      const reach = 0.5;
+      const ramp = u < reach ? 1 - smooth(u / reach) : 0;
+      const b = ramp * Math.pow(Math.cos(v * Math.PI / 2), 2);
       z += p.beak * b; y -= p.beak * 0.45 * b;
     }
     if (p.fold > 0 && p.plic > 0) z += p.fold * Math.pow(u, 3) * Math.cos(p.plic * Math.PI * v) * L;

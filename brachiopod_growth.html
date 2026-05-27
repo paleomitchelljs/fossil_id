@@ -221,7 +221,10 @@ function valvePoint(sign, u, v, p, out){
 
   // beak / umbo incurvature: prominent on the ventral valve, posterior only
   if(sign>0 && p.beak>0){
-    const b = Math.exp(-Math.pow(u/0.20,2)) * Math.pow(Math.cos(v*Math.PI/2),2);
+    // raised umbo as a smooth posterior shoulder (a gaussian here left a
+    // valley between beak and body at high beak; smoothstep ramp merges them)
+    const reach = 0.5;
+    const b = (u<reach ? 1 - smooth(u/reach) : 0) * Math.pow(Math.cos(v*Math.PI/2),2);
     z += p.beak * b;          // raise umbo above commissure plane
     y -= p.beak * 0.45 * b;   // overhang back over the hinge
   }

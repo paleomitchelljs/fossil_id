@@ -929,6 +929,20 @@ function viewBuild(sid, answers) {
       ])))
   ]);
 
+  // Load a representative species: sets every slider from its stored traits.
+  const speciesOpts = allTaxa.slice()
+    .sort((a, b) => (a.genus + " " + a.species).localeCompare(b.genus + " " + b.species))
+    .map(t => el("option", { value: taxonSlug(t) }, `${t.genus} ${t.species}`));
+  const speciesPick = el("label", { class: "sim-species-pick" }, [
+    el("span", {}, "Load a Rockford species"),
+    el("select", { class: "sim-species", on: { change: (e) => {
+      const t = allTaxa.find(x => taxonSlug(x) === e.target.value);
+      if (!t) return;
+      P = Sim3D.traitsToParams(t.traits);
+      refreshAll(); Sim3D.setParams(P); updateMatches();
+    } } }, [el("option", { value: "" }, "— choose —"), speciesOpts])
+  ]);
+
   const simWrap = el("div", { class: "sim-wrap", id: "sim-wrap",
     style: "width:100%;height:min(62vh,560px);min-height:340px;position:relative;background:#141414;border-radius:8px;overflow:hidden" });
 
@@ -951,6 +965,7 @@ function viewBuild(sid, answers) {
         el("span", {}, "3D — drag to rotate"), el("span", {}, "Dorsal"),
         el("span", {}, "Anterior"), el("span", {}, "Side")
       ]),
+      speciesPick,
       el("h3", { class: "build-section-h" }, "Key traits"),
       quickPanel,
       moreSliders,
