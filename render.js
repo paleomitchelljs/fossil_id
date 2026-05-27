@@ -929,18 +929,22 @@ function viewBuild(sid, answers) {
       ])))
   ]);
 
-  // Load a representative species: sets every slider from its stored traits.
-  const speciesOpts = allTaxa.slice()
-    .sort((a, b) => (a.genus + " " + a.species).localeCompare(b.genus + " " + b.species))
-    .map(t => el("option", { value: taxonSlug(t) }, `${t.genus} ${t.species}`));
+  // Load a species, grouped by clade (the brachiopod subgroups), so a student
+  // can navigate by what the shell broadly looks like. Picking one sets every
+  // slider from its stored traits.
+  const speciesGroups = brachF.subgroups.map(sub => {
+    const opts = sub.taxa.filter(t => t.traits)
+      .map(t => el("option", { value: taxonSlug(t) }, `${t.genus} ${t.species}`));
+    return opts.length ? el("optgroup", { label: sub.title }, opts) : null;
+  }).filter(Boolean);
   const speciesPick = el("label", { class: "sim-species-pick" }, [
-    el("span", {}, "Load a Rockford species"),
+    el("span", {}, "Load a species (by group)"),
     el("select", { class: "sim-species", on: { change: (e) => {
       const t = allTaxa.find(x => taxonSlug(x) === e.target.value);
       if (!t) return;
       P = Sim3D.traitsToParams(t.traits);
       refreshAll(); Sim3D.setParams(P); updateMatches();
-    } } }, [el("option", { value: "" }, "— choose —"), speciesOpts])
+    } } }, [el("option", { value: "" }, "— choose —"), speciesGroups])
   ]);
 
   const simWrap = el("div", { class: "sim-wrap", id: "sim-wrap",

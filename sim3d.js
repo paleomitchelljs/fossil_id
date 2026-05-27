@@ -61,6 +61,19 @@ const Sim3D = (function () {
   ];
   const INT_KEYS = ["plic", "ribs", "growthN", "delth"];
 
+  // Calibrated reconstructions of the seven reference_atlas taxa (used by the
+  // standalone page's preset buttons; the app drives params from manifest
+  // traits via traitsToParams instead).
+  const PRESETS = {
+    "Pseudoatrypa":  {width:0.54,hinge:0.12,wpos:0.52,front:0.72,convV:0.22,convD:0.30,beak:0.10,fold:0.14,plic:1,ribs:24,ribDepth:0.013,growthN:8, growthDepth:0.010,bumps:0,  delth:2},
+    "Schizophoria":  {width:0.60,hinge:0.22,wpos:0.50,front:0.78,convV:0.20,convD:0.20,beak:0.08,fold:0.06,plic:1,ribs:30,ribDepth:0.008,growthN:10,growthDepth:0.005,bumps:0,  delth:1},
+    "Conispirifer":  {width:1.00,hinge:0.95,wpos:0.05,front:0.26,convV:0.46,convD:0.28,beak:0.30,fold:0.30,plic:5,ribs:14,ribDepth:0.034,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
+    "Cyrtospirifer": {width:0.92,hinge:0.85,wpos:0.10,front:0.30,convV:0.40,convD:0.26,beak:0.52,fold:0.30,plic:6,ribs:16,ribDepth:0.030,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
+    "Spinatrypa":    {width:0.52,hinge:0.12,wpos:0.50,front:0.70,convV:0.24,convD:0.32,beak:0.10,fold:0.12,plic:1,ribs:20,ribDepth:0.016,growthN:7, growthDepth:0.018,bumps:1.0,delth:2},
+    "Theodossia":    {width:0.56,hinge:0.15,wpos:0.46,front:0.55,convV:0.42,convD:0.30,beak:0.46,fold:0.22,plic:1,ribs:0, ribDepth:0.0,  growthN:12,growthDepth:0.006,bumps:0,  delth:1},
+    "Douvillina":    {width:0.78,hinge:0.95,wpos:0.02,front:0.52,convV:0.10,convD:-0.12,beak:0.02,fold:0.0, plic:0,ribs:30,ribDepth:0.007,growthN:10,growthDepth:0.004,bumps:0,  delth:0}
+  };
+
   // ---- geometry (verbatim from the standalone) ----------------------------
   const NU = 100, NV = 200, L = 1.0;
   const smooth = t => { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
@@ -317,5 +330,5 @@ const Sim3D = (function () {
     return out;
   }
 
-  return { DEFAULTS, GROUPS, INT_KEYS, mount, unmount, setParams, setSpin, traitsToParams, simTraits };
+  return { DEFAULTS, PRESETS, GROUPS, INT_KEYS, mount, unmount, setParams, setSpin, traitsToParams, simTraits };
 })();

@@ -4,518 +4,127 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Brachiopod Valve Growth Simulator</title>
+<!-- Standalone front-end for the shared model in sim3d.js (single source of
+     truth for the geometry; the in-app "Build a brachiopod" view uses the
+     same module). This page only builds the controls and mounts the model. -->
 <style>
-  :root{
-    --bg:#1a1d23; --panel:#23272f; --ink:#e8e6e1; --muted:#9aa0aa;
-    --ventral:#d9a441; --dorsal:#7fa6c9; --accent:#6fae7a; --line:#363b44;
-  }
+  :root{ --bg:#1a1d23; --panel:#23272f; --ink:#e8e6e1; --muted:#9aa0aa;
+    --accent:#6fae7a; --line:#363b44; }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
-  /* full-window render canvas; the panel is a fixed overlay on the right */
-  #c{position:fixed;top:0;left:0;width:100%;height:100%;display:block;z-index:0}
-  #labels{position:fixed;inset:0;pointer-events:none;font-size:12px;color:var(--muted);z-index:1}
-  #labels span{position:fixed;padding:2px 6px;background:rgba(0,0,0,.35);border-radius:4px}
-  #panel{position:fixed;top:0;right:0;width:320px;height:100%;z-index:2;
-    background:var(--panel);border-left:1px solid var(--line);
+  #app{display:flex;height:100vh;width:100vw}
+  #sim{flex:1 1 auto;min-width:0;position:relative;touch-action:none}
+  #panel{flex:0 0 320px;background:var(--panel);border-left:1px solid var(--line);
     overflow-y:auto;padding:16px 16px 40px}
-  h1{font-size:15px;margin:0 0 2px;letter-spacing:.2px}
+  h1{font-size:15px;margin:0 0 2px}
   .sub{font-size:11.5px;color:var(--muted);margin:0 0 14px;line-height:1.45}
-  .group{margin:0 0 16px}
-  .group h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);
-    margin:0 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
-  .ctrl{margin:0 0 11px}
-  .ctrl label{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px}
-  .ctrl label .val{color:var(--accent);font-variant-numeric:tabular-nums}
+  .group{margin:0 0 12px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:#20242c}
+  .group[open] > summary, .group > h2{color:var(--accent)}
+  .group summary,.group h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+    cursor:pointer;padding:9px 0;margin:0;font-weight:600;list-style:none}
+  .group summary::-webkit-details-marker{display:none}
+  .group summary::before{content:"\25B8  "}
+  .group[open] summary::before{content:"\25BE  "}
+  .ctrl{padding:6px 0 9px;border-top:1px solid #2c313a}
+  .ctrl .lab{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px}
+  .ctrl .val{color:var(--accent);font-variant-numeric:tabular-nums;font-size:11.5px}
   input[type=range]{width:100%;accent-color:var(--accent);height:4px}
-  .hint{font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+  .regions{display:flex;justify-content:space-between;font-size:9.5px;color:var(--muted);margin-top:2px}
+  .region{flex:1;text-align:center}
+  .region.active{color:var(--accent);font-weight:700}
   .presets{display:flex;flex-wrap:wrap;gap:6px}
-  .presets button,#reset{font:inherit;font-size:11.5px;color:var(--ink);
-    background:#2c313a;border:1px solid var(--line);border-radius:6px;padding:5px 9px;cursor:pointer}
+  .presets button,#reset{font:inherit;font-size:11.5px;color:var(--ink);background:#2c313a;
+    border:1px solid var(--line);border-radius:6px;padding:5px 9px;cursor:pointer}
   .presets button:hover,#reset:hover{border-color:var(--accent)}
-  #reset{width:100%;margin-top:4px;padding:7px}
-  .legend{display:flex;gap:14px;font-size:11.5px;margin-top:6px}
-  .legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
-  .toggle{display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer}
+  #reset{width:100%;margin-top:8px;padding:7px}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;margin-top:10px}
   .toggle input{accent-color:var(--accent)}
+  .caps{position:absolute;left:8px;bottom:6px;font-size:10px;color:var(--muted);
+    background:rgba(0,0,0,.35);padding:2px 7px;border-radius:4px;pointer-events:none}
 </style>
 </head>
 <body>
-  <canvas id="c"></canvas>
-  <div id="labels">
-    <span id="lab-persp">3D — drag to rotate</span>
-    <span id="lab-dorsal">Dorsal (plan outline)</span>
-    <span id="lab-front">Anterior (commissure)</span>
-    <span id="lab-side">Side (lateral profile)</span>
-  </div>
-  <div id="panel">
-    <h1>Brachiopod Valve Growth</h1>
-    <p class="sub">Two valves grown by marginal accretion from a shared hinge axis to the
-      commissure. Each slider changes a growth parameter and the mesh is rebuilt live.</p>
-
-    <div class="group">
-      <h2>Presets</h2>
-      <div class="presets" id="presets"></div>
-      <div class="legend">
-        <span><i style="background:var(--ventral)"></i>Ventral (pedicle)</span>
-        <span><i style="background:var(--dorsal)"></i>Dorsal (brachial)</span>
+  <div id="app">
+    <div id="sim"><div class="caps">3D (drag to rotate) · Dorsal · Anterior · Side</div></div>
+    <div id="panel">
+      <h1>Brachiopod Valve Growth</h1>
+      <p class="sub">Two valves grown by marginal accretion from a shared hinge to the commissure.
+        Pick a representative species or shape your own with the sliders.</p>
+      <div class="group"><h2>Representative species</h2><div class="presets" id="presets"></div></div>
+      <div id="sliders"></div>
+      <div class="group"><h2>Display</h2>
+        <label class="toggle"><input type="checkbox" id="spin" checked> Auto-rotate</label>
+        <button id="reset">Reset to default</button>
       </div>
-    </div>
-
-    <div class="group">
-      <h2>Outline &amp; proportion</h2>
-      <div class="ctrl" data-min="0.30" data-max="1.30" data-step="0.01" data-key="width">
-        <label>Width : length <span class="val"></span></label><input type="range">
-        <div class="hint">Max half-width vs length. High = transverse (spiriferid).</div>
-      </div>
-      <div class="ctrl" data-min="0.0" data-max="1.0" data-step="0.01" data-key="hinge">
-        <label>Hinge width <span class="val"></span></label><input type="range">
-        <div class="hint">0 = pointed beak (non-strophic); 1 = wide straight hinge (strophic).</div>
-      </div>
-      <div class="ctrl" data-min="0.0" data-max="1.0" data-step="0.01" data-key="wpos">
-        <label>Widest point <span class="val"></span></label><input type="range">
-        <div class="hint">0 = widest at hinge (spiriferid/strophomenid); ~0.5 = mid (atrypid).</div>
-      </div>
-      <div class="ctrl" data-min="0.1" data-max="1.0" data-step="0.01" data-key="front">
-        <label>Anterior breadth <span class="val"></span></label><input type="range">
-        <div class="hint">Width of the front margin: low = tapered/pointed, high = broadly rounded.</div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h2>Convexity (inflation)</h2>
-      <div class="ctrl" data-min="0.0" data-max="0.75" data-step="0.005" data-key="convV">
-        <label>Ventral convexity <span class="val"></span></label><input type="range">
-      </div>
-      <div class="ctrl" data-min="-0.25" data-max="0.75" data-step="0.005" data-key="convD">
-        <label>Dorsal convexity <span class="val"></span></label><input type="range">
-        <div class="hint">Equal = biconvex; near 0 = plano-convex; negative = concavo-convex (strophomenid).</div>
-      </div>
-      <div class="ctrl" data-min="0.0" data-max="0.65" data-step="0.005" data-key="beak">
-        <label>Beak curvature (umbo) <span class="val"></span></label><input type="range">
-        <div class="hint">Incurves and raises the ventral umbo over the hinge.</div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h2>Commissure (fold &amp; sulcus)</h2>
-      <div class="ctrl" data-min="0.0" data-max="0.40" data-step="0.005" data-key="fold">
-        <label>Fold / sulcus amplitude <span class="val"></span></label><input type="range">
-      </div>
-      <div class="ctrl" data-min="0" data-max="8" data-step="1" data-key="plic">
-        <label>Plications <span class="val"></span></label><input type="range">
-        <div class="hint">1 = uniplicate (single fold); higher = multicostate / plicate.</div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h2>Cardinal area</h2>
-      <div class="ctrl" data-min="0" data-max="2" data-step="1" data-key="delth">
-        <label>Delthyrium <span class="val"></span></label><input type="range">
-        <div class="hint">Opening in the interarea below the beak. Most visible on wide-hinged, big-beaked forms.</div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h2>Ornament (radial costae)</h2>
-      <div class="ctrl" data-min="0" data-max="32" data-step="1" data-key="ribs">
-        <label>Costae (rib count) <span class="val"></span></label><input type="range">
-        <div class="hint">0 = smooth; few&amp;coarse = spiriferid plicae; many&amp;fine = costellae.</div>
-      </div>
-      <div class="ctrl" data-min="0.0" data-max="0.06" data-step="0.002" data-key="ribDepth">
-        <label>Rib depth <span class="val"></span></label><input type="range">
-        <div class="hint">Relief of the ribs. Fades at the margins so the valves still close.</div>
-      </div>
-      <div class="ctrl" data-min="0" data-max="24" data-step="1" data-key="growthN">
-        <label>Growth lines (count) <span class="val"></span></label><input type="range">
-        <div class="hint">Comarginal lamellae. 0 = none; few&amp;deep = imbricate, many&amp;fine = striate.</div>
-      </div>
-      <div class="ctrl" data-min="0.0" data-max="0.04" data-step="0.001" data-key="growthDepth">
-        <label>Growth-line relief <span class="val"></span></label><input type="range">
-      </div>
-      <div class="ctrl" data-min="0.0" data-max="1.5" data-step="0.05" data-key="bumps">
-        <label>Spiny tubercles <span class="val"></span></label><input type="range">
-        <div class="hint">Spine bases scattered over the surface (e.g. Spinatrypa).</div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h2>Display</h2>
-      <label class="toggle"><input type="checkbox" id="spin" checked> Auto-rotate 3D view</label>
-      <button id="reset">Reset to default</button>
     </div>
   </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-// ---------------------------------------------------------------------------
-// Parameters. Length L is normalized to 1; everything scales to it.
-// ---------------------------------------------------------------------------
-// width = max half-width (full width = 2×; aspect W:L = 2×width since L=1)
-// hinge = hinge-line half-width as a fraction of body (0 pointed beak, 1 = as wide as body)
-// wpos  = position of the widest point (0 = at hinge, 1 = at anterior margin)
-// front = anterior-margin half-width as a fraction of body (small = pointed front)
-// convV/convD = ventral/dorsal inflation; convD may be NEGATIVE = concavo-convex
-// ribs = number of radial costae; ribDepth = their relief (fraction of L)
-// growthN = number of comarginal growth lines; growthDepth = their relief
-// bumps = spiny-tubercle amount (0 = none)
-// delth = delthyrium state: 0 closed (pseudodeltidium), 1 open, 2 foramen
-const DEFAULTS = {
-  width:0.55, hinge:0.12, wpos:0.5, front:0.7,
-  convV:0.24, convD:0.22, beak:0.12,
-  fold:0.0, plic:0, ribs:0, ribDepth:0.02,
-  growthN:0, growthDepth:0.01, bumps:0, delth:0
-};
-// Calibrated to the Rockford reference atlas (data/fit_harness/reference_atlas)
-const PRESETS = {
-  "Pseudoatrypa":  {width:0.54,hinge:0.12,wpos:0.52,front:0.72,convV:0.22,convD:0.30,beak:0.10,fold:0.14,plic:1,ribs:24,ribDepth:0.013,growthN:8, growthDepth:0.010,bumps:0,  delth:2},
-  "Schizophoria":  {width:0.60,hinge:0.22,wpos:0.50,front:0.78,convV:0.20,convD:0.20,beak:0.08,fold:0.06,plic:1,ribs:30,ribDepth:0.008,growthN:10,growthDepth:0.005,bumps:0,  delth:1},
-  "Conispirifer":  {width:1.00,hinge:0.95,wpos:0.05,front:0.26,convV:0.46,convD:0.28,beak:0.30,fold:0.30,plic:5,ribs:14,ribDepth:0.034,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
-  "Cyrtospirifer": {width:0.92,hinge:0.85,wpos:0.10,front:0.30,convV:0.40,convD:0.26,beak:0.52,fold:0.30,plic:6,ribs:16,ribDepth:0.030,growthN:0, growthDepth:0.0,  bumps:0,  delth:1},
-  "Spinatrypa":    {width:0.52,hinge:0.12,wpos:0.50,front:0.70,convV:0.24,convD:0.32,beak:0.10,fold:0.12,plic:1,ribs:20,ribDepth:0.016,growthN:7, growthDepth:0.018,bumps:1.0,delth:2},
-  "Theodossia":    {width:0.56,hinge:0.15,wpos:0.46,front:0.55,convV:0.42,convD:0.30,beak:0.46,fold:0.22,plic:1,ribs:0, ribDepth:0.0,  growthN:12,growthDepth:0.006,bumps:0,  delth:1},
-  "Douvillina":    {width:0.78,hinge:0.95,wpos:0.02,front:0.52,convV:0.10,convD:-0.12,beak:0.02,fold:0.0, plic:0,ribs:30,ribDepth:0.007,growthN:10,growthDepth:0.004,bumps:0,  delth:0}
-};
-let P = {...DEFAULTS};
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="sim3d.js?v=20260526h"></script>
+  <script>
+  const P = Object.assign({}, Sim3D.DEFAULTS);
+  const refreshers = [];
+  const refreshAll = () => refreshers.forEach(f => f());
 
-// ---------------------------------------------------------------------------
-// Geometry: build one valve as a (u,v) grid.
-//   u in [0,1]  growth stage: 0 = beak/hinge (posterior), 1 = anterior commissure
-//   v in [-1,1] lateral position across the width (mirror-symmetric about v=0)
-// sign = +1 ventral (bulges +z), -1 dorsal (bulges -z)
-// The whole margin (u=0, u=1, v=±1) closes the two valves along the commissure.
-// ---------------------------------------------------------------------------
-const NU = 100, NV = 200, L = 1.0;   // dense in v to resolve fine costae
-const smooth = t => { t = t<0?0:t>1?1:t; return t*t*(3-2*t); };
-
-// Outline half-width at growth stage u. Rises from the hinge half-width to the
-// body maximum at u = wpos, then falls to the anterior-margin half-width.
-// This lets the widest point sit at the hinge (spiriferids/strophomenids) or
-// mid-valve (atrypids), spanning the atlas range.
-function halfWidth(u, p){
-  const body  = p.width;
-  const hingeHW = p.hinge * body;
-  const frontHW = p.front * body;
-  const wp = p.wpos;
-  if(u <= wp){
-    const t = wp>1e-4 ? u/wp : 1;
-    return hingeHW + (body - hingeHW) * smooth(t);
-  } else {
-    const t = wp<1-1e-4 ? (u-wp)/(1-wp) : 0;
-    return body + (frontHW - body) * smooth(t);
+  function regionName(def, val){
+    if (def.names) return def.names[val] || String(val);
+    if (def.regions){ for (const r of def.regions) if (val <= r.to) return r.name;
+      return def.regions[def.regions.length-1].name; }
+    return null;
   }
-}
-
-function valvePoint(sign, u, v, p, out){
-  const hw = halfWidth(u, p);
-  let x = hw * v;
-  // anterior margin rounding: middle bows forward, corners recede
-  const frontRound = 0.18;
-  let y = L*u - frontRound*L*(u*u)*(v*v);
-  y -= 0.5*L; // centre the model on the origin (beak ~ -0.5, front ~ +0.5)
-
-  // transverse + longitudinal convexity (zero on every margin -> closes)
-  const bulge = Math.sin(Math.PI*u) * (1 - v*v);
-  const conv = sign>0 ? p.convV : p.convD;
-  let z = sign * conv * bulge;
-
-  // beak / umbo incurvature: prominent on the ventral valve, posterior only
-  if(sign>0 && p.beak>0){
-    // raised umbo as a smooth posterior shoulder (a gaussian here left a
-    // valley between beak and body at high beak; smoothstep ramp merges them)
-    const reach = 0.5;
-    const b = (u<reach ? 1 - smooth(u/reach) : 0) * Math.pow(Math.cos(v*Math.PI/2),2);
-    z += p.beak * b;          // raise umbo above commissure plane
-    y -= p.beak * 0.45 * b;   // overhang back over the hinge
+  function makeSlider(def){
+    const isInt = Sim3D.INT_KEYS.includes(def.key);
+    const wrap = document.createElement("div"); wrap.className = "ctrl";
+    const lab = document.createElement("label"); lab.className = "lab";
+    const nm = document.createElement("span"); nm.textContent = def.label;
+    const val = document.createElement("span"); val.className = "val";
+    lab.append(nm, val);
+    const input = document.createElement("input");
+    input.type = "range"; input.min = def.min; input.max = def.max; input.step = def.step;
+    const regions = document.createElement("div"); regions.className = "regions";
+    const refresh = () => {
+      input.value = P[def.key];
+      const rn = regionName(def, P[def.key]);
+      val.textContent = rn || (isInt ? String(P[def.key]) : (+P[def.key]).toFixed(2));
+      regions.textContent = "";
+      const names = def.names || (def.regions ? def.regions.map(r => r.name) : []);
+      names.forEach(n => { const s = document.createElement("span");
+        s.className = "region" + (n === rn ? " active" : ""); s.textContent = n; regions.append(s); });
+    };
+    input.addEventListener("input", () => {
+      P[def.key] = isInt ? parseInt(input.value, 10) : parseFloat(input.value);
+      refreshAll(); Sim3D.setParams(P);
+    });
+    refreshers.push(refresh); refresh();
+    wrap.append(lab, input, regions); return wrap;
   }
 
-  // fold & sulcus: a deflection of the shared commissure, identical on BOTH
-  // valves so they stay in contact; concentrated anteriorly, fades to beak.
-  if(p.fold>0 && p.plic>0){
-    z += p.fold * Math.pow(u,3) * Math.cos(p.plic * Math.PI * v) * L;
-  }
-
-  // radial costae: corrugations along constant-v lines (which fan out from the
-  // beak), pushing each valve out along its own side. Faded near every margin
-  // so the two valves still close.
-  if(p.ribs>0 && p.ribDepth>0){
-    const wave = Math.cos(p.ribs * Math.PI * v);          // p.ribs ridges across the width
-    const window = Math.sin(Math.PI*Math.pow(u,1.15)) * Math.pow(1 - v*v, 0.25);
-    z += sign * p.ribDepth * wave * window * L;
-  }
-
-  // comarginal growth lines / lamellae: concentric ridges following constant-u
-  // contours (perpendicular to growth). Faded at the margins for closure.
-  if(p.growthN>0 && p.growthDepth>0){
-    const wave = Math.cos(p.growthN * 2*Math.PI * u);
-    const window = Math.pow(Math.sin(Math.PI*u), 0.3) * Math.pow(1 - v*v, 0.2);
-    z += sign * p.growthDepth * wave * window * L;
-  }
-
-  // spiny tubercles: a grid of rounded bumps (spine bases) along the lamellae.
-  if(p.bumps>0){
-    const su = Math.sin(14*Math.PI*u), sv = Math.sin(26*Math.PI*v);
-    const spot = Math.pow(Math.max(0,su)*Math.max(0,sv), 3);
-    const window = Math.sin(Math.PI*u) * Math.pow(1 - v*v, 0.2);
-    z += sign * p.bumps * 0.05 * spot * window * L;
-  }
-
-  out[0]=x; out[1]=y; out[2]=z;
-}
-
-function buildValveGeometry(sign, p){
-  const positions = new Float32Array((NU+1)*(NV+1)*3);
-  const tmp=[0,0,0];
-  let k=0;
-  for(let i=0;i<=NU;i++){
-    const u=i/NU;
-    for(let j=0;j<=NV;j++){
-      const v=-1 + 2*j/NV;
-      valvePoint(sign,u,v,p,tmp);
-      positions[k++]=tmp[0]; positions[k++]=tmp[1]; positions[k++]=tmp[2];
-    }
-  }
-  const indices=[];
-  const row=NV+1;
-  for(let i=0;i<NU;i++){
-    for(let j=0;j<NV;j++){
-      const a=i*row+j, b=a+1, c=a+row, d=c+1;
-      if(sign>0){ indices.push(a,c,b, b,c,d); }
-      else      { indices.push(a,b,c, b,d,c); } // flip winding for the other valve
-    }
-  }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(positions,3));
-  g.setIndex(indices);
-  g.computeVertexNormals();
-  return g;
-}
-
-// Interarea / cardinal area: a ruled surface filling the posterior gap between
-// the two valve margins at the hinge (u=0). The ventral umbo is raised/over-
-// hung by the beak term, the dorsal hinge edge sits on the commissure plane;
-// stitching them closes the hinge and reads as the (ventral) interarea.
-// Is the point (s = dorsal->ventral, v = across width) inside the delthyrial
-// opening? s=1,v=0 is the beak apex; s=0 is the hinge margin.
-// delth: 0 = closed (pseudodeltidium), 1 = open triangular delthyrium, 2 = foramen
-function inDelthyrium(s, v, delth){
-  if(delth===1){ return Math.abs(v) < 0.32 * (1 - s); }          // triangle, apex at beak
-  if(delth===2){ const dv=v, ds=(s-0.78)*1.4; return dv*dv+ds*ds < 0.030; } // round foramen
-  return false;
-}
-
-function buildInterarea(p){
-  const NS=24;                       // samples across the gap (dorsal -> ventral)
-  const pv=[0,0,0], pd=[0,0,0];
-  const positions=new Float32Array((NS+1)*(NV+1)*3);
-  let k=0;
-  for(let i=0;i<=NS;i++){
-    const s=i/NS;
-    for(let j=0;j<=NV;j++){
-      const v=-1 + 2*j/NV;
-      valvePoint(-1,0,v,p,pd);       // dorsal hinge edge
-      valvePoint(+1,0,v,p,pv);       // ventral hinge edge (raised by beak)
-      positions[k++]=pd[0]+(pv[0]-pd[0])*s;
-      positions[k++]=pd[1]+(pv[1]-pd[1])*s;
-      positions[k++]=pd[2]+(pv[2]-pd[2])*s;
-    }
-  }
-  const indices=[]; const row=NV+1;
-  for(let i=0;i<NS;i++){
-    const sc=(i+0.5)/NS;
-    for(let j=0;j<NV;j++){
-      const vc=-1 + 2*(j+0.5)/NV;
-      if(inDelthyrium(sc,vc,p.delth)) continue;   // leave the opening empty
-      const a=i*row+j, b=a+1, c=a+row, d=c+1;
-      indices.push(a,b,c, b,d,c);
-    }
-  }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(positions,3));
-  g.setIndex(indices); g.computeVertexNormals();
-  return g;
-}
-
-// ---------------------------------------------------------------------------
-// Three.js scene
-// ---------------------------------------------------------------------------
-const canvas=document.getElementById('c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x1a1d23);
-
-const model=new THREE.Group();
-scene.add(model);
-
-const matV=new THREE.MeshStandardMaterial({color:0xd9a441,roughness:0.72,metalness:0.04,side:THREE.DoubleSide,flatShading:false});
-const matD=new THREE.MeshStandardMaterial({color:0x7fa6c9,roughness:0.72,metalness:0.04,side:THREE.DoubleSide,flatShading:false});
-const matInter=new THREE.MeshStandardMaterial({color:0xb9b2a6,roughness:0.85,metalness:0.02,side:THREE.DoubleSide,flatShading:false});
-
-let meshV,meshD,meshI;
-function rebuild(){
-  for(const o of [meshV,meshD,meshI]){ if(o){ model.remove(o); o.geometry.dispose(); } }
-  meshV=new THREE.Mesh(buildValveGeometry(+1,P),matV);
-  meshD=new THREE.Mesh(buildValveGeometry(-1,P),matD);
-  meshI=new THREE.Mesh(buildInterarea(P),matInter);
-  model.add(meshV,meshD,meshI);
-}
-
-// lights
-scene.add(new THREE.AmbientLight(0xffffff,0.55));
-const key=new THREE.DirectionalLight(0xffffff,0.85); key.position.set(2,3,4); scene.add(key);
-const fill=new THREE.DirectionalLight(0xcdd6e5,0.35); fill.position.set(-3,-1,-2); scene.add(fill);
-
-// cameras: one orbiting perspective + three fixed orthographic atlas views
-const persp=new THREE.PerspectiveCamera(40,1,0.01,100);
-const dorsalCam=new THREE.OrthographicCamera(-1,1,1,-1,0.01,100);
-const frontCam =new THREE.OrthographicCamera(-1,1,1,-1,0.01,100);
-const sideCam  =new THREE.OrthographicCamera(-1,1,1,-1,0.01,100);
-
-// perspective orbit state
-let az=0.9, pol=1.15, dist=3.0;
-function placePersp(){
-  persp.position.set(
-    dist*Math.sin(pol)*Math.sin(az),
-    dist*Math.cos(pol),
-    dist*Math.sin(pol)*Math.cos(az));
-  persp.lookAt(0,0,0);
-}
-function placeOrtho(){
-  // Dorsal: look at the dorsal (-z) valve from outside: screen x = world x, screen y = world y (A-P up)
-  dorsalCam.position.set(0,0,-3); dorsalCam.up.set(0,1,0); dorsalCam.lookAt(0,0,0);
-  // Anterior (front): look down -y from the commissure: screen x = world x, screen y = world z
-  frontCam.position.set(0,3,0); frontCam.up.set(0,0,-1); frontCam.lookAt(0,0,0);
-  // Side: look down -x (lateral): screen x = world y (A-P), screen y = world z
-  sideCam.position.set(3,0,0); sideCam.up.set(0,0,1); sideCam.lookAt(0,0,0);
-}
-placeOrtho();
-
-function fitOrtho(cam,halfW,halfH,aspect){
-  // keep content framed at ~1.4 units, respect viewport aspect
-  const half=0.95;
-  let w=half, h=half;
-  if(aspect>1) w=half*aspect; else h=half/aspect;
-  cam.left=-w; cam.right=w; cam.top=h; cam.bottom=-h; cam.updateProjectionMatrix();
-}
-
-// ---------------------------------------------------------------------------
-// Layout: perspective fills left ~62%, front (top) & side (bottom) on the right
-// ---------------------------------------------------------------------------
-const PANEL=320;             // width reserved for the control panel on the right
-let W=0,H=0;
-function layout(){
-  W=window.innerWidth; H=window.innerHeight;
-  renderer.setSize(W,H,false);   // canvas CSS fills the window; buffer matches
-}
-// Right strip holds three stacked atlas views (dorsal, anterior, side);
-// the perspective view fills the rest. Viewport y-origin is the bottom.
-function viewRects(){
-  const usable=Math.max(40, W-PANEL);
-  const splitX=Math.round(usable*0.58);
-  const colW=usable-splitX;
-  const t=Math.round(H/3);            // each stacked view ~ one third tall
-  return {
-    persp: {x:0,y:0,w:splitX,h:H},
-    dorsal:{x:splitX,y:H-t,   w:colW,h:t},        // top
-    front: {x:splitX,y:H-2*t, w:colW,h:t},        // middle
-    side:  {x:splitX,y:0,     w:colW,h:H-2*t}     // bottom
-  };
-}
-function positionLabels(){
-  const v=viewRects();
-  const set=(id,r)=>{const e=document.getElementById(id);
-    e.style.left=(r.x+8)+'px'; e.style.top=(H-r.y-r.h+8)+'px';};
-  document.getElementById('lab-persp').style.left='10px';
-  document.getElementById('lab-persp').style.top='10px';
-  set('lab-dorsal',v.dorsal); set('lab-front',v.front); set('lab-side',v.side);
-}
-
-function renderView(cam,vp){
-  renderer.setViewport(vp.x,vp.y,vp.w,vp.h);
-  renderer.setScissor(vp.x,vp.y,vp.w,vp.h);
-  renderer.setScissorTest(true);
-  renderer.render(scene,cam);
-}
-
-let spin=true;
-function frame(){
-  requestAnimationFrame(frame);
-  if(spin && !dragging) az+=0.004;
-  const v=viewRects();
-  persp.aspect=v.persp.w/v.persp.h; persp.updateProjectionMatrix(); placePersp();
-  fitOrtho(dorsalCam,0,0,v.dorsal.w/v.dorsal.h);
-  fitOrtho(frontCam,0,0,v.front.w/v.front.h);
-  fitOrtho(sideCam,0,0,v.side.w/v.side.h);
-  renderView(persp,v.persp);
-  renderView(dorsalCam,v.dorsal);
-  renderView(frontCam,v.front);
-  renderView(sideCam,v.side);
-  renderer.setScissorTest(false);
-}
-
-// drag to orbit the perspective view only
-let dragging=false,lx=0,ly=0;
-canvas.addEventListener('pointerdown',e=>{
-  if(e.offsetX>viewRects().persp.w) return; // only the 3D pane
-  dragging=true;lx=e.clientX;ly=e.clientY;canvas.setPointerCapture(e.pointerId);
-  spin=false; document.getElementById('spin').checked=false; // dragging stops auto-rotate
-});
-canvas.addEventListener('pointermove',e=>{
-  if(!dragging)return;
-  az-=(e.clientX-lx)*0.01; pol-=(e.clientY-ly)*0.01;
-  pol=Math.max(0.15,Math.min(Math.PI-0.15,pol));
-  lx=e.clientX;ly=e.clientY;
-});
-canvas.addEventListener('pointerup',()=>dragging=false);
-canvas.addEventListener('wheel',e=>{
-  if(e.offsetX>viewRects().persp.w) return;
-  e.preventDefault(); dist=Math.max(1.6,Math.min(6,dist*(1+e.deltaY*0.001)));
-},{passive:false});
-
-// ---------------------------------------------------------------------------
-// UI wiring
-// ---------------------------------------------------------------------------
-const INT_KEYS=['plic','ribs','growthN','delth'];
-const FINE_KEYS=['ribDepth','growthDepth'];
-const DELTH_NAMES=['closed','open','foramen'];
-function fmt(key,val){
-  if(key==='delth') return DELTH_NAMES[val]||val;
-  if(INT_KEYS.includes(key)) return String(val);
-  return Number(val).toFixed(FINE_KEYS.includes(key)?3:2);
-}
-const ctrls={};
-document.querySelectorAll('.ctrl').forEach(c=>{
-  const key=c.dataset.key, input=c.querySelector('input'), val=c.querySelector('.val');
-  input.min=c.dataset.min; input.max=c.dataset.max; input.step=c.dataset.step;
-  ctrls[key]={input,val};
-  input.addEventListener('input',()=>{
-    P[key]= INT_KEYS.includes(key) ? parseInt(input.value,10) : parseFloat(input.value);
-    val.textContent=fmt(key,P[key]); rebuild();
+  // Preset buttons
+  const presetBox = document.getElementById("presets");
+  Object.keys(Sim3D.PRESETS).forEach(name => {
+    const b = document.createElement("button"); b.textContent = name;
+    b.onclick = () => { Object.assign(P, Sim3D.DEFAULTS, Sim3D.PRESETS[name]);
+      Sim3D.setParams(P); refreshAll(); };
+    presetBox.append(b);
   });
-});
-function syncUI(){
-  for(const key in ctrls){
-    ctrls[key].input.value=P[key];
-    ctrls[key].val.textContent=fmt(key,P[key]);
-  }
-}
-function applyParams(obj){ P={...DEFAULTS,...obj}; syncUI(); rebuild(); }
 
-// presets
-const presetWrap=document.getElementById('presets');
-for(const name in PRESETS){
-  const b=document.createElement('button'); b.textContent=name;
-  b.onclick=()=>applyParams(PRESETS[name]); presetWrap.appendChild(b);
-}
-document.getElementById('reset').onclick=()=>applyParams(DEFAULTS);
-document.getElementById('spin').addEventListener('change',e=>spin=e.target.checked);
+  // Slider groups (expandable)
+  const sliders = document.getElementById("sliders");
+  Sim3D.GROUPS.forEach((g, i) => {
+    const d = document.createElement("details"); d.className = "group"; if (i === 0) d.open = true;
+    const s = document.createElement("summary"); s.textContent = g.title; d.append(s);
+    g.params.forEach(def => d.append(makeSlider(def)));
+    sliders.append(d);
+  });
 
-addEventListener('resize',()=>{layout();positionLabels();});
-window.addEventListener('load',()=>{layout();positionLabels();});
+  document.getElementById("reset").onclick = () => {
+    Object.assign(P, Sim3D.DEFAULTS); Sim3D.setParams(P); refreshAll();
+  };
+  document.getElementById("spin").addEventListener("change", e => Sim3D.setSpin(e.target.checked));
 
-// go
-layout(); positionLabels(); syncUI(); rebuild(); frame();
-</script>
+  Sim3D.mount(document.getElementById("sim"));
+  Sim3D.setParams(P);
+  </script>
 </body>
 </html>
