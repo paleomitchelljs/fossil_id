@@ -112,7 +112,12 @@ const Sim3D = (function () {
     }
     if (p.fold > 0 && p.plic > 0) z += p.fold * Math.pow(u, 3) * Math.cos(p.plic * Math.PI * v) * L;
     if (p.ribs > 0 && p.ribDepth > 0) {
-      const wave = Math.cos(p.ribs * Math.PI * v);
+      // Costae radiate from the umbo: phase tracks the angle from the beak, so
+      // lateral ribs terminate on the lateral commissure and medial ribs on the
+      // anterior tip — instead of all running parallel toward the anterior.
+      const theta = Math.atan2(x, (y + 0.5 * L) + 1e-4);          // angle from the umbo
+      const fan = Math.atan2(p.width, Math.max(p.wpos, 0.12));    // half-angle to the widest point
+      const wave = Math.cos(p.ribs * Math.PI * theta / fan);      // p.ribs ribs across the widest contour
       const win = Math.sin(Math.PI * Math.pow(u, 1.15)) * Math.pow(1 - v * v, 0.25);
       z += sign * p.ribDepth * wave * win * L;
     }
